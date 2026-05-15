@@ -109,8 +109,9 @@ export default function AsistenciaPage() {
       date,
       present: attendance[p.id] ?? true
     }))
-    await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })
+    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })
     setSaving(false)
+    if (error) { alert('Error al guardar: ' + error.message + ' (' + error.code + ')'); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
     if (tab === 'historial') loadHistory()

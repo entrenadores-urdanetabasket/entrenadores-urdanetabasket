@@ -2,32 +2,38 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import {
-  LayoutDashboard, Users, ClipboardList, AlertCircle,
-  ChevronLeft, Menu, LogOut, Shield, BarChart2, BookOpen, Sword
-} from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { useAuth } from '@/components/AuthProvider'
 
 const navItems = [
-  { href: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
-  { href: '/dashboard/equipo', label: 'Mi Equipo', icon: Users },
-  { href: '/dashboard/asistencia', label: 'Asistencia', icon: ClipboardList },
-  { href: '/dashboard/estadisticas', label: 'Estadísticas', icon: BarChart2 },
-  { href: '/dashboard/tacticas', label: 'Tácticas', icon: Sword },
-  { href: '/dashboard/entrenamientos', label: 'Entrenamientos', icon: BookOpen },
-  { href: '/dashboard/incidencias', label: 'Incidencias', icon: AlertCircle },
+  { href: '/dashboard', label: 'Inicio', emoji: '🏠' },
+  { href: '/dashboard/equipo', label: 'Mi Equipo', emoji: '👥' },
+  { href: '/dashboard/asistencia', label: 'Asistencia', emoji: '✅' },
+  { href: '/dashboard/estadisticas', label: 'Estadísticas', emoji: '📊' },
+  { href: '/dashboard/tacticas', label: 'Tácticas', emoji: '🏀' },
+  { href: '/dashboard/entrenamientos', label: 'Entrenamientos', emoji: '📝' },
+  { href: '/dashboard/incidencias', label: 'Incidencias', emoji: '⚠️' },
 ]
 
-const directorItems = [
-  { href: '/dashboard/director', label: 'Panel Director', icon: Shield },
-]
+const S = {
+  sidebar: { position: 'fixed', top: 0, left: 0, height: '100%', width: 256, backgroundColor: '#0A120A', borderRight: '1px solid #1E2E1E', display: 'flex', flexDirection: 'column', zIndex: 50 },
+  header: { padding: '20px 16px', borderBottom: '1px solid #1E2E1E', display: 'flex', alignItems: 'center', gap: 12 },
+  logoBox: { width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 6 },
+  clubName: { color: '#fff', fontWeight: 900, fontSize: 13, lineHeight: 1.2 },
+  clubSub: { color: '#52B043', fontSize: 11, marginTop: 2 },
+  nav: { flex: 1, padding: '12px 8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 },
+  footer: { padding: '12px 8px', borderTop: '1px solid #1E2E1E' },
+  profileBox: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderRadius: 10, backgroundColor: '#162016', marginBottom: 4 },
+  avatar: { width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 13, flexShrink: 0 },
+  logoutBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 8px', borderRadius: 10, border: 'none', backgroundColor: 'transparent', color: '#4A6A48', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' },
+  mobileBtn: { position: 'fixed', top: 12, left: 12, zIndex: 60, width: 40, height: 40, borderRadius: 10, backgroundColor: '#162016', border: '1px solid #2A3D2A', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+  overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 40 },
+}
 
-export default function Sidebar({ profile }) {
+export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
+  const { profile, supabase } = useAuth()
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -35,101 +41,76 @@ export default function Sidebar({ profile }) {
   }
 
   const items = profile?.role === 'director'
-    ? [...navItems, ...directorItems]
+    ? [...navItems, { href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' }]
     : navItems
+
+  const sidebarContent = (
+    <div style={S.sidebar}>
+      <div style={S.header}>
+        <div style={S.logoBox}>
+          <img src="/logo.png" alt="Urdaneta" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </div>
+        <div>
+          <div style={S.clubName}>C.D. Urdaneta</div>
+          <div style={S.clubSub}>Portal Entrenadores</div>
+        </div>
+        <button onClick={() => setOpen(false)} className="lg:hidden" style={{ marginLeft: 'auto', color: '#4A6A48', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+      </div>
+
+      <nav style={S.nav}>
+        {items.map(({ href, label, emoji }) => {
+          const active = pathname === href
+          return (
+            <Link key={href} href={href} onClick={() => setOpen(false)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
+                backgroundColor: active ? 'rgba(82,176,67,0.15)' : 'transparent',
+                border: `1px solid ${active ? 'rgba(82,176,67,0.25)' : 'transparent'}`,
+                color: active ? '#6FCF5F' : '#7A9A78',
+                fontSize: 13, fontWeight: active ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s'
+              }}>
+              <span style={{ fontSize: 16 }}>{emoji}</span>
+              {label}
+              {active && <div style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#52B043' }} />}
+            </Link>
+          )
+        })}
+      </nav>
+
+      <div style={S.footer}>
+        <div style={S.profileBox}>
+          <div style={S.avatar}>{profile?.full_name?.charAt(0)?.toUpperCase() || 'E'}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#fff', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.full_name || 'Entrenador'}</div>
+            <div style={{ color: '#52B043', fontSize: 11 }}>{profile?.role === 'director' ? 'Director' : 'Entrenador'}</div>
+          </div>
+        </div>
+        <button onClick={handleLogout} style={S.logoutBtn}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1E2E1E'; e.currentTarget.style.color = '#EF4444' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#4A6A48' }}>
+          🚪 Cerrar sesión
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <>
-      {/* Botón hamburguesa móvil */}
-      <button
-        onClick={() => setOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-xl shadow-lg"
-        style={{ backgroundColor: '#162016', border: '1px solid #2A3D2A' }}
-      >
-        <Menu size={20} style={{ color: '#52B043' }} />
+      {/* Mobile button */}
+      <button onClick={() => setOpen(true)} className="lg:hidden" style={S.mobileBtn}>
+        <span style={{ color: '#52B043', fontSize: 18 }}>☰</span>
       </button>
 
-      {/* Overlay móvil */}
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">{sidebarContent}</div>
+
+      {/* Mobile sidebar */}
       {open && (
-        <div className="lg:hidden fixed inset-0 z-40" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
-          onClick={() => setOpen(false)} />
+        <>
+          <div style={S.overlay} onClick={() => setOpen(false)} />
+          <div className="block lg:hidden">{sidebarContent}</div>
+        </>
       )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed top-0 left-0 h-full w-64 z-50 flex flex-col transition-transform duration-300
-          ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
-        style={{ backgroundColor: '#0A120A', borderRight: '1px solid #1E2E1E' }}
-      >
-        {/* Logo del club */}
-        <div className="flex items-center gap-3 p-5" style={{ borderBottom: '1px solid #1E2E1E' }}>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 p-1.5"
-            style={{ background: 'linear-gradient(135deg, #52B043, #1C5C2A)' }}>
-            <img src="/logo.png" alt="Urdaneta" className="w-full h-full object-contain" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-white font-black text-sm leading-tight">C.D. Urdaneta</p>
-            <p className="text-xs truncate" style={{ color: '#52B043' }}>Portal Entrenadores</p>
-          </div>
-          <button onClick={() => setOpen(false)} className="lg:hidden" style={{ color: '#4A6A48' }}>
-            <ChevronLeft size={18} />
-          </button>
-        </div>
-
-        {/* Navegación */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          {items.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group"
-                style={{
-                  backgroundColor: active ? 'rgba(82,176,67,0.15)' : 'transparent',
-                  color: active ? '#6FCF5F' : '#7A9A78',
-                  border: active ? '1px solid rgba(82,176,67,0.2)' : '1px solid transparent'
-                }}
-              >
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all"
-                  style={{ backgroundColor: active ? 'rgba(82,176,67,0.2)' : 'rgba(42,61,42,0.5)' }}>
-                  <Icon size={16} style={{ color: active ? '#6FCF5F' : '#4A6A48' }} />
-                </div>
-                {label}
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#52B043' }} />}
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* Perfil y logout */}
-        <div className="p-3" style={{ borderTop: '1px solid #1E2E1E' }}>
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1"
-            style={{ backgroundColor: '#162016' }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-black flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #52B043, #1C5C2A)' }}>
-              {profile?.full_name?.charAt(0)?.toUpperCase() || 'E'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white text-xs font-bold truncate">{profile?.full_name}</p>
-              <p className="text-xs truncate capitalize" style={{ color: '#52B043' }}>
-                {profile?.role === 'director' ? 'Director Deportivo' : 'Entrenador'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm transition-all"
-            style={{ color: '#4A6A48' }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#162016'; e.currentTarget.style.color = '#EF4444' }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#4A6A48' }}
-          >
-            <LogOut size={16} />
-            Cerrar sesión
-          </button>
-        </div>
-      </aside>
     </>
   )
 }

@@ -31,7 +31,7 @@ export default function PerfilPage() {
       .update({ full_name: fullName, phone, coach_role: coachRole, profile_completed: true })
       .eq('id', user.id)
 
-    if (error) { setError(`Error: ${error.message} (${error.code})`); setSaving(false) }
+    if (error) { setError('Error al guardar. Inténtalo de nuevo.'); setSaving(false) }
     else { setSaved(true); setSaving(false); setTimeout(() => setSaved(false), 3000) }
   }
 

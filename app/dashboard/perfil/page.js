@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 
 export default function PerfilPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, refreshProfile } = useAuth()
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [coachRole, setCoachRole] = useState('principal')
@@ -32,7 +32,7 @@ export default function PerfilPage() {
       .eq('id', user.id)
 
     if (error) { setError('Error al guardar. Inténtalo de nuevo.'); setSaving(false) }
-    else { setSaved(true); setSaving(false); setTimeout(() => setSaved(false), 3000) }
+    else { await refreshProfile(); setSaved(true); setSaving(false); setTimeout(() => setSaved(false), 3000) }
   }
 
   const inputStyle = {

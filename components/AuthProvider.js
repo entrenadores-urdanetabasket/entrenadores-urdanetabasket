@@ -33,8 +33,13 @@ export function AuthProvider({ children }) {
     setLoading(false)
   }
 
+  async function refreshProfile() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) await fetchProfile(session.user.id)
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, supabase }}>
+    <AuthContext.Provider value={{ user, profile, loading, supabase, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

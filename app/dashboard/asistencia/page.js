@@ -23,52 +23,51 @@ export default function AsistenciaPage() {
     if (user && profile) loadTeams()
   }, [user, profile])
 
-  useEffect(() => {
-    if (selectedTeam) {
-      loadPlayers()
-      if (tab === 'historial') loadHistory()
-      if (tab === 'estadisticas') loadStats()
-    }
-  }, [selectedTeam, tab])
-
-  useEffect(() => {
-    if (selectedTeam && players.length > 0) loadAttendanceForDate()
-  }, [date, players])
-
   async function loadTeams() {
+    setLoading(true)
     if (isDirector) {
       const { data } = await supabase.from('teams').select('*').order('name')
       setTeams(data || [])
-      if (data?.length > 0) setSelectedTeam(data[0])
+      if (data?.length > 0) await loadTeamData(data[0], tab)
+      else setLoading(false)
     } else {
       const { data } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
-      if (data) { setTeams([data]); setSelectedTeam(data) }
-      else setLoading(false)
+      if (data) {
+        setTeams([data])
+        await loadTeamData(data, tab)
+      } else setLoading(false)
     }
   }
 
-  async function loadPlayers() {
-    const { data } = await supabase.from('players').select('*').eq('team_id', selectedTeam.id).eq('active', true).order('number')
-    setPlayers(data || [])
+  async function loadTeamData(team, currentTab) {
+    setSelectedTeam(team)
+    const { data: p } = await supabase.from('players').select('*').eq('team_id', team.id).eq('active', true).order('number')
+    const playerList = p || []
+    setPlayers(playerList)
+
+    await loadAttendanceForDate(team, playerList, date)
+    if (currentTab === 'historial') await loadHistory(team)
+    if (currentTab === 'estadisticas') await loadStats(team, playerList)
     setLoading(false)
   }
 
-  async function loadAttendanceForDate() {
-    const { data } = await supabase.from('attendance').select('*').eq('team_id', selectedTeam.id).eq('date', date)
+  async function loadAttendanceForDate(team, playerList, d) {
+    const { data } = await supabase.from('attendance').select('*').eq('team_id', team.id).eq('date', d)
     const map = {}
     if (data?.length > 0) {
       data.forEach(r => { map[r.player_id] = r.present })
     } else {
-      players.forEach(p => { map[p.id] = true })
+      playerList.forEach(p => { map[p.id] = true })
     }
     setAttendance(map)
   }
 
-  async function loadHistory() {
+  async function loadHistory(team) {
+    const t = team || selectedTeam
     const { data } = await supabase
       .from('attendance')
       .select('date, present, player_id')
-      .eq('team_id', selectedTeam.id)
+      .eq('team_id', t.id)
       .order('date', { ascending: false })
     if (!data) return
     const byDate = {}
@@ -80,11 +79,10 @@ export default function AsistenciaPage() {
     setHistory(Object.entries(byDate).map(([date, v]) => ({ date, ...v })))
   }
 
-  async function loadStats() {
-    const { data } = await supabase
-      .from('attendance')
-      .select('player_id, present')
-      .eq('team_id', selectedTeam.id)
+  async function loadStats(team, playerList) {
+    const t = team || selectedTeam
+    const pl = playerList || players
+    const { data } = await supabase.from('attendance').select('player_id, present').eq('team_id', t.id)
     if (!data) return
     const byPlayer = {}
     data.forEach(r => {
@@ -92,13 +90,29 @@ export default function AsistenciaPage() {
       byPlayer[r.player_id].total++
       if (r.present) byPlayer[r.player_id].present++
     })
-    const result = players.map(p => ({
+    const result = pl.map(p => ({
       ...p,
       total: byPlayer[p.id]?.total || 0,
       present: byPlayer[p.id]?.present || 0,
       pct: byPlayer[p.id] ? Math.round((byPlayer[p.id].present / byPlayer[p.id].total) * 100) : null
     })).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))
     setStats(result)
+  }
+
+  async function handleTabChange(t) {
+    setTab(t)
+    if (t === 'historial') await loadHistory()
+    if (t === 'estadisticas') await loadStats()
+  }
+
+  async function handleTeamChange(team) {
+    setLoading(true)
+    await loadTeamData(team, tab)
+  }
+
+  async function handleDateChange(d) {
+    setDate(d)
+    await loadAttendanceForDate(selectedTeam, players, d)
   }
 
   async function handleSave() {
@@ -111,10 +125,9 @@ export default function AsistenciaPage() {
     }))
     const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })
     setSaving(false)
-    if (error) { alert('Error al guardar: ' + error.message + ' (' + error.code + ')'); return }
+    if (error) { alert('Error: ' + error.message + ' (' + error.code + ')'); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
-    if (tab === 'historial') loadHistory()
   }
 
   const toggle = (id) => setAttendance(a => ({ ...a, [id]: !a[id] }))
@@ -140,17 +153,15 @@ export default function AsistenciaPage() {
 
   return (
     <div>
-      {/* Cabecera */}
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Asistencia</h1>
         <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>{selectedTeam.name} · {selectedTeam.category}</p>
       </div>
 
-      {/* Selector equipos (director) */}
       {isDirector && teams.length > 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {teams.map(t => (
-            <button key={t.id} onClick={() => { setSelectedTeam(t); setLoading(true) }} style={{
+            <button key={t.id} onClick={() => handleTeamChange(t)} style={{
               padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
               backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
               color: selectedTeam?.id === t.id ? '#fff' : '#374151'
@@ -159,19 +170,16 @@ export default function AsistenciaPage() {
         </div>
       )}
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setTab('lista')} style={tabStyle('lista')}>📋 Pasar lista</button>
-        <button onClick={() => setTab('historial')} style={tabStyle('historial')}>📅 Historial</button>
-        <button onClick={() => setTab('estadisticas')} style={tabStyle('estadisticas')}>📊 Estadísticas</button>
+        <button onClick={() => handleTabChange('lista')} style={tabStyle('lista')}>📋 Pasar lista</button>
+        <button onClick={() => handleTabChange('historial')} style={tabStyle('historial')}>📅 Historial</button>
+        <button onClick={() => handleTabChange('estadisticas')} style={tabStyle('estadisticas')}>📊 Estadísticas</button>
       </div>
 
-      {/* TAB: Pasar lista */}
       {tab === 'lista' && (
         <div>
-          {/* Selector fecha + resumen */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-            <input type='date' value={date} onChange={e => setDate(e.target.value)} style={{
+            <input type='date' value={date} onChange={e => handleDateChange(e.target.value)} style={{
               padding: '9px 14px', borderRadius: 10, border: '1.5px solid #e5e7eb',
               fontSize: 14, color: '#111827', outline: 'none', backgroundColor: '#fff'
             }} />
@@ -185,7 +193,6 @@ export default function AsistenciaPage() {
             </div>
           </div>
 
-          {/* Lista jugadores */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
             {players.map(player => {
               const present = attendance[player.id] !== false
@@ -213,7 +220,7 @@ export default function AsistenciaPage() {
                     width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                     backgroundColor: present ? '#52B043' : '#e5e7eb',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, transition: 'all 0.15s'
+                    color: '#fff', fontSize: 14, transition: 'all 0.15s'
                   }}>
                     {present ? '✓' : ''}
                   </div>
@@ -222,7 +229,6 @@ export default function AsistenciaPage() {
             })}
           </div>
 
-          {/* Botón guardar */}
           <button onClick={handleSave} disabled={saving || players.length === 0} style={{
             width: '100%', padding: '14px', borderRadius: 12, border: 'none',
             background: saving ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
@@ -235,7 +241,6 @@ export default function AsistenciaPage() {
         </div>
       )}
 
-      {/* TAB: Historial */}
       {tab === 'historial' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {history.length === 0 && (
@@ -260,7 +265,7 @@ export default function AsistenciaPage() {
                   </div>
                 </div>
                 <div style={{ height: 6, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, backgroundColor: pct >= 75 ? '#52B043' : pct >= 50 ? '#f59e0b' : '#ef4444', transition: 'width 0.3s' }} />
+                  <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, backgroundColor: pct >= 75 ? '#52B043' : pct >= 50 ? '#f59e0b' : '#ef4444' }} />
                 </div>
               </div>
             )
@@ -268,7 +273,6 @@ export default function AsistenciaPage() {
         </div>
       )}
 
-      {/* TAB: Estadísticas */}
       {tab === 'estadisticas' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {stats.length === 0 && (
@@ -296,10 +300,9 @@ export default function AsistenciaPage() {
                   </div>
                 </div>
                 {p.pct !== null && (
-                  <div style={{
-                    fontSize: 16, fontWeight: 900,
-                    color: p.pct >= 75 ? '#16a34a' : p.pct >= 50 ? '#d97706' : '#ef4444'
-                  }}>{p.pct}%</div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: p.pct >= 75 ? '#16a34a' : p.pct >= 50 ? '#d97706' : '#ef4444' }}>
+                    {p.pct}%
+                  </div>
                 )}
               </div>
               {p.total > 0 && (

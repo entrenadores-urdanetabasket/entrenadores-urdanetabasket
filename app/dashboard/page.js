@@ -49,6 +49,24 @@ export default function DashboardPage() {
         </h1>
       </div>
 
+      {/* Banner perfil incompleto */}
+      {profile && !profile.profile_completed && (
+        <Link href="/dashboard/perfil" style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px', borderRadius: 12, marginBottom: 20,
+          backgroundColor: '#fffbeb', border: '1px solid #fde68a', textDecoration: 'none'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>👋</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>Completa tu perfil</div>
+              <div style={{ fontSize: 12, color: '#b45309' }}>Añade tu teléfono y rol para que el director pueda contactarte</div>
+            </div>
+          </div>
+          <span style={{ color: '#d97706', fontSize: 18 }}>→</span>
+        </Link>
+      )}
+
       {/* Banner equipo */}
       <div style={{
         borderRadius: 16, marginBottom: 28, overflow: 'hidden',

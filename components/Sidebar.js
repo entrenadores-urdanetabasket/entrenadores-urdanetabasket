@@ -96,6 +96,15 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
+        <Link href="/dashboard/perfil" style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+          padding: '8px 12px', borderRadius: 10, textDecoration: 'none',
+          color: '#9ca3af', fontSize: 13, fontWeight: 500, transition: 'all 0.15s'
+        }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f9fafb'; e.currentTarget.style.color = '#374151' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9ca3af' }}>
+          ⚙️ Editar perfil
+        </Link>
         <button onClick={handleLogout} style={{
           display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           padding: '8px 12px', borderRadius: 10, border: 'none',

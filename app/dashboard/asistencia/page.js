@@ -39,8 +39,10 @@ export default function AsistenciaPage() {
       if (data?.length > 0) await loadTeamData(data[0], 'lista')
       else setLoading(false)
     } else {
-      const { data } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
-      if (data) { setTeams([data]); await loadTeamData(data, 'lista') }
+      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
+      const teamIds = (tc || []).map(r => r.team_id)
+      const { data } = teamIds.length > 0 ? await supabase.from('teams').select('*').in('id', teamIds) : { data: [] }
+      if (data && data.length > 0) { setTeams(data); await loadTeamData(data[0], 'lista') }
       else setLoading(false)
     }
   }

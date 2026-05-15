@@ -32,11 +32,13 @@ export default function EquipoPage() {
       if (t?.length > 0) loadPlayers(selectedTeam?.id || t[0].id, t)
       else setLoading(false)
     } else {
-      const { data: t } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
-      if (!t) { setLoading(false); return }
-      setTeams([t])
-      setSelectedTeam(t)
-      loadPlayers(t.id, [t])
+      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
+      const teamIds = (tc || []).map(r => r.team_id)
+      const { data: t } = teamIds.length > 0 ? await supabase.from('teams').select('*').in('id', teamIds) : { data: [] }
+      if (!t || t.length === 0) { setLoading(false); return }
+      setTeams(t)
+      setSelectedTeam(t[0])
+      loadPlayers(t[0].id, t)
     }
   }
 

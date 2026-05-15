@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import Link from 'next/link'
 
 const POSITIONS = ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot']
 
@@ -190,6 +191,10 @@ export default function EquipoPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <Link href={`/dashboard/equipo/jugador/${player.id}`} style={{
+                padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
+                backgroundColor: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, textDecoration: 'none'
+              }}>Ver</Link>
               <button onClick={() => openEdit(player)} style={{
                 padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
                 backgroundColor: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer'

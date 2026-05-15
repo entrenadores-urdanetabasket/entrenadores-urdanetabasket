@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 
+const STATUS_LABELS = {
+  present: { label: 'Presente', color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+  absent: { label: 'Ausente', color: '#ef4444', bg: '#fef2f2', border: '#fecaca' },
+  late: { label: 'Tarde', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  justified: { label: 'Justificado', color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+}
+
 export default function AsistenciaPage() {
   const { user, profile, supabase } = useAuth()
   const isDirector = profile?.role === 'director'
@@ -32,10 +39,8 @@ export default function AsistenciaPage() {
       else setLoading(false)
     } else {
       const { data } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
-      if (data) {
-        setTeams([data])
-        await loadTeamData(data, tab)
-      } else setLoading(false)
+      if (data) { setTeams([data]); await loadTeamData(data, tab) }
+      else setLoading(false)
     }
   }
 
@@ -44,7 +49,6 @@ export default function AsistenciaPage() {
     const { data: p } = await supabase.from('players').select('*').eq('team_id', team.id).eq('active', true).order('number')
     const playerList = p || []
     setPlayers(playerList)
-
     await loadAttendanceForDate(team, playerList, date)
     if (currentTab === 'historial') await loadHistory(team)
     if (currentTab === 'estadisticas') await loadStats(team, playerList)
@@ -55,26 +59,23 @@ export default function AsistenciaPage() {
     const { data } = await supabase.from('attendance').select('*').eq('team_id', team.id).eq('date', d)
     const map = {}
     if (data?.length > 0) {
-      data.forEach(r => { map[r.player_id] = r.present })
+      data.forEach(r => { map[r.player_id] = r.status })
     } else {
-      playerList.forEach(p => { map[p.id] = true })
+      playerList.forEach(p => { map[p.id] = 'present' })
     }
     setAttendance(map)
   }
 
   async function loadHistory(team) {
     const t = team || selectedTeam
-    const { data } = await supabase
-      .from('attendance')
-      .select('date, present, player_id')
-      .eq('team_id', t.id)
-      .order('date', { ascending: false })
+    const { data } = await supabase.from('attendance').select('date, status, player_id').eq('team_id', t.id).order('date', { ascending: false })
     if (!data) return
     const byDate = {}
     data.forEach(r => {
-      if (!byDate[r.date]) byDate[r.date] = { total: 0, present: 0 }
+      if (!byDate[r.date]) byDate[r.date] = { total: 0, present: 0, absent: 0, late: 0, justified: 0 }
       byDate[r.date].total++
-      if (r.present) byDate[r.date].present++
+      byDate[r.date][r.status] = (byDate[r.date][r.status] || 0) + 1
+      if (r.status === 'present') byDate[r.date].present++
     })
     setHistory(Object.entries(byDate).map(([date, v]) => ({ date, ...v })))
   }
@@ -82,13 +83,13 @@ export default function AsistenciaPage() {
   async function loadStats(team, playerList) {
     const t = team || selectedTeam
     const pl = playerList || players
-    const { data } = await supabase.from('attendance').select('player_id, present').eq('team_id', t.id)
+    const { data } = await supabase.from('attendance').select('player_id, status').eq('team_id', t.id)
     if (!data) return
     const byPlayer = {}
     data.forEach(r => {
       if (!byPlayer[r.player_id]) byPlayer[r.player_id] = { total: 0, present: 0 }
       byPlayer[r.player_id].total++
-      if (r.present) byPlayer[r.player_id].present++
+      if (r.status === 'present') byPlayer[r.player_id].present++
     })
     const result = pl.map(p => ({
       ...p,
@@ -121,16 +122,23 @@ export default function AsistenciaPage() {
       team_id: selectedTeam.id,
       player_id: p.id,
       date,
-      present: attendance[p.id] ?? true
+      status: attendance[p.id] ?? 'present',
+      type: 'entrenamiento',
+      present: attendance[p.id] !== 'absent' && attendance[p.id] !== undefined
     }))
     const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })
     setSaving(false)
-    if (error) { alert('Error: ' + error.message + ' (' + error.code + ')'); return }
+    if (error) { alert('Error: ' + error.message); return }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const toggle = (id) => setAttendance(a => ({ ...a, [id]: !a[id] }))
+  const cycleStatus = (id) => {
+    const order = ['present', 'absent', 'late', 'justified']
+    const current = attendance[id] ?? 'present'
+    const next = order[(order.indexOf(current) + 1) % order.length]
+    setAttendance(a => ({ ...a, [id]: next }))
+  }
 
   const tabStyle = (t) => ({
     padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
@@ -149,7 +157,11 @@ export default function AsistenciaPage() {
     </div>
   )
 
-  const presentCount = players.filter(p => attendance[p.id] !== false).length
+  const counts = players.reduce((acc, p) => {
+    const s = attendance[p.id] ?? 'present'
+    acc[s] = (acc[s] || 0) + 1
+    return acc
+  }, {})
 
   return (
     <div>
@@ -183,47 +195,43 @@ export default function AsistenciaPage() {
               padding: '9px 14px', borderRadius: 10, border: '1.5px solid #e5e7eb',
               fontSize: 14, color: '#111827', outline: 'none', backgroundColor: '#fff'
             }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <span style={{ padding: '7px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: 13, fontWeight: 700 }}>
-                ✅ {presentCount} presentes
-              </span>
-              <span style={{ padding: '7px 14px', borderRadius: 10, backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 700 }}>
-                ❌ {players.length - presentCount} ausentes
-              </span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(STATUS_LABELS).map(([key, { label, color, bg }]) => counts[key] ? (
+                <span key={key} style={{ padding: '6px 12px', borderRadius: 10, backgroundColor: bg, color, fontSize: 12, fontWeight: 700 }}>
+                  {label}: {counts[key]}
+                </span>
+              ) : null)}
             </div>
           </div>
 
+          <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>Toca para cambiar: Presente → Ausente → Tarde → Justificado</p>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
             {players.map(player => {
-              const present = attendance[player.id] !== false
+              const status = attendance[player.id] ?? 'present'
+              const { label, color, bg, border } = STATUS_LABELS[status]
               return (
-                <div key={player.id} onClick={() => toggle(player.id)} style={{
+                <div key={player.id} onClick={() => cycleStatus(player.id)} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '14px 18px', borderRadius: 14, cursor: 'pointer', transition: 'all 0.15s',
-                  backgroundColor: present ? '#f0fdf4' : '#fff',
-                  border: `1.5px solid ${present ? '#86efac' : '#e5e7eb'}`,
+                  backgroundColor: bg, border: `1.5px solid ${border}`,
                   boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{
                       width: 38, height: 38, borderRadius: 9, flexShrink: 0,
-                      background: present ? 'linear-gradient(135deg,#52B043,#1C5C2A)' : '#e5e7eb',
+                      background: status === 'present' ? 'linear-gradient(135deg,#52B043,#1C5C2A)' : '#e5e7eb',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: present ? '#fff' : '#9ca3af', fontSize: 14, fontWeight: 900
+                      color: status === 'present' ? '#fff' : '#9ca3af', fontSize: 14, fontWeight: 900
                     }}>{player.number ?? '—'}</div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{player.full_name}</div>
                       <div style={{ fontSize: 12, color: '#9ca3af' }}>{player.position || '—'}</div>
                     </div>
                   </div>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                    backgroundColor: present ? '#52B043' : '#e5e7eb',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontSize: 14, transition: 'all 0.15s'
-                  }}>
-                    {present ? '✓' : ''}
-                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color, padding: '4px 10px', borderRadius: 8, backgroundColor: '#fff' }}>
+                    {label}
+                  </span>
                 </div>
               )
             })}
@@ -249,7 +257,7 @@ export default function AsistenciaPage() {
               <div style={{ fontSize: 14, fontWeight: 600 }}>No hay registros todavía</div>
             </div>
           )}
-          {history.map(({ date, total, present }) => {
+          {history.map(({ date, total, present, absent, late, justified }) => {
             const pct = Math.round((present / total) * 100)
             return (
               <div key={date} style={{
@@ -264,8 +272,17 @@ export default function AsistenciaPage() {
                     {present}/{total} · {pct}%
                   </div>
                 </div>
-                <div style={{ height: 6, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: 6, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                   <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, backgroundColor: pct >= 75 ? '#52B043' : pct >= 50 ? '#f59e0b' : '#ef4444' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[['absent', absent], ['late', late], ['justified', justified]].map(([key, val]) =>
+                    val > 0 ? (
+                      <span key={key} style={{ fontSize: 11, fontWeight: 600, color: STATUS_LABELS[key].color, backgroundColor: STATUS_LABELS[key].bg, padding: '3px 8px', borderRadius: 6 }}>
+                        {STATUS_LABELS[key].label}: {val}
+                      </span>
+                    ) : null
+                  )}
                 </div>
               </div>
             )

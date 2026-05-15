@@ -215,6 +215,12 @@ export default function DirectorPage() {
                 </select>
               </div>
 
+              {!editing && (
+                <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #d1fae5', fontSize: 13, color: '#166534' }}>
+                  💡 Guarda el equipo primero y luego edítalo para asignar entrenadores
+                </div>
+              )}
+
               {/* Gestión de entrenadores — solo al editar */}
               {editing && (
                 <div>
@@ -233,11 +239,11 @@ export default function DirectorPage() {
                       </div>
                     ))}
                   </div>
-                  {availableCoaches.length > 0 && (
+                  {availableCoaches.length > 0 ? (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <select value={addingCoach} onChange={e => setAddingCoach(e.target.value)}
                         style={{ flex: 1, padding: '10px 12px', borderRadius: 10, fontSize: 13, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', cursor: 'pointer' }}>
-                        <option value=''>— Añadir entrenador —</option>
+                        <option value=''>— Selecciona entrenador —</option>
                         {availableCoaches.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                       </select>
                       <button type='button' onClick={handleAddCoach} disabled={!addingCoach} style={{
@@ -245,6 +251,10 @@ export default function DirectorPage() {
                         background: addingCoach ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#e5e7eb',
                         color: addingCoach ? '#fff' : '#9ca3af', fontSize: 13, fontWeight: 700, cursor: addingCoach ? 'pointer' : 'not-allowed'
                       }}>Añadir</button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 12px', borderRadius: 8, backgroundColor: '#f9fafb' }}>
+                      Todos los entrenadores registrados ya están asignados a este equipo
                     </div>
                   )}
                 </div>

@@ -123,7 +123,7 @@ export default function AsistenciaPage() {
       player_id: p.id,
       date,
       status: attendance[p.id] ?? 'present',
-      type: 'entrenamiento',
+      type: 'training',
       present: attendance[p.id] !== 'absent' && attendance[p.id] !== undefined
     }))
     const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })

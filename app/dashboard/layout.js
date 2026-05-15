@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }) {
     .single()
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: '#F4F6F4' }}>
+    <div className="flex min-h-screen" style={{ backgroundColor: '#0D150D' }}>
       <Sidebar profile={profile} />
       <main className="flex-1 lg:ml-64">
         <div className="p-4 lg:p-8 pt-16 lg:pt-8">

@@ -15,7 +15,7 @@ export default function DirectorPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', category: 'Senior', season: '2025-2026', coach_id: '' })
+  const [form, setForm] = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino', coach_id: '' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
 
@@ -43,14 +43,14 @@ export default function DirectorPage() {
 
   function openEdit(team) {
     setEditing(team.id)
-    setForm({ name: team.name, category: team.category || 'Senior', season: team.season || '2025-2026', coach_id: team.coach_id || '' })
+    setForm({ name: team.name, category: team.category || 'Senior', season: team.season || '2025-2026', gender: team.gender || 'masculino', coach_id: team.coach_id || '' })
     setShowForm(true)
   }
 
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
-    const payload = { name: form.name, category: form.category, season: form.season, coach_id: form.coach_id || null }
+    const payload = { name: form.name, category: form.category, season: form.season, gender: form.gender, coach_id: form.coach_id || null }
     if (editing) {
       await supabase.from('teams').update(payload).eq('id', editing)
     } else {
@@ -113,7 +113,7 @@ export default function DirectorPage() {
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{team.name}</div>
                 <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                  {team.category} · {team.season}
+                  {team.category} · {team.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {team.season}
                 </div>
                 <div style={{ fontSize: 12, marginTop: 3 }}>
                   {team.profiles
@@ -162,6 +162,15 @@ export default function DirectorPage() {
                 <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Género</label>
+                <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
+                  <option value='masculino'>Masculino</option>
+                  <option value='femenino'>Femenino</option>
                 </select>
               </div>
 

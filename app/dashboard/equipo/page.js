@@ -6,8 +6,11 @@ import { useAuth } from '@/components/AuthProvider'
 const POSITIONS = ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot']
 
 export default function EquipoPage() {
-  const { user, supabase } = useAuth()
-  const [team, setTeam] = useState(null)
+  const { user, profile, supabase } = useAuth()
+  const isDirector = profile?.role === 'director'
+
+  const [teams, setTeams] = useState([])
+  const [selectedTeam, setSelectedTeam] = useState(null)
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -17,15 +20,29 @@ export default function EquipoPage() {
   const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
-    if (user) loadData()
-  }, [user])
+    if (user && profile) loadData()
+  }, [user, profile])
 
   async function loadData() {
     setLoading(true)
-    const { data: t } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
-    if (!t) { setLoading(false); return }
-    setTeam(t)
-    const { data: p } = await supabase.from('players').select('*').eq('team_id', t.id).eq('active', true).order('number')
+    if (isDirector) {
+      const { data: t } = await supabase.from('teams').select('*, profiles(full_name)').order('name')
+      setTeams(t || [])
+      if (t?.length > 0) loadPlayers(selectedTeam?.id || t[0].id, t)
+      else setLoading(false)
+    } else {
+      const { data: t } = await supabase.from('teams').select('*').eq('coach_id', user.id).single()
+      if (!t) { setLoading(false); return }
+      setTeams([t])
+      setSelectedTeam(t)
+      loadPlayers(t.id, [t])
+    }
+  }
+
+  async function loadPlayers(teamId, teamList) {
+    const team = teamList.find(t => t.id === teamId)
+    setSelectedTeam(team)
+    const { data: p } = await supabase.from('players').select('*').eq('team_id', teamId).eq('active', true).order('number')
     setPlayers(p || [])
     setLoading(false)
   }
@@ -38,12 +55,7 @@ export default function EquipoPage() {
 
   function openEdit(player) {
     setEditing(player.id)
-    setForm({
-      full_name: player.full_name,
-      number: player.number ?? '',
-      position: player.position || 'Base',
-      birth_date: player.birth_date || ''
-    })
+    setForm({ full_name: player.full_name, number: player.number ?? '', position: player.position || 'Base', birth_date: player.birth_date || '' })
     setShowForm(true)
   }
 
@@ -55,24 +67,21 @@ export default function EquipoPage() {
       number: form.number !== '' ? parseInt(form.number) : null,
       position: form.position,
       birth_date: form.birth_date || null,
-      team_id: team.id
+      team_id: selectedTeam.id
     }
-    if (editing) {
-      await supabase.from('players').update(payload).eq('id', editing)
-    } else {
-      await supabase.from('players').insert(payload)
-    }
+    if (editing) await supabase.from('players').update(payload).eq('id', editing)
+    else await supabase.from('players').insert(payload)
     setSaving(false)
     setShowForm(false)
-    loadData()
+    loadPlayers(selectedTeam.id, teams)
   }
 
   async function handleDelete(id) {
-    if (!confirm('¿Eliminar este jugador?')) return
+    if (!confirm('¿Dar de baja a este jugador?')) return
     setDeleting(id)
     await supabase.from('players').update({ active: false }).eq('id', id)
     setDeleting(null)
-    loadData()
+    loadPlayers(selectedTeam.id, teams)
   }
 
   const inputStyle = {
@@ -84,7 +93,7 @@ export default function EquipoPage() {
 
   if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
 
-  if (!team) return (
+  if (!isDirector && teams.length === 0) return (
     <div style={{ textAlign: 'center', padding: '64px 0' }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>🏀</div>
       <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
@@ -95,25 +104,69 @@ export default function EquipoPage() {
   return (
     <div>
       {/* Cabecera */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>{team.name}</h1>
-          <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>{team.category} · {team.season} · {players.length} jugadores</p>
+          <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>
+            {isDirector ? 'Equipos' : selectedTeam?.name}
+          </h1>
+          <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+            {isDirector ? `${teams.length} equipos en total` : `${selectedTeam?.category} · ${selectedTeam?.season} · ${players.length} jugadores`}
+          </p>
         </div>
-        <button onClick={openNew} style={{
-          padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-          background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-          fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-        }}>+ Jugador</button>
+        {selectedTeam && (
+          <button onClick={openNew} style={{
+            padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
+            fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
+          }}>+ Jugador</button>
+        )}
       </div>
+
+      {/* Selector de equipos (solo director) */}
+      {isDirector && teams.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          {teams.map(t => (
+            <button key={t.id} onClick={() => loadPlayers(t.id, teams)} style={{
+              padding: '8px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
+              color: selectedTeam?.id === t.id ? '#fff' : '#374151',
+              transition: 'all 0.15s'
+            }}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Info equipo seleccionado */}
+      {selectedTeam && (
+        <div style={{
+          borderRadius: 14, marginBottom: 20, overflow: 'hidden',
+          background: 'linear-gradient(135deg,#1C5C2A 0%,#52B043 100%)',
+          boxShadow: '0 4px 20px rgba(82,176,67,0.2)', padding: '16px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+              {selectedTeam.category} · {selectedTeam.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {selectedTeam.season}
+            </div>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>{selectedTeam.name}</div>
+            {isDirector && selectedTeam.profiles && (
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
+                👤 {selectedTeam.profiles.full_name}
+              </div>
+            )}
+          </div>
+          <div style={{ color: '#fff', fontSize: 32, fontWeight: 900, opacity: 0.8 }}>{players.length}</div>
+        </div>
+      )}
 
       {/* Lista jugadores */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {players.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>👤</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>No hay jugadores todavía</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Añade el primero con el botón de arriba</div>
+        {selectedTeam && players.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>👤</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>No hay jugadores en este equipo</div>
           </div>
         )}
         {players.map(player => (
@@ -128,14 +181,11 @@ export default function EquipoPage() {
                 background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontSize: 16, fontWeight: 900
-              }}>
-                {player.number ?? '—'}
-              </div>
+              }}>{player.number ?? '—'}</div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{player.full_name}</div>
                 <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                  {player.position || '—'}
-                  {player.birth_date && ` · ${new Date(player.birth_date).getFullYear()}`}
+                  {player.position || '—'}{player.birth_date && ` · ${new Date(player.birth_date).getFullYear()}`}
                 </div>
               </div>
             </div>
@@ -154,7 +204,7 @@ export default function EquipoPage() {
         ))}
       </div>
 
-      {/* Modal formulario */}
+      {/* Modal */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
@@ -169,7 +219,6 @@ export default function EquipoPage() {
                   onFocus={e => e.target.style.borderColor = '#52B043'}
                   onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Dorsal</label>
@@ -186,7 +235,6 @@ export default function EquipoPage() {
                   </select>
                 </div>
               </div>
-
               <div>
                 <label style={labelStyle}>Fecha de nacimiento</label>
                 <input type='date' value={form.birth_date} onChange={e => setForm(f => ({ ...f, birth_date: e.target.value }))}
@@ -194,7 +242,6 @@ export default function EquipoPage() {
                   onFocus={e => e.target.style.borderColor = '#52B043'}
                   onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
               </div>
-
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button type='button' onClick={() => setShowForm(false)} style={{
                   flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',

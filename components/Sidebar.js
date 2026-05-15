@@ -26,7 +26,8 @@ export default function Sidebar() {
   }
 
   const items = profile?.role === 'director'
-    ? [...navItems, { href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' }]
+    ? navItems.map(i => i.href === '/dashboard/equipo' ? { ...i, label: 'Equipos' } : i)
+        .concat({ href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' })
     : navItems
 
   const sidebar = (

@@ -10,19 +10,18 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ players: 0, attendance: 0, incidents: 0 })
 
   useEffect(() => {
-    if (!user) return
-    loadData()
+    if (user) loadData()
   }, [user])
 
   async function loadData() {
-    const { data: t } = await supabase
-      .from('teams').select('*, players(count)').eq('coach_id', user.id).single()
+    const { data: t } = await supabase.from('teams').select('*, players(count)').eq('coach_id', user.id).single()
     if (!t) return
     setTeam(t)
-
     const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-    const { count: att } = await supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('team_id', t.id).gte('date', firstOfMonth)
-    const { count: inc } = await supabase.from('incidents').select('*', { count: 'exact', head: true }).eq('team_id', t.id).eq('resolved', false)
+    const [{ count: att }, { count: inc }] = await Promise.all([
+      supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('team_id', t.id).gte('date', firstOfMonth),
+      supabase.from('incidents').select('*', { count: 'exact', head: true }).eq('team_id', t.id).eq('resolved', false)
+    ])
     setStats({ players: t.players?.[0]?.count || 0, attendance: att || 0, incidents: inc || 0 })
   }
 
@@ -31,70 +30,85 @@ export default function DashboardPage() {
   const firstName = profile?.full_name?.split(' ')[0] || 'Entrenador'
   const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  const quickActions = [
-    { label: 'Pasar lista', desc: 'Asistencia de hoy', href: '/dashboard/asistencia/nueva', emoji: '✅' },
-    { label: 'Mi equipo', desc: 'Ver plantilla', href: '/dashboard/equipo', emoji: '👥' },
-    { label: 'Estadísticas', desc: 'Análisis de partidos', href: '/dashboard/estadisticas', emoji: '📊' },
-    { label: 'Tácticas', desc: 'Editor de jugadas', href: '/dashboard/tacticas', emoji: '🏀' },
-    { label: 'Entrenamientos', desc: 'Planificar sesiones', href: '/dashboard/entrenamientos', emoji: '📝' },
-    { label: 'Incidencias', desc: 'Registrar eventos', href: '/dashboard/incidencias', emoji: '⚠️' },
+  const modules = [
+    { label: 'Mi Equipo', desc: 'Jugadores y plantilla', href: '/dashboard/equipo', emoji: '👥', color: '#3b82f6' },
+    { label: 'Asistencia', desc: 'Control de presencia', href: '/dashboard/asistencia', emoji: '✅', color: '#52B043' },
+    { label: 'Estadísticas', desc: 'Análisis de partidos', href: '/dashboard/estadisticas', emoji: '📊', color: '#8b5cf6' },
+    { label: 'Tácticas', desc: 'Editor de jugadas', href: '/dashboard/tacticas', emoji: '🏀', color: '#f59e0b' },
+    { label: 'Entrenamientos', desc: 'Planificar sesiones', href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
+    { label: 'Incidencias', desc: 'Registro de eventos', href: '/dashboard/incidencias', emoji: '⚠️', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
   ]
 
   return (
     <div>
-      {/* Saludo */}
+      {/* Cabecera */}
       <div style={{ marginBottom: 28 }}>
-        <p style={{ color: '#52B043', fontSize: 13, fontWeight: 600, marginBottom: 4, textTransform: 'capitalize' }}>{today}</p>
-        <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 900, margin: 0 }}>{greeting}, {firstName} 👋</h1>
+        <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 4, textTransform: 'capitalize' }}>{today}</p>
+        <h1 style={{ color: '#111827', fontSize: 26, fontWeight: 800, margin: 0 }}>
+          {greeting}, {firstName} 👋
+        </h1>
       </div>
 
       {/* Banner equipo */}
-      {team ? (
-        <div style={{ borderRadius: 16, padding: '20px 24px', marginBottom: 24, background: 'linear-gradient(135deg,#0F2A0F,#1C5C2A,#2A7A2A)', border: '1px solid rgba(82,176,67,0.3)', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'radial-gradient(circle,rgba(82,176,67,0.2),transparent)' }} />
-          <p style={{ color: '#6FCF5F', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>Tu equipo</p>
-          <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: '0 0 4px' }}>{team.name}</h2>
-          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, margin: 0 }}>{team.category} · {team.season} · {stats.players} jugadores</p>
+      <div style={{
+        borderRadius: 16, marginBottom: 28, overflow: 'hidden',
+        background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
+        boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
+      }}>
+        <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+              {team ? 'Tu equipo' : 'Sin equipo asignado'}
+            </p>
+            <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+              {team ? team.name : 'Pendiente de asignación'}
+            </h2>
+            {team && (
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
+                {team.category} · {team.season} · {stats.players} jugadores
+              </p>
+            )}
+          </div>
+          <div style={{ fontSize: 52, opacity: 0.5 }}>🏀</div>
         </div>
-      ) : (
-        <div style={{ borderRadius: 16, padding: '16px 20px', marginBottom: 24, backgroundColor: '#162016', border: '1px solid #2A3D2A' }}>
-          <p style={{ color: '#7A9A78', fontSize: 13, margin: 0 }}>Sin equipo asignado. El director te asignará uno pronto.</p>
-        </div>
-      )}
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 28 }}>
-        {[
-          { label: 'Jugadores', value: stats.players, emoji: '👥', href: '/dashboard/equipo' },
-          { label: 'Asistencias/mes', value: stats.attendance, emoji: '✅', href: '/dashboard/asistencia' },
-          { label: 'Incidencias', value: stats.incidents, emoji: '⚠️', href: '/dashboard/incidencias', alert: stats.incidents > 0 },
-        ].map(({ label, value, emoji, href, alert }) => (
-          <Link key={label} href={href} style={{
-            borderRadius: 16, padding: '16px 12px', backgroundColor: alert ? 'rgba(245,158,11,0.08)' : '#162016',
-            border: `1px solid ${alert ? 'rgba(245,158,11,0.3)' : '#2A3D2A'}`, textDecoration: 'none', display: 'block', transition: 'transform 0.15s'
-          }}>
-            <div style={{ fontSize: 22, marginBottom: 8 }}>{emoji}</div>
-            <div style={{ color: alert ? '#F59E0B' : '#fff', fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{value}</div>
-            <div style={{ color: '#7A9A78', fontSize: 11, marginTop: 4, fontWeight: 600 }}>{label}</div>
-          </Link>
-        ))}
+        {/* Stats rápidas */}
+        {team && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+            {[
+              { label: 'Jugadores', value: stats.players },
+              { label: 'Asistencias/mes', value: stats.attendance },
+              { label: 'Incidencias', value: stats.incidents },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ padding: '14px 20px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{value}</div>
+                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Accesos rápidos */}
-      <p style={{ color: '#4A6A48', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 12 }}>Accesos rápidos</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-        {quickActions.map(({ label, desc, href, emoji }) => (
-          <Link key={label} href={href} style={{
-            borderRadius: 14, padding: '16px', backgroundColor: '#162016', border: '1px solid #2A3D2A',
-            textDecoration: 'none', display: 'block', transition: 'all 0.15s'
-          }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(82,176,67,0.3)'; e.currentTarget.style.transform = 'scale(1.02)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#2A3D2A'; e.currentTarget.style.transform = 'scale(1)' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>{emoji}</div>
-            <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{label}</div>
-            <div style={{ color: '#4A6A48', fontSize: 11, marginTop: 2 }}>{desc}</div>
-          </Link>
-        ))}
+      {/* Módulos */}
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ color: '#374151', fontSize: 15, fontWeight: 700, marginBottom: 14 }}>¿Qué quieres hacer hoy?</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
+          {modules.map(({ label, desc, href, emoji, color }) => (
+            <Link key={label} href={href} style={{
+              display: 'block', padding: '18px 16px', borderRadius: 14,
+              backgroundColor: '#fff', border: '1px solid #f3f4f6',
+              textDecoration: 'none', transition: 'all 0.2s',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+            }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 10 }}>{emoji}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 3 }}>{label}</div>
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>{desc}</div>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   )

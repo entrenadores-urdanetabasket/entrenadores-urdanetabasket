@@ -1,38 +1,15 @@
 @import "tailwindcss";
 
-:root {
-  --green-primary: #52B043;
-  --green-dark: #1C5C2A;
-  --green-bright: #6FCF5F;
-  --green-glow: rgba(82, 176, 67, 0.3);
-  --bg-base: #0D150D;
-  --bg-card: #162016;
-  --bg-card-hover: #1E2E1E;
-  --bg-sidebar: #0A120A;
-  --border: #2A3D2A;
-  --border-bright: #3D5C3D;
-  --text-primary: #F0F7EE;
-  --text-muted: #7A9A78;
-  --text-dim: #4A6A48;
-  --white: #FFFFFF;
-  --red: #EF4444;
-  --yellow: #F59E0B;
-}
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background-color: var(--bg-base);
-  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-::selection {
-  background: var(--green-primary);
-  color: white;
-}
+a { text-decoration: none; }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-base); }
-::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.fade-in { animation: fadeIn 0.3s ease; }

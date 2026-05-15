@@ -15,21 +15,6 @@ const navItems = [
   { href: '/dashboard/incidencias', label: 'Incidencias', emoji: '⚠️' },
 ]
 
-const S = {
-  sidebar: { position: 'fixed', top: 0, left: 0, height: '100%', width: 256, backgroundColor: '#0A120A', borderRight: '1px solid #1E2E1E', display: 'flex', flexDirection: 'column', zIndex: 50 },
-  header: { padding: '20px 16px', borderBottom: '1px solid #1E2E1E', display: 'flex', alignItems: 'center', gap: 12 },
-  logoBox: { width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 6 },
-  clubName: { color: '#fff', fontWeight: 900, fontSize: 13, lineHeight: 1.2 },
-  clubSub: { color: '#52B043', fontSize: 11, marginTop: 2 },
-  nav: { flex: 1, padding: '12px 8px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 },
-  footer: { padding: '12px 8px', borderTop: '1px solid #1E2E1E' },
-  profileBox: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderRadius: 10, backgroundColor: '#162016', marginBottom: 4 },
-  avatar: { width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: 13, flexShrink: 0 },
-  logoutBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 8px', borderRadius: 10, border: 'none', backgroundColor: 'transparent', color: '#4A6A48', fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' },
-  mobileBtn: { position: 'fixed', top: 12, left: 12, zIndex: 60, width: 40, height: 40, borderRadius: 10, backgroundColor: '#162016', border: '1px solid #2A3D2A', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-  overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 40 },
-}
-
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
@@ -44,50 +29,81 @@ export default function Sidebar() {
     ? [...navItems, { href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' }]
     : navItems
 
-  const sidebarContent = (
-    <div style={S.sidebar}>
-      <div style={S.header}>
-        <div style={S.logoBox}>
-          <img src="/logo.png" alt="Urdaneta" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+  const sidebar = (
+    <div style={{
+      width: 248, height: '100%', backgroundColor: '#fff',
+      borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column',
+      position: 'fixed', top: 0, left: 0, zIndex: 50
+    }}>
+      {/* Header con logo */}
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, padding: 6, flexShrink: 0,
+            background: 'linear-gradient(135deg, #52B043, #1C5C2A)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: '#111827', lineHeight: 1.3 }}>C.D. Urdaneta</div>
+            <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600 }}>Entrenadores</div>
+          </div>
         </div>
-        <div>
-          <div style={S.clubName}>C.D. Urdaneta</div>
-          <div style={S.clubSub}>Portal Entrenadores</div>
-        </div>
-        <button onClick={() => setOpen(false)} className="lg:hidden" style={{ marginLeft: 'auto', color: '#4A6A48', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
       </div>
 
-      <nav style={S.nav}>
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(({ href, label, emoji }) => {
           const active = pathname === href
           return (
-            <Link key={href} href={href} onClick={() => setOpen(false)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10,
-                backgroundColor: active ? 'rgba(82,176,67,0.15)' : 'transparent',
-                border: `1px solid ${active ? 'rgba(82,176,67,0.25)' : 'transparent'}`,
-                color: active ? '#6FCF5F' : '#7A9A78',
-                fontSize: 13, fontWeight: active ? 700 : 500, textDecoration: 'none', transition: 'all 0.15s'
-              }}>
-              <span style={{ fontSize: 16 }}>{emoji}</span>
+            <Link key={href} href={href} onClick={() => setOpen(false)} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 12px', borderRadius: 10,
+              backgroundColor: active ? '#f0faf0' : 'transparent',
+              color: active ? '#1C5C2A' : '#6b7280',
+              fontSize: 13, fontWeight: active ? 700 : 500,
+              border: `1px solid ${active ? '#d1f0d1' : 'transparent'}`,
+              transition: 'all 0.15s', textDecoration: 'none'
+            }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = '#f9fafb'; e.currentTarget.style.color = '#374151' } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#6b7280' } }}
+            >
+              <span style={{ fontSize: 15 }}>{emoji}</span>
               {label}
-              {active && <div style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', backgroundColor: '#52B043' }} />}
             </Link>
           )
         })}
       </nav>
 
-      <div style={S.footer}>
-        <div style={S.profileBox}>
-          <div style={S.avatar}>{profile?.full_name?.charAt(0)?.toUpperCase() || 'E'}</div>
+      {/* Footer usuario */}
+      <div style={{ padding: '12px 10px', borderTop: '1px solid #f3f4f6' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, backgroundColor: '#f9fafb', marginBottom: 4 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+            background: 'linear-gradient(135deg, #52B043, #1C5C2A)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 13, fontWeight: 800
+          }}>
+            {profile?.full_name?.charAt(0)?.toUpperCase() || 'E'}
+          </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#fff', fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.full_name || 'Entrenador'}</div>
-            <div style={{ color: '#52B043', fontSize: 11 }}>{profile?.role === 'director' ? 'Director' : 'Entrenador'}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {profile?.full_name || 'Entrenador'}
+            </div>
+            <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600 }}>
+              {profile?.role === 'director' ? 'Director' : 'Entrenador'}
+            </div>
           </div>
         </div>
-        <button onClick={handleLogout} style={S.logoutBtn}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#1E2E1E'; e.currentTarget.style.color = '#EF4444' }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#4A6A48' }}>
+        <button onClick={handleLogout} style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+          padding: '8px 12px', borderRadius: 10, border: 'none',
+          backgroundColor: 'transparent', color: '#9ca3af', fontSize: 13,
+          cursor: 'pointer', transition: 'all 0.15s', fontWeight: 500
+        }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.color = '#ef4444' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#9ca3af' }}>
           🚪 Cerrar sesión
         </button>
       </div>
@@ -96,21 +112,39 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile button */}
-      <button onClick={() => setOpen(true)} className="lg:hidden" style={S.mobileBtn}>
-        <span style={{ color: '#52B043', fontSize: 18 }}>☰</span>
+      {/* Botón móvil */}
+      <button onClick={() => setOpen(true)}
+        style={{
+          display: 'none', position: 'fixed', top: 14, left: 14, zIndex: 60,
+          width: 40, height: 40, borderRadius: 10, border: '1px solid #e5e7eb',
+          backgroundColor: '#fff', cursor: 'pointer', fontSize: 18,
+          alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 6px rgba(0,0,0,0.08)'
+        }}
+        className="mobile-menu-btn">
+        ☰
       </button>
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block">{sidebarContent}</div>
+      {/* Sidebar desktop */}
+      <div className="sidebar-desktop">{sidebar}</div>
 
-      {/* Mobile sidebar */}
+      {/* Sidebar móvil */}
       {open && (
         <>
-          <div style={S.overlay} onClick={() => setOpen(false)} />
-          <div className="block lg:hidden">{sidebarContent}</div>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 40 }} />
+          <div className="sidebar-mobile">{sidebar}</div>
         </>
       )}
+
+      <style>{`
+        .sidebar-desktop { display: none; }
+        .sidebar-mobile { display: block; }
+        .mobile-menu-btn { display: flex !important; }
+        @media (min-width: 1024px) {
+          .sidebar-desktop { display: block; }
+          .sidebar-mobile { display: none; }
+          .mobile-menu-btn { display: none !important; }
+        }
+      `}</style>
     </>
   )
 }

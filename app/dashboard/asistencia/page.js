@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import Link from 'next/link'
 
 const STATUS = {
   present:   { label: 'Presente',    color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
@@ -324,34 +325,39 @@ export default function AsistenciaPage() {
             </div>
           )}
           {stats.map(p => (
-            <div key={p.id} style={{ backgroundColor: '#fff', borderRadius: 14, padding: '14px 18px', border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: p.total > 0 ? 8 : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                    background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontSize: 13, fontWeight: 900
-                  }}>{p.number ?? '—'}</div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{p.full_name}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>
-                      {p.total > 0 ? `${p.attended} asistencias · ${p.absent} faltas${p.late > 0 ? ` · ${p.late} tardes` : ''}${p.justified > 0 ? ` · ${p.justified} justificadas` : ''}` : 'Sin registros'}
+            <Link key={p.id} href={`/dashboard/equipo/jugador/${p.id}`} style={{ textDecoration: 'none' }}>
+              <div style={{ backgroundColor: '#fff', borderRadius: 14, padding: '14px 18px', border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: p.total > 0 ? 8 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                      background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontSize: 13, fontWeight: 900
+                    }}>{p.number ?? '—'}</div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{p.full_name}</div>
+                      <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                        {p.total > 0 ? `${p.attended} asistencias · ${p.absent} faltas${p.late > 0 ? ` · ${p.late} tardes` : ''}${p.justified > 0 ? ` · ${p.justified} justificadas` : ''}` : 'Sin registros'}
+                      </div>
                     </div>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {p.pct !== null && (
+                      <div style={{ fontSize: 16, fontWeight: 900, color: p.pct >= 75 ? '#16a34a' : p.pct >= 50 ? '#d97706' : '#ef4444' }}>
+                        {p.pct}%
+                      </div>
+                    )}
+                    <span style={{ color: '#9ca3af', fontSize: 14 }}>→</span>
+                  </div>
                 </div>
-                {p.pct !== null && (
-                  <div style={{ fontSize: 16, fontWeight: 900, color: p.pct >= 75 ? '#16a34a' : p.pct >= 50 ? '#d97706' : '#ef4444' }}>
-                    {p.pct}%
+                {p.total > 0 && (
+                  <div style={{ height: 5, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: 3, backgroundColor: p.pct >= 75 ? '#52B043' : p.pct >= 50 ? '#f59e0b' : '#ef4444' }} />
                   </div>
                 )}
               </div>
-              {p.total > 0 && (
-                <div style={{ height: 5, backgroundColor: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: 3, backgroundColor: p.pct >= 75 ? '#52B043' : p.pct >= 50 ? '#f59e0b' : '#ef4444' }} />
-                </div>
-              )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

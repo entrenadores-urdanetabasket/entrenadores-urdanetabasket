@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import dynamic from 'next/dynamic'
+
+const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
 export default function EntrenamientosPage() {
   const { user, profile, supabase } = useAuth()
@@ -25,6 +28,9 @@ export default function EntrenamientosPage() {
   const [showExForm, setShowExForm] = useState(false)
   const [exForm, setExForm] = useState({ title: '', duration_minutes: 10, description: '' })
   const [savingEx, setSavingEx] = useState(false)
+
+  // CourtEditor para ejercicio
+  const [editorExercise, setEditorExercise] = useState(null) // {id, play_data} o null para nuevo
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
 
@@ -110,6 +116,13 @@ export default function EntrenamientosPage() {
 
   async function handleDeleteExercise(id) {
     await supabase.from('training_exercises').delete().eq('id', id)
+    await loadExercises(detailSession.id)
+  }
+
+  async function handleSaveExercisePlay({ title, description, steps }) {
+    if (!editorExercise) return
+    await supabase.from('training_exercises').update({ play_data: { title, description, steps } }).eq('id', editorExercise.id)
+    setEditorExercise(null)
     await loadExercises(detailSession.id)
   }
 
@@ -222,6 +235,15 @@ export default function EntrenamientosPage() {
                     </div>
                   </div>
                   {ex.description && <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0', lineHeight: 1.5 }}>{ex.description}</p>}
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      onClick={() => setEditorExercise(ex)}
+                      style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      🏀 {ex.play_data ? 'Ver/editar jugada' : 'Diseñar jugada'}
+                    </button>
+                    {ex.play_data && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8 }}>✓ Jugada guardada</span>}
+                  </div>
                 </div>
               </div>
             ))}
@@ -395,6 +417,27 @@ export default function EntrenamientosPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CourtEditor modal para ejercicio */}
+      {editorExercise && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px 8px', overflowY: 'auto' }}>
+          <div style={{ width: '100%', maxWidth: 700 }}>
+            <div style={{ marginBottom: 10, color: '#9ca3af', fontSize: 13, fontWeight: 600 }}>
+              Diseñando jugada para: <strong style={{ color: '#fff' }}>{editorExercise.title}</strong>
+            </div>
+            <CourtEditor
+              initialData={editorExercise.play_data ? {
+                title: editorExercise.play_data.title || editorExercise.title,
+                description: editorExercise.play_data.description || '',
+                steps: editorExercise.play_data.steps || [],
+              } : { title: editorExercise.title, description: '', steps: [] }}
+              courtType="half"
+              onSave={handleSaveExercisePlay}
+              onClose={() => setEditorExercise(null)}
+            />
           </div>
         </div>
       )}

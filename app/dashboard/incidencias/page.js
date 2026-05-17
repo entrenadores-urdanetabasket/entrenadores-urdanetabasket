@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 
 const TYPES = {
-  medical:        { label: 'Lesión/Médica',   emoji: '🤕', color: '#ef4444', bg: '#fef2f2', border: '#fecaca' },
-  disciplinary:   { label: 'Disciplinaria',   emoji: '🟨', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
-  administrative: { label: 'Administrativa',  emoji: '📋', color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
-  other:          { label: 'Otro',            emoji: '⚡', color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
+  lesion:    { label: 'Lesión',    emoji: '🤕', color: '#ef4444', bg: '#fef2f2', border: '#fecaca' },
+  sancion:   { label: 'Sanción',   emoji: '🟨', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  expulsion: { label: 'Expulsión', emoji: '🟥', color: '#dc2626', bg: '#fff1f1', border: '#fca5a5' },
+  conflicto: { label: 'Conflicto', emoji: '⚡', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  otro:      { label: 'Otros',     emoji: '📋', color: '#6b7280', bg: '#f9fafb', border: '#e5e7eb' },
 }
 
 export default function IncidenciasPage() {
@@ -23,7 +24,7 @@ export default function IncidenciasPage() {
   const [showForm, setShowForm] = useState(false)
   const [showResolve, setShowResolve] = useState(null)
   const [resolveNote, setResolveNote] = useState('')
-  const [form, setForm] = useState({ type: 'medical', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
+  const [form, setForm] = useState({ type: 'lesion', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
@@ -70,7 +71,7 @@ export default function IncidenciasPage() {
     setSaving(false)
     if (error) { alert('Error: ' + error.message + ' (' + error.code + ')'); return }
     setShowForm(false)
-    setForm({ type: 'medical', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
+    setForm({ type: 'lesion', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
     await loadTeamData(selectedTeam)
   }
 

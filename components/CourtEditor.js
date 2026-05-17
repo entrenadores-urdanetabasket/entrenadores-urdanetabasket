@@ -2,722 +2,722 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 
-/* ─── Constants ─────────────────────────────────────────── */
-const TOOLS = [
-  { id: 'select',   label: 'Seleccionar', emoji: '↖️' },
-  { id: 'offense',  label: 'Ataque',      emoji: '🔵' },
-  { id: 'defense',  label: 'Defensa',     emoji: '🔴' },
-  { id: 'ball',     label: 'Balón',       emoji: '🏀' },
-  { id: 'run',      label: 'Carrera',     emoji: '→' },
-  { id: 'pass',     label: 'Pase',        emoji: '⇢' },
-  { id: 'cut',      label: 'Corte',       emoji: '↗' },
-  { id: 'cone',     label: 'Cono',        emoji: '🔶' },
-  { id: 'screen',   label: 'Bloqueo',     emoji: '⬜' },
-  { id: 'text',     label: 'Texto',       emoji: '✏️' },
-  { id: 'erase',    label: 'Borrar',      emoji: '🗑️' },
-]
+/* ── Dimensions ─────────────────────────────────── */
+const CW = 500
+const CH = 556
+const PR = 20   // player radius
+const M  = 22   // court margin
 
-const COURT_W = 560
-const COURT_H_HALF = 370
-const COURT_H_FULL = 560
-const PLAYER_R = 18
-const OFFENSE_NUM_COLOR = '#fff'
-const OFFENSE_FILL = '#2563eb'
-const DEFENSE_FILL = '#dc2626'
-const BALL_COLOR = '#f97316'
+/* ══════════════════════════════════════════════════
+   COURT DRAWING
+══════════════════════════════════════════════════ */
+function drawCourt(ctx, W, H) {
+  // Floor
+  ctx.fillStyle = '#c49a4a'
+  ctx.fillRect(0, 0, W, H)
+  // Wood grain
+  for (let x = 0; x < W; x += 9) {
+    ctx.fillStyle = x % 18 === 0 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)'
+    ctx.fillRect(x, 0, 5, H)
+  }
 
-/* ─── Arrow math helpers ─────────────────────────────────── */
-function arrowHead(ctx, x1, y1, x2, y2, size = 10) {
-  const angle = Math.atan2(y2 - y1, x2 - x1)
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = 2.5
+
+  // Boundary
+  ctx.strokeRect(M, M, W - M * 2, H - M * 2)
+
+  // Bottom (half-court) line
+  ctx.beginPath()
+  ctx.moveTo(M, H - M)
+  ctx.lineTo(W - M, H - M)
+  ctx.stroke()
+
+  // Center circle (half, at bottom)
+  ctx.beginPath()
+  ctx.arc(W / 2, H - M, 50, Math.PI, 0)
+  ctx.stroke()
+
+  /* Paint */
+  const pW = 150, pH = 188
+  const pX = (W - pW) / 2
+  ctx.strokeRect(pX, M, pW, pH)
+
+  // Backboard
+  ctx.lineWidth = 5
+  ctx.beginPath()
+  ctx.moveTo(pX + 18, M + 2)
+  ctx.lineTo(pX + pW - 18, M + 2)
+  ctx.stroke()
+  ctx.lineWidth = 2.5
+
+  // Rim
+  const rimX = W / 2, rimY = M + 30
+  ctx.beginPath()
+  ctx.arc(rimX, rimY, 17, 0, Math.PI * 2)
+  ctx.stroke()
+
+  // Restricted arc
+  ctx.beginPath()
+  ctx.arc(rimX, rimY, 40, 0, Math.PI)
+  ctx.stroke()
+
+  // FT line
+  const ftY = M + pH
+  ctx.beginPath()
+  ctx.moveTo(pX, ftY)
+  ctx.lineTo(pX + pW, ftY)
+  ctx.stroke()
+
+  // FT circle – top solid
+  ctx.beginPath()
+  ctx.arc(W / 2, ftY, 73, Math.PI, 0)
+  ctx.stroke()
+  // FT circle – bottom dashed
+  ctx.setLineDash([9, 7])
+  ctx.beginPath()
+  ctx.arc(W / 2, ftY, 73, 0, Math.PI)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  /* 3-point line */
+  const arcR = 207
+  const cX = pX - 32, cXr = pX + pW + 32
+  const sideH = Math.sqrt(Math.max(0, arcR * arcR - (rimX - cX) ** 2))
+  ctx.beginPath()
+  ctx.moveTo(cX, M)
+  ctx.lineTo(cX, rimY - sideH)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(cXr, M)
+  ctx.lineTo(cXr, rimY - sideH)
+  ctx.stroke()
+  const a3 = Math.asin((rimX - cX) / arcR)
+  ctx.beginPath()
+  ctx.arc(rimX, rimY, arcR, Math.PI + a3, 2 * Math.PI - a3)
+  ctx.stroke()
+}
+
+/* ══════════════════════════════════════════════════
+   ARROW HELPERS
+══════════════════════════════════════════════════ */
+function arrowHead(ctx, x1, y1, x2, y2, sz = 11) {
+  const a = Math.atan2(y2 - y1, x2 - x1)
   ctx.beginPath()
   ctx.moveTo(x2, y2)
-  ctx.lineTo(x2 - size * Math.cos(angle - Math.PI / 7), y2 - size * Math.sin(angle - Math.PI / 7))
-  ctx.lineTo(x2 - size * Math.cos(angle + Math.PI / 7), y2 - size * Math.sin(angle + Math.PI / 7))
+  ctx.lineTo(x2 - sz * Math.cos(a - 0.42), y2 - sz * Math.sin(a - 0.42))
+  ctx.lineTo(x2 - sz * Math.cos(a + 0.42), y2 - sz * Math.sin(a + 0.42))
   ctx.closePath()
   ctx.fill()
 }
 
-/* ─── Draw court ─────────────────────────────────────────── */
-function drawCourt(ctx, type) {
-  const W = COURT_W
-  const H = type === 'full' ? COURT_H_FULL : COURT_H_HALF
-
-  // Background (hardwood)
-  ctx.fillStyle = '#c8a96e'
-  ctx.fillRect(0, 0, W, H)
-
-  // Lines
-  ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 2
-
-  if (type === 'full') {
-    // Full court outline
-    ctx.strokeRect(4, 4, W - 8, H - 8)
-
-    // Mid-court line
-    ctx.beginPath(); ctx.moveTo(4, H / 2); ctx.lineTo(W - 4, H / 2); ctx.stroke()
-
-    // Centre circle
-    ctx.beginPath(); ctx.arc(W / 2, H / 2, 45, 0, Math.PI * 2); ctx.stroke()
-    ctx.beginPath(); ctx.arc(W / 2, H / 2, 4, 0, Math.PI * 2)
-    ctx.fillStyle = '#fff'; ctx.fill()
-
-    drawHalfCourtLines(ctx, W, H, false) // top
-    drawHalfCourtLines(ctx, W, H, true)  // bottom (flipped)
-  } else {
-    // Half court
-    ctx.strokeRect(4, 4, W - 8, H - 8)
-    // Half-court arc at top (open)
-    ctx.beginPath(); ctx.arc(W / 2, 4, 50, 0, Math.PI); ctx.stroke()
-    drawHalfCourtLines(ctx, W, H, false)
-  }
-}
-
-function drawHalfCourtLines(ctx, W, H, flip) {
-  const sy = flip ? H : 0
-  const dir = flip ? -1 : 1
-  const abs = (y) => sy + dir * y
-
-  // Paint / key (16ft wide, 19ft long proportional)
-  const paintW = 140, paintH = 170, paintX = (W - paintW) / 2
-  ctx.strokeRect(paintX, abs(4), paintW, dir * paintH)
-
-  // Backboard
-  ctx.beginPath()
-  ctx.moveTo(paintX + 10, abs(4))
-  ctx.lineTo(paintX + paintW - 10, abs(4))
-  ctx.stroke()
-
-  // Rim
-  ctx.beginPath()
-  ctx.arc(W / 2, abs(30), 17, 0, Math.PI * 2)
-  ctx.stroke()
-
-  // Free-throw line (top of paint)
-  ctx.beginPath()
-  ctx.moveTo(paintX, abs(paintH + 4))
-  ctx.lineTo(paintX + paintW, abs(paintH + 4))
-  ctx.stroke()
-
-  // Free-throw circle (top half)
-  ctx.beginPath()
-  ctx.arc(W / 2, abs(paintH + 4), 70, flip ? 0 : Math.PI, flip ? Math.PI : 0)
-  ctx.stroke()
-  // Bottom dashed half
-  ctx.setLineDash([8, 6])
-  ctx.beginPath()
-  ctx.arc(W / 2, abs(paintH + 4), 70, flip ? Math.PI : 0, flip ? 0 : Math.PI)
-  ctx.stroke()
-  ctx.setLineDash([])
-
-  // Three-point arc
-  const arcY = abs(paintH + 4)
-  const arcR = 195
-  const arcCY = abs(30)
-  // Corner 3s (straights)
-  const cornerX1 = paintX - 25, cornerX2 = paintX + paintW + 25
-  const arcStart = Math.asin((cornerX1 - W / 2) / arcR)
-  ctx.beginPath()
-  ctx.moveTo(cornerX1, abs(4))
-  ctx.lineTo(cornerX1, arcCY + dir * Math.sqrt(arcR * arcR - (cornerX1 - W / 2) ** 2) * (flip ? 1 : -1))
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(cornerX2, abs(4))
-  ctx.lineTo(cornerX2, arcCY + dir * Math.sqrt(arcR * arcR - (cornerX2 - W / 2) ** 2) * (flip ? 1 : -1))
-  ctx.stroke()
-  // Arc
-  ctx.beginPath()
-  const a1 = Math.PI - Math.asin((W / 2 - cornerX1) / arcR)
-  const a2 = Math.asin((W / 2 - cornerX1) / arcR)
-  if (flip) {
-    ctx.arc(W / 2, arcCY, arcR, a2, Math.PI - a2)
-  } else {
-    ctx.arc(W / 2, arcCY, arcR, Math.PI + a2, -a2)
-  }
-  ctx.stroke()
-
-  // Restricted area
-  ctx.beginPath()
-  ctx.arc(W / 2, abs(30), 40, flip ? 0 : Math.PI, flip ? Math.PI : 0)
-  ctx.stroke()
-}
-
-/* ─── Draw elements ──────────────────────────────────────── */
-function drawElement(ctx, el, selected) {
+function drawArrowLine(ctx, type, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1
+  const len = Math.hypot(dx, dy)
+  if (len < 5) return
   ctx.save()
-  if (selected) {
-    ctx.shadowColor = '#facc15'
-    ctx.shadowBlur = 12
-  }
+  ctx.strokeStyle = '#111827'
+  ctx.fillStyle = '#111827'
+  ctx.lineCap = 'round'
 
-  if (el.type === 'offense') {
-    ctx.fillStyle = OFFENSE_FILL
-    ctx.beginPath()
-    ctx.arc(el.x, el.y, PLAYER_R, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = OFFENSE_NUM_COLOR
-    ctx.font = `bold 14px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(el.number || '?', el.x, el.y)
-  }
-
-  if (el.type === 'defense') {
-    ctx.strokeStyle = DEFENSE_FILL
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(el.x, el.y, PLAYER_R, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.font = `bold 16px sans-serif`
-    ctx.fillStyle = DEFENSE_FILL
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('X', el.x, el.y)
-  }
-
-  if (el.type === 'ball') {
-    ctx.fillStyle = BALL_COLOR
-    ctx.beginPath()
-    ctx.arc(el.x, el.y, 11, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 1.5
-    // lines on ball
-    ctx.beginPath()
-    ctx.moveTo(el.x - 11, el.y)
-    ctx.lineTo(el.x + 11, el.y)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.arc(el.x, el.y, 11, 0, Math.PI * 2)
-    ctx.stroke()
-  }
-
-  if (el.type === 'cone') {
-    ctx.fillStyle = '#f97316'
-    ctx.beginPath()
-    ctx.moveTo(el.x, el.y - 14)
-    ctx.lineTo(el.x - 10, el.y + 10)
-    ctx.lineTo(el.x + 10, el.y + 10)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillStyle = '#fff'
-    ctx.fillRect(el.x - 12, el.y + 10, 24, 4)
-  }
-
-  if (el.type === 'screen') {
-    ctx.strokeStyle = '#374151'
-    ctx.lineWidth = 3
-    ctx.strokeRect(el.x - 12, el.y - 18, 24, 36)
-  }
-
-  if (el.type === 'text') {
-    ctx.font = `bold 14px sans-serif`
-    ctx.fillStyle = '#1f2937'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(el.content || 'Texto', el.x, el.y)
-  }
-
-  if (el.type === 'run') {
-    ctx.strokeStyle = '#ca8a04'
-    ctx.fillStyle = '#ca8a04'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.moveTo(el.x1, el.y1)
-    ctx.lineTo(el.x2, el.y2)
-    ctx.stroke()
-    arrowHead(ctx, el.x1, el.y1, el.x2, el.y2)
-  }
-
-  if (el.type === 'pass') {
-    ctx.strokeStyle = '#7c3aed'
-    ctx.fillStyle = '#7c3aed'
+  if (type === 'dribble') {
     ctx.lineWidth = 2.5
-    ctx.setLineDash([10, 6])
+    const nx = -dy / len, ny = dx / len
+    const waves = Math.max(2, Math.round(len / 28))
     ctx.beginPath()
-    ctx.moveTo(el.x1, el.y1)
-    ctx.lineTo(el.x2, el.y2)
+    ctx.moveTo(x1, y1)
+    for (let i = 0; i < waves; i++) {
+      const s = i % 2 === 0 ? 1 : -1
+      ctx.bezierCurveTo(
+        x1 + dx * (i + 0.25) / waves + nx * 13 * s, y1 + dy * (i + 0.25) / waves + ny * 13 * s,
+        x1 + dx * (i + 0.75) / waves - nx * 13 * s, y1 + dy * (i + 0.75) / waves - ny * 13 * s,
+        x1 + dx * (i + 1) / waves, y1 + dy * (i + 1) / waves
+      )
+    }
     ctx.stroke()
+    arrowHead(ctx, x1, y1, x2, y2)
+  }
+
+  if (type === 'pass') {
+    ctx.lineWidth = 2.5
+    ctx.setLineDash([12, 7])
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
     ctx.setLineDash([])
-    arrowHead(ctx, el.x1, el.y1, el.x2, el.y2)
+    arrowHead(ctx, x1, y1, x2, y2)
   }
 
-  if (el.type === 'cut') {
-    ctx.strokeStyle = '#16a34a'
-    ctx.fillStyle = '#16a34a'
+  if (type === 'cut') {
     ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    arrowHead(ctx, x1, y1, x2, y2)
+  }
+
+  if (type === 'shot') {
+    ctx.lineWidth = 2
+    ctx.setLineDash([9, 6])
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.lineWidth = 1.5
+    ctx.beginPath(); ctx.arc(x2, y2, 8, 0, Math.PI * 2); ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(el.x1, el.y1)
-    ctx.lineTo(el.x2, el.y2)
+    ctx.moveTo(x2 - 13, y2); ctx.lineTo(x2 + 13, y2)
+    ctx.moveTo(x2, y2 - 13); ctx.lineTo(x2, y2 + 13)
     ctx.stroke()
-    arrowHead(ctx, el.x1, el.y1, el.x2, el.y2, 12)
+  }
+
+  if (type === 'handoff') {
+    ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(mx - 8, my); ctx.lineTo(mx + 8, my)
+    ctx.moveTo(mx, my - 8); ctx.lineTo(mx, my + 8)
+    ctx.stroke()
+    arrowHead(ctx, x1, y1, x2, y2)
+  }
+
+  if (type === 'screen') {
+    ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke()
+    arrowHead(ctx, x1, y1, x2, y2)
+    // Screen bar perpendicular at end
+    const a = Math.atan2(y2 - y1, x2 - x1)
+    const pa = a + Math.PI / 2
+    const bL = 22
+    ctx.lineWidth = 5
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x2 + bL * Math.cos(pa), y2 + bL * Math.sin(pa))
+    ctx.lineTo(x2 - bL * Math.cos(pa), y2 - bL * Math.sin(pa))
+    ctx.stroke()
   }
 
   ctx.restore()
 }
 
-/* ─── Main component ─────────────────────────────────────── */
-export default function CourtEditor({ initialData, courtType: initCourtType = 'half', onSave, onClose }) {
+/* ══════════════════════════════════════════════════
+   ELEMENT DRAWING
+══════════════════════════════════════════════════ */
+function drawEl(ctx, el, selected) {
+  ctx.save()
+  if (selected) { ctx.shadowColor = '#3b82f6'; ctx.shadowBlur = 16 }
+
+  const { type } = el
+
+  if (type === 'offense') {
+    ctx.fillStyle = '#111827'
+    ctx.beginPath(); ctx.arc(el.x, el.y, PR, 0, Math.PI * 2); ctx.fill()
+    if (selected) { ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5; ctx.stroke() }
+    ctx.fillStyle = '#fff'
+    ctx.font = `bold 14px -apple-system,sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(el.num ?? '?', el.x, el.y + 1)
+  }
+
+  if (type === 'defense') {
+    ctx.fillStyle = '#fff'
+    ctx.strokeStyle = '#111827'
+    ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.arc(el.x, el.y, PR, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    ctx.fillStyle = '#111827'
+    ctx.font = `bold 14px -apple-system,sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(el.num ?? '?', el.x, el.y + 1)
+  }
+
+  if (type === 'xdefense') {
+    const r = PR - 4
+    ctx.strokeStyle = '#111827'; ctx.lineWidth = 3; ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(el.x - r, el.y - r); ctx.lineTo(el.x + r, el.y + r)
+    ctx.moveTo(el.x + r, el.y - r); ctx.lineTo(el.x - r, el.y + r)
+    ctx.stroke()
+    if (el.num) {
+      ctx.fillStyle = '#111827'; ctx.font = `bold 10px sans-serif`
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top'
+      ctx.fillText('X' + el.num, el.x, el.y + r + 3)
+    }
+  }
+
+  if (type === 'ball') {
+    ctx.fillStyle = '#e07320'
+    ctx.beginPath(); ctx.arc(el.x, el.y, 12, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.arc(el.x, el.y, 12, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(el.x - 12, el.y); ctx.lineTo(el.x + 12, el.y); ctx.stroke()
+    ctx.beginPath(); ctx.arc(el.x, el.y, 7, 0, Math.PI * 2); ctx.stroke()
+  }
+
+  if (type === 'cone') {
+    ctx.fillStyle = '#f97316'
+    ctx.beginPath()
+    ctx.moveTo(el.x, el.y - 16); ctx.lineTo(el.x - 12, el.y + 11); ctx.lineTo(el.x + 12, el.y + 11)
+    ctx.closePath(); ctx.fill()
+    ctx.fillStyle = '#fff8'; ctx.fillRect(el.x - 13, el.y + 10, 26, 5)
+  }
+
+  if (type === 'text') {
+    ctx.font = `600 14px -apple-system,sans-serif`
+    const tw = ctx.measureText(el.content || '').width
+    ctx.fillStyle = 'rgba(255,255,255,0.88)'
+    ctx.fillRect(el.x - 3, el.y - 11, tw + 8, 22)
+    ctx.fillStyle = '#111827'
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'
+    ctx.fillText(el.content || '', el.x, el.y)
+  }
+
+  if (['dribble', 'pass', 'cut', 'shot', 'handoff', 'screen'].includes(type)) {
+    drawArrowLine(ctx, type, el.x1, el.y1, el.x2, el.y2)
+  }
+
+  ctx.restore()
+}
+
+/* ══════════════════════════════════════════════════
+   PHASE THUMBNAIL
+══════════════════════════════════════════════════ */
+function PhaseThumb({ elements, active, index, onClick }) {
+  const ref = useRef(null)
+  const TW = 132, TH = Math.round(132 * CH / CW)
+
+  useEffect(() => {
+    const c = ref.current; if (!c) return
+    const ctx = c.getContext('2d')
+    const s = TW / CW
+    ctx.clearRect(0, 0, TW, TH)
+    ctx.save(); ctx.scale(s, s)
+    drawCourt(ctx, CW, CH)
+    elements.forEach(el => drawEl(ctx, el, false))
+    ctx.restore()
+  }, [elements, TW, TH])
+
+  return (
+    <div onClick={onClick} style={{ cursor: 'pointer', borderRadius: 8, overflow: 'hidden', border: `2px solid ${active ? '#3b82f6' : '#374151'}`, position: 'relative', flexShrink: 0, transition: 'border-color 0.15s' }}>
+      <canvas ref={ref} width={TW} height={TH} style={{ display: 'block' }} />
+      <div style={{ position: 'absolute', top: 4, left: 4, background: active ? '#3b82f6' : 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+        {index + 1}
+      </div>
+    </div>
+  )
+}
+
+/* ══════════════════════════════════════════════════
+   MAIN COMPONENT
+══════════════════════════════════════════════════ */
+export default function CourtEditor({ initialData, onSave, onClose }) {
   const canvasRef = useRef(null)
-  const animRef = useRef(null)
-  const recorderRef = useRef(null)
-  const chunksRef = useRef([])
+  const animRef   = useRef(null)
 
-  const courtType = initCourtType
-  const COURT_H = courtType === 'full' ? COURT_H_FULL : COURT_H_HALF
+  const mkPhase = () => ({ id: crypto.randomUUID?.() || Math.random().toString(36).slice(2), elements: [] })
 
-  const emptyStep = () => ({ elements: [] })
+  const [phases, setPhases] = useState(() =>
+    initialData?.steps?.length
+      ? initialData.steps.map(s => ({ id: Math.random().toString(36).slice(2), elements: s.elements || [] }))
+      : [mkPhase()]
+  )
+  const [cur,       setCur]       = useState(0)
+  const [tab,       setTab]       = useState('draw')
+  const [tool,      setTool]      = useState('select')
+  const [selId,     setSelId]     = useState(null)
+  const [dragging,  setDragging]  = useState(null)
+  const [aSt,       setASt]       = useState(null)  // arrow start
+  const [aCur,      setACur]      = useState(null)  // arrow current
+  const [title,     setTitle]     = useState(initialData?.title || '')
+  const [notes,     setNotes]     = useState(initialData?.description || '')
+  const [animating, setAnimating] = useState(false)
+  const [animPh,    setAnimPh]    = useState(0)
+  const [recording, setRecording] = useState(false)
+  const [offNum,    setOffNum]    = useState(1)
+  const [defNum,    setDefNum]    = useState(1)
+  const [textModal, setTextModal] = useState(null)
+  const [textVal,   setTextVal]   = useState('')
 
-  const [steps, setSteps] = useState(() => {
-    if (initialData?.steps?.length) return initialData.steps
-    return [emptyStep()]
-  })
-  const [currentStep, setCurrentStep] = useState(0)
-  const [tool, setTool] = useState('select')
-  const [selectedId, setSelectedId] = useState(null)
-  const [offenseCount, setOffenseCount] = useState(1)
-  const [dragging, setDragging] = useState(null)
-  const [arrowStart, setArrowStart] = useState(null)
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
-  const [textPrompt, setTextPrompt] = useState(null)
-  const [description, setDescription] = useState(initialData?.description || '')
-  const [title, setTitle] = useState(initialData?.title || '')
+  const els = phases[cur]?.elements || []
+  const isArrowTool = ['dribble','pass','cut','shot','handoff','screen'].includes(tool)
 
-  /* ─── Render ─────────────────────────────────────────── */
+  /* ── Render ─────────────────────────────────── */
   const render = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, COURT_W, COURT_H)
-    drawCourt(ctx, courtType)
-    const els = steps[currentStep]?.elements || []
-    els.forEach(el => drawElement(ctx, el, el.id === selectedId))
-
-    // Arrow preview while drawing
-    if (arrowStart) {
-      ctx.save()
-      ctx.globalAlpha = 0.5
-      ctx.strokeStyle = tool === 'run' ? '#ca8a04' : tool === 'pass' ? '#7c3aed' : '#16a34a'
-      ctx.lineWidth = 2
-      if (tool === 'pass') ctx.setLineDash([8, 5])
-      ctx.beginPath()
-      ctx.moveTo(arrowStart.x, arrowStart.y)
-      ctx.lineTo(arrowStart.cx || arrowStart.x, arrowStart.cy || arrowStart.y)
-      ctx.stroke()
-      ctx.setLineDash([])
+    ctx.clearRect(0, 0, CW, CH)
+    drawCourt(ctx, CW, CH)
+    const ph = animating ? animPh : cur
+    const elems = phases[ph]?.elements || []
+    elems.forEach(el => drawEl(ctx, el, el.id === selId && !animating))
+    // Arrow preview
+    if (aSt && aCur && isArrowTool) {
+      ctx.save(); ctx.globalAlpha = 0.55
+      drawArrowLine(ctx, tool, aSt.x, aSt.y, aCur.x, aCur.y)
       ctx.restore()
     }
-  }, [steps, currentStep, selectedId, arrowStart, tool, courtType, COURT_H])
+  }, [phases, cur, selId, aSt, aCur, tool, animating, animPh, isArrowTool])
 
   useEffect(() => { render() }, [render])
 
-  /* ─── Mouse helpers ──────────────────────────────────── */
-  function getPos(e) {
-    const r = canvasRef.current.getBoundingClientRect()
-    const scaleX = COURT_W / r.width
-    const scaleY = COURT_H / r.height
-    return {
-      x: (e.clientX - r.left) * scaleX,
-      y: (e.clientY - r.top) * scaleY,
-    }
+  /* ── Helpers ─────────────────────────────────── */
+  function addEl(el) {
+    const id = Math.random().toString(36).slice(2)
+    setPhases(p => p.map((ph, i) => i !== cur ? ph : { ...ph, elements: [...ph.elements, { ...el, id }] }))
   }
-
+  function updEl(id, patch) {
+    setPhases(p => p.map((ph, i) => i !== cur ? ph : { ...ph, elements: ph.elements.map(e => e.id === id ? { ...e, ...patch } : e) }))
+  }
+  function delEl(id) {
+    setPhases(p => p.map((ph, i) => i !== cur ? ph : { ...ph, elements: ph.elements.filter(e => e.id !== id) }))
+  }
   function hitTest(x, y) {
-    const els = steps[currentStep]?.elements || []
-    for (let i = els.length - 1; i >= 0; i--) {
-      const el = els[i]
-      if (el.type === 'run' || el.type === 'pass' || el.type === 'cut') continue
-      const dx = x - el.x, dy = y - el.y
-      if (Math.sqrt(dx * dx + dy * dy) < PLAYER_R + 4) return el
+    const r = [...(phases[cur]?.elements || [])].reverse()
+    for (const el of r) {
+      if (['dribble','pass','cut','shot','handoff','screen'].includes(el.type)) continue
+      if (Math.hypot(x - el.x, y - el.y) < PR + 6) return el
     }
     return null
   }
-
-  function updateElement(id, patch) {
-    setSteps(prev => {
-      const next = prev.map((s, i) => {
-        if (i !== currentStep) return s
-        return { ...s, elements: s.elements.map(el => el.id === id ? { ...el, ...patch } : el) }
-      })
-      return next
-    })
+  function pos(e) {
+    const r = canvasRef.current.getBoundingClientRect()
+    return { x: (e.clientX - r.left) * (CW / r.width), y: (e.clientY - r.top) * (CH / r.height) }
   }
+  function toMouse(te) { const t = te.touches[0] || te.changedTouches[0]; return { clientX: t.clientX, clientY: t.clientY } }
 
-  function addElement(el) {
-    const id = Math.random().toString(36).slice(2)
-    setSteps(prev => {
-      const next = [...prev]
-      next[currentStep] = { ...next[currentStep], elements: [...(next[currentStep]?.elements || []), { ...el, id }] }
-      return next
-    })
-    return id
+  /* ── Pointer events ──────────────────────────── */
+  function onDown(e) {
+    if (animating || tab !== 'draw') return
+    const p = pos(e)
+    if (isArrowTool) { setASt(p); setACur(p); return }
+    if (tool === 'select') {
+      const hit = hitTest(p.x, p.y)
+      if (hit) { setSelId(hit.id); setDragging({ id: hit.id, ox: p.x - hit.x, oy: p.y - hit.y }) }
+      else setSelId(null)
+      return
+    }
+    if (tool === 'erase') { const hit = hitTest(p.x, p.y); if (hit) { delEl(hit.id); setSelId(null) }; return }
+    if (tool === 'offense')  { addEl({ type: 'offense',  x: p.x, y: p.y, num: offNum }); setOffNum(n => n >= 5 ? 1 : n + 1); return }
+    if (tool === 'defense')  { addEl({ type: 'defense',  x: p.x, y: p.y, num: defNum }); return }
+    if (tool === 'xdefense') { addEl({ type: 'xdefense', x: p.x, y: p.y, num: defNum }); return }
+    if (tool === 'ball')  { addEl({ type: 'ball',  x: p.x, y: p.y }); return }
+    if (tool === 'cone')  { addEl({ type: 'cone',  x: p.x, y: p.y }); return }
+    if (tool === 'text')  { setTextModal(p); setTextVal(''); return }
   }
-
-  function removeSelected() {
-    if (!selectedId) return
-    setSteps(prev => prev.map((s, i) => i !== currentStep ? s : {
-      ...s, elements: s.elements.filter(el => el.id !== selectedId)
-    }))
-    setSelectedId(null)
+  function onMove(e) {
+    if (animating) return
+    const p = pos(e)
+    if (dragging) { updEl(dragging.id, { x: p.x - dragging.ox, y: p.y - dragging.oy }); return }
+    if (aSt) setACur(p)
   }
-
-  /* ─── Mouse events ───────────────────────────────────── */
-  function onMouseDown(e) {
-    const { x, y } = getPos(e)
-
-    if (tool === 'select' || tool === 'erase') {
-      const hit = hitTest(x, y)
-      if (hit) {
-        if (tool === 'erase') {
-          setSteps(prev => prev.map((s, i) => i !== currentStep ? s : { ...s, elements: s.elements.filter(el => el.id !== hit.id) }))
-          setSelectedId(null)
-        } else {
-          setSelectedId(hit.id)
-          setDragging({ id: hit.id, ox: x - hit.x, oy: y - hit.y })
-        }
-      } else {
-        setSelectedId(null)
-      }
-      return
-    }
-
-    if (tool === 'offense') {
-      addElement({ type: 'offense', x, y, number: offenseCount })
-      setOffenseCount(c => c < 5 ? c + 1 : 1)
-      return
-    }
-
-    if (tool === 'defense') {
-      addElement({ type: 'defense', x, y })
-      return
-    }
-
-    if (tool === 'ball') {
-      addElement({ type: 'ball', x, y })
-      return
-    }
-
-    if (tool === 'cone') {
-      addElement({ type: 'cone', x, y })
-      return
-    }
-
-    if (tool === 'screen') {
-      addElement({ type: 'screen', x, y })
-      return
-    }
-
-    if (tool === 'text') {
-      setTextPrompt({ x, y })
-      return
-    }
-
-    if (tool === 'run' || tool === 'pass' || tool === 'cut') {
-      setArrowStart({ x, y, cx: x, cy: y })
-      return
-    }
-  }
-
-  function onMouseMove(e) {
-    const { x, y } = getPos(e)
-
-    if (dragging) {
-      updateElement(dragging.id, { x: x - dragging.ox, y: y - dragging.oy })
-      return
-    }
-
-    if (arrowStart) {
-      setArrowStart(prev => ({ ...prev, cx: x, cy: y }))
-    }
-  }
-
-  function onMouseUp(e) {
+  function onUp(e) {
+    if (animating) return
     if (dragging) { setDragging(null); return }
-    if (arrowStart) {
-      const { x, y } = getPos(e)
-      const dx = x - arrowStart.x, dy = y - arrowStart.y
-      if (Math.sqrt(dx * dx + dy * dy) > 15) {
-        addElement({ type: tool, x1: arrowStart.x, y1: arrowStart.y, x2: x, y2: y })
+    if (aSt) {
+      const p = pos(e)
+      if (Math.hypot(p.x - aSt.x, p.y - aSt.y) > 20) {
+        addEl({ type: tool, x1: aSt.x, y1: aSt.y, x2: p.x, y2: p.y, x: (aSt.x + p.x) / 2, y: (aSt.y + p.y) / 2 })
       }
-      setArrowStart(null)
+      setASt(null); setACur(null)
     }
   }
 
-  // Touch support
-  function toMouseEvt(te) {
-    const t = te.touches[0] || te.changedTouches[0]
-    return { clientX: t.clientX, clientY: t.clientY }
+  /* ── Phase management ────────────────────────── */
+  function addPhase()   { setPhases(p => [...p, mkPhase()]); setCur(phases.length) }
+  function clonePhase() {
+    const c = JSON.parse(JSON.stringify(phases[cur])); c.id = Math.random().toString(36).slice(2)
+    setPhases(p => [...p, c]); setCur(phases.length)
   }
-
-  /* ─── Steps management ───────────────────────────────── */
-  function addStep() {
-    setSteps(prev => {
-      const copy = JSON.parse(JSON.stringify(prev[currentStep]))
-      const next = [...prev]
-      next.splice(currentStep + 1, 0, copy)
-      return next
-    })
-    setCurrentStep(c => c + 1)
+  function delPhase() {
+    if (phases.length === 1) return
+    setPhases(p => p.filter((_, i) => i !== cur)); setCur(Math.max(0, cur - 1))
   }
+  function clearPhase() { setPhases(p => p.map((ph, i) => i !== cur ? ph : { ...ph, elements: [] })); setSelId(null) }
 
-  function removeStep() {
-    if (steps.length === 1) return
-    setSteps(prev => prev.filter((_, i) => i !== currentStep))
-    setCurrentStep(c => Math.max(0, c - 1))
-  }
-
-  function duplicateStep() {
-    setSteps(prev => {
-      const copy = JSON.parse(JSON.stringify(prev[currentStep]))
-      return [...prev, copy]
-    })
-    setCurrentStep(steps.length)
-  }
-
-  /* ─── Animation ──────────────────────────────────────── */
-  function animate() {
-    if (isAnimating) {
-      cancelAnimationFrame(animRef.current)
-      setIsAnimating(false)
-      return
+  /* ── Animation ───────────────────────────────── */
+  function startAnimate() {
+    if (animating) { clearTimeout(animRef.current); setAnimating(false); return }
+    setAnimating(true); setAnimPh(0)
+    let i = 0
+    function step() {
+      setAnimPh(i); i++
+      if (i < phases.length) animRef.current = setTimeout(step, 1400)
+      else animRef.current = setTimeout(() => setAnimating(false), 1400)
     }
-    setIsAnimating(true)
-    let step = 0
-    function tick() {
-      setCurrentStep(step)
-      step++
-      if (step < steps.length) {
-        animRef.current = setTimeout(tick, 1200)
-      } else {
-        setIsAnimating(false)
-        setCurrentStep(0)
-      }
-    }
-    tick()
+    step()
   }
+  useEffect(() => () => clearTimeout(animRef.current), [])
 
-  /* ─── Video export ───────────────────────────────────── */
+  /* ── Video export ────────────────────────────── */
   async function exportVideo() {
     const canvas = canvasRef.current
-    if (!canvas) return
-
-    const stream = canvas.captureStream(30)
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' })
-    recorderRef.current = recorder
-    chunksRef.current = []
-
-    recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+    if (!canvas || typeof MediaRecorder === 'undefined') { alert('Tu navegador no soporta grabación de vídeo'); return }
+    const stream = canvas.captureStream(25)
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm'
+    const rec = new MediaRecorder(stream, { mimeType })
+    const chunks = []
+    rec.ondataavailable = e => chunks.push(e.data)
+    rec.onstop = () => {
+      const blob = new Blob(chunks, { type: 'video/webm' })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${title || 'jugada'}.webm`
-      a.click()
-      URL.revokeObjectURL(url)
-      setIsRecording(false)
+      const a = document.createElement('a'); a.href = url; a.download = (title || 'jugada') + '.webm'; a.click()
+      URL.revokeObjectURL(url); setRecording(false)
     }
-
-    recorder.start()
-    setIsRecording(true)
-
-    // Record each step for 1.5s
-    for (let i = 0; i < steps.length; i++) {
-      setCurrentStep(i)
-      await new Promise(r => setTimeout(r, 1500))
-    }
-    recorder.stop()
+    setRecording(true); rec.start()
+    for (let i = 0; i < phases.length; i++) { setCur(i); await new Promise(r => setTimeout(r, 1600)) }
+    rec.stop()
   }
 
-  /* ─── Save ───────────────────────────────────────────── */
-  function handleSave() {
-    if (onSave) onSave({ title, description, steps })
-  }
+  /* ── Save ────────────────────────────────────── */
+  function handleSave() { onSave?.({ title, description: notes, steps: phases.map(p => ({ elements: p.elements })) }) }
 
-  /* ─── Clear step ─────────────────────────────────────── */
-  function clearStep() {
-    setSteps(prev => prev.map((s, i) => i !== currentStep ? s : { ...s, elements: [] }))
-    setSelectedId(null)
-  }
-
-  /* ─── Keyboard ───────────────────────────────────────── */
+  /* ── Keyboard ────────────────────────────────── */
   useEffect(() => {
     function onKey(e) {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return
-        removeSelected()
-      }
+      if (['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) return
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selId) { delEl(selId); setSelId(null) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedId, currentStep])
+  }, [selId, cur])
 
-  /* ─── Render ─────────────────────────────────────────── */
-  const btnBase = {
-    border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700,
-    fontSize: 11, padding: '6px 8px', display: 'flex', flexDirection: 'column',
-    alignItems: 'center', gap: 2, minWidth: 48, transition: 'all 0.15s',
+  /* ══════════════════════════════════════════════
+     STYLES
+  ══════════════════════════════════════════════ */
+  const tabBtn = (t, label) => (
+    <button key={t} onClick={() => setTab(t)} style={{
+      padding: '7px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+      fontWeight: 600, fontSize: 13,
+      background: tab === t ? '#fff' : 'transparent',
+      color: tab === t ? '#111827' : '#9ca3af',
+      transition: 'all 0.15s',
+    }}>{label}</button>
+  )
+
+  const actionBtn = (id, label, icon) => (
+    <button key={id} onClick={() => setTool(id)} style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+      padding: '8px 6px', borderRadius: 8, border: `1.5px solid ${tool === id ? '#3b82f6' : '#374151'}`,
+      background: tool === id ? '#1d4ed8' : '#1f2937', cursor: 'pointer',
+      flex: '1 1 calc(50% - 4px)', minWidth: 72,
+    }}>
+      <span style={{ fontSize: 13, color: '#9ca3af', fontFamily: 'monospace' }}>{icon}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: tool === id ? '#fff' : '#d1d5db' }}>{label}</span>
+    </button>
+  )
+
+  const playerBtn = (id, numVal, label, style = {}) => {
+    const active = tool === id && (id === 'offense' ? offNum === numVal : defNum === numVal)
+    return (
+      <button key={id + numVal} onClick={() => { setTool(id); id === 'offense' ? setOffNum(numVal) : setDefNum(numVal) }} style={{
+        width: 33, height: 33, borderRadius: id === 'xdefense' ? 6 : '50%',
+        border: `2px solid ${active ? '#3b82f6' : id === 'defense' ? '#4b5563' : '#374151'}`,
+        background: active ? '#1d4ed8' : id === 'offense' ? '#111827' : 'transparent',
+        color: active ? '#fff' : id === 'offense' ? '#fff' : '#9ca3af',
+        fontSize: id === 'xdefense' ? 9 : 12, fontWeight: 700, cursor: 'pointer',
+        ...style,
+      }}>
+        {id === 'xdefense' ? 'X' + numVal : numVal}
+      </button>
+    )
   }
 
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 0,
-      background: '#111827', borderRadius: 16, overflow: 'hidden',
-      boxShadow: '0 8px 40px rgba(0,0,0,0.5)', maxWidth: 680, width: '100%', margin: '0 auto',
+  const miscBtn = (id, icon, label) => (
+    <button key={id} onClick={() => setTool(id)} style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+      padding: '7px 4px', borderRadius: 8, border: `1.5px solid ${tool === id ? '#3b82f6' : '#374151'}`,
+      background: tool === id ? '#1d4ed8' : '#1f2937', cursor: 'pointer',
+      flex: '1 1 calc(33% - 4px)',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#1f2937', borderBottom: '1px solid #374151' }}>
-        <span style={{ fontSize: 18 }}>🏀</span>
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="Nombre de la jugada..."
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 15, fontWeight: 700 }}
-        />
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, color: tool === id ? '#fff' : '#9ca3af' }}>{label}</span>
+    </button>
+  )
+
+  /* ══════════════════════════════════════════════
+     RENDER
+  ══════════════════════════════════════════════ */
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#111827', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif', overflow: 'hidden' }}>
+
+      {/* ── TOP BAR ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: '#1f2937', borderBottom: '1px solid #374151', flexShrink: 0 }}>
         {onClose && (
-          <button onClick={onClose} style={{ ...btnBase, background: '#374151', color: '#9ca3af', padding: '6px 12px', minWidth: 'auto' }}>✕</button>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 4, padding: '8px 12px', background: '#1f2937', overflowX: 'auto', flexWrap: 'wrap' }}>
-        {TOOLS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => { setTool(t.id); setArrowStart(null) }}
-            title={t.label}
-            style={{
-              ...btnBase,
-              background: tool === t.id ? '#3b82f6' : '#374151',
-              color: tool === t.id ? '#fff' : '#d1d5db',
-            }}
-          >
-            <span style={{ fontSize: 16 }}>{t.emoji}</span>
-            <span style={{ fontSize: 9 }}>{t.label}</span>
+          <button onClick={onClose} style={{ background: '#374151', border: 'none', borderRadius: 8, color: '#e5e7eb', padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            ✕ Cerrar
           </button>
-        ))}
-      </div>
-
-      {/* Canvas */}
-      <div style={{ position: 'relative', background: '#111827', display: 'flex', justifyContent: 'center', padding: '8px' }}>
-        <canvas
-          ref={canvasRef}
-          width={COURT_W}
-          height={COURT_H}
-          style={{ width: '100%', maxWidth: COURT_W, borderRadius: 8, cursor: tool === 'select' ? 'default' : 'crosshair', touchAction: 'none' }}
-          onMouseDown={onMouseDown}
-          onMouseMove={onMouseMove}
-          onMouseUp={onMouseUp}
-          onTouchStart={e => { e.preventDefault(); onMouseDown(toMouseEvt(e)) }}
-          onTouchMove={e => { e.preventDefault(); onMouseMove(toMouseEvt(e)) }}
-          onTouchEnd={e => { e.preventDefault(); onMouseUp(toMouseEvt(e)) }}
-        />
-
-        {/* Step counter overlay */}
-        <div style={{ position: 'absolute', top: 18, right: 20, background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 13, fontWeight: 700, pointerEvents: 'none' }}>
-          Paso {currentStep + 1}/{steps.length}
+        )}
+        <div style={{ display: 'flex', background: '#111827', borderRadius: 8, padding: 3, gap: 1 }}>
+          {tabBtn('draw',    '✏️ Dibujar')}
+          {tabBtn('animate', '▶ Animar')}
+          {tabBtn('notes',   '📝 Notas')}
+          {tabBtn('output',  '📤 Exportar')}
         </div>
-      </div>
-
-      {/* Steps bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#1f2937', overflowX: 'auto' }}>
-        <span style={{ color: '#9ca3af', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>Pasos:</span>
-        {steps.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentStep(i)}
-            style={{
-              ...btnBase, minWidth: 36, padding: '4px 8px',
-              background: i === currentStep ? '#3b82f6' : '#374151',
-              color: i === currentStep ? '#fff' : '#9ca3af',
-              fontSize: 13,
-            }}
-          >
-            {i + 1}
-          </button>
-        ))}
-        <button onClick={addStep} style={{ ...btnBase, background: '#374151', color: '#9ca3af', padding: '4px 8px', minWidth: 28, fontSize: 18 }} title="Añadir paso">+</button>
-        {steps.length > 1 && <button onClick={removeStep} style={{ ...btnBase, background: '#374151', color: '#ef4444', padding: '4px 8px', minWidth: 28, fontSize: 14 }} title="Eliminar paso">—</button>}
-        <div style={{ flex: 1 }} />
-        <button onClick={clearStep} style={{ ...btnBase, background: '#374151', color: '#9ca3af', fontSize: 11, padding: '4px 8px', minWidth: 'auto' }}>🧹 Limpiar</button>
-      </div>
-
-      {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', background: '#1f2937', flexWrap: 'wrap' }}>
-        <button
-          onClick={animate}
-          disabled={isRecording}
-          style={{ ...btnBase, background: isAnimating ? '#f59e0b' : '#374151', color: '#fff', flexDirection: 'row', padding: '8px 14px', minWidth: 'auto', fontSize: 12 }}
-        >
-          {isAnimating ? '⏹ Parar' : '▶️ Animar'}
-        </button>
-        <button
-          onClick={exportVideo}
-          disabled={isAnimating || isRecording}
-          style={{ ...btnBase, background: isRecording ? '#ef4444' : '#374151', color: '#fff', flexDirection: 'row', padding: '8px 14px', minWidth: 'auto', fontSize: 12 }}
-        >
-          {isRecording ? '⏺ Grabando...' : '🎬 Exportar vídeo'}
-        </button>
-        <div style={{ flex: 1 }} />
-        {selectedId && (
-          <button onClick={removeSelected} style={{ ...btnBase, background: '#7f1d1d', color: '#fca5a5', flexDirection: 'row', padding: '8px 12px', minWidth: 'auto', fontSize: 12 }}>
-            🗑 Eliminar
-          </button>
-        )}
-        <button onClick={handleSave} style={{ ...btnBase, background: '#16a34a', color: '#fff', flexDirection: 'row', padding: '8px 18px', minWidth: 'auto', fontSize: 12 }}>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Sin título..."
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 15, fontWeight: 700, textAlign: 'center' }} />
+        <button onClick={handleSave} style={{ background: '#16a34a', border: 'none', borderRadius: 8, color: '#fff', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           💾 Guardar
         </button>
       </div>
 
-      {/* Description */}
-      <div style={{ padding: '10px 12px', background: '#1f2937', borderTop: '1px solid #374151' }}>
-        <textarea
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="Descripción de la jugada (objetivos, instrucciones, variantes...)"
-          rows={3}
-          style={{
-            width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: 8,
-            color: '#e5e7eb', fontSize: 13, padding: '8px 10px', resize: 'vertical',
-            outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-          }}
-        />
+      {/* ── MAIN AREA ── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+        {/* ── LEFT: PHASES ── */}
+        <div style={{ width: 156, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 8, overflowY: 'auto', flexShrink: 0 }}>
+          <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', paddingLeft: 2 }}>Fases</div>
+          {phases.map((ph, i) => (
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i === cur} onClick={() => { setCur(i); setSelId(null) }} />
+          ))}
+          {/* Phase controls */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={addPhase} title="Nueva fase" style={{ flex: 1, padding: '6px', borderRadius: 6, border: '1px dashed #374151', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>+</button>
+            <button onClick={clonePhase} title="Clonar fase" style={{ flex: 1, padding: '5px', borderRadius: 6, border: '1px solid #374151', background: '#111827', color: '#9ca3af', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>Clonar</button>
+          </div>
+          <button onClick={clearPhase} style={{ padding: '5px', borderRadius: 6, border: '1px solid #374151', background: 'transparent', color: '#9ca3af', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>🧹 Limpiar fase</button>
+          {phases.length > 1 && (
+            <button onClick={delPhase} style={{ padding: '5px', borderRadius: 6, border: '1px solid #7f1d1d', background: 'transparent', color: '#ef4444', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>— Eliminar fase</button>
+          )}
+        </div>
+
+        {/* ── CENTER: CANVAS ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f172a', padding: 12, gap: 12, overflow: 'hidden' }}>
+
+          {/* Canvas (always rendered for ref) */}
+          <canvas
+            ref={canvasRef}
+            width={CW} height={CH}
+            style={{
+              maxWidth: '100%',
+              maxHeight: 'calc(100vh - 180px)',
+              objectFit: 'contain',
+              borderRadius: 12,
+              boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+              cursor: tool === 'select' ? 'default' : tool === 'erase' ? 'cell' : 'crosshair',
+              touchAction: 'none',
+              display: (tab === 'notes' || tab === 'output') ? 'none' : 'block',
+              pointerEvents: tab === 'animate' ? 'none' : 'auto',
+            }}
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
+            onTouchStart={e => { e.preventDefault(); onDown(toMouse(e)) }}
+            onTouchMove={e => { e.preventDefault(); onMove(toMouse(e)) }}
+            onTouchEnd={e => { e.preventDefault(); onUp(toMouse(e)) }}
+          />
+
+          {/* Animate controls */}
+          {tab === 'animate' && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button onClick={startAnimate} style={{ background: animating ? '#f59e0b' : '#3b82f6', border: 'none', borderRadius: 8, color: '#fff', padding: '10px 26px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                {animating ? '⏹ Parar' : '▶ Animar jugada'}
+              </button>
+              {animating && <span style={{ color: '#9ca3af', fontSize: 13 }}>Fase {animPh + 1} / {phases.length}</span>}
+              {!animating && <span style={{ color: '#6b7280', fontSize: 12 }}>{phases.length} fase{phases.length !== 1 ? 's' : ''} · Duración: ~{phases.length * 1.4}s</span>}
+            </div>
+          )}
+
+          {/* Notes tab */}
+          {tab === 'notes' && (
+            <div style={{ width: '100%', maxWidth: 580 }}>
+              <div style={{ color: '#9ca3af', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 }}>Notas de la jugada</div>
+              <textarea
+                value={notes} onChange={e => setNotes(e.target.value)} rows={14}
+                placeholder="Describe la jugada: objetivos, instrucciones, variantes, puntos clave..."
+                style={{ width: '100%', background: '#1f2937', border: '1px solid #374151', borderRadius: 10, color: '#e5e7eb', fontSize: 14, padding: '14px', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.6 }}
+              />
+            </div>
+          )}
+
+          {/* Output tab */}
+          {tab === 'output' && (
+            <div style={{ textAlign: 'center', color: '#e5e7eb', maxWidth: 400 }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>🎬</div>
+              <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Exportar jugada</div>
+              <div style={{ color: '#9ca3af', fontSize: 14, marginBottom: 28 }}>
+                {phases.length} fase{phases.length !== 1 ? 's' : ''} · duración estimada ~{Math.round(phases.length * 1.6)}s
+              </div>
+              <button onClick={exportVideo} disabled={recording} style={{
+                background: recording ? '#374151' : '#7c3aed', border: 'none', borderRadius: 10,
+                color: '#fff', padding: '13px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+                boxShadow: recording ? 'none' : '0 4px 20px rgba(124,58,237,0.4)',
+              }}>
+                {recording ? '⏺ Grabando...' : '🎬 Exportar vídeo (.webm)'}
+              </button>
+              <div style={{ color: '#4b5563', fontSize: 12, marginTop: 12 }}>Formato WebM · compatible con Chrome, Firefox, Edge</div>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: TOOLS (solo en tab draw) ── */}
+        {tab === 'draw' && (
+          <div style={{ width: 196, background: '#1f2937', borderLeft: '1px solid #374151', padding: '10px 8px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* ACCIONES */}
+            <div>
+              <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Acciones</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {actionBtn('dribble', 'Dribble',  '〰→')}
+                {actionBtn('pass',    'Pase',     '- -→')}
+                {actionBtn('cut',     'Corte',    '——→')}
+                {actionBtn('screen',  'Bloqueo',  '—⊣')}
+                {actionBtn('shot',    'Tiro',     '⊹—→')}
+                {actionBtn('handoff', 'Handoff',  '⊕→')}
+              </div>
+            </div>
+
+            {/* JUGADORES */}
+            <div>
+              <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Jugadores</div>
+              {/* Offense */}
+              <div style={{ fontSize: 10, color: '#4b5563', fontWeight: 600, marginBottom: 5 }}>⬤ Ataque (relleno)</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+                {[1,2,3,4,5,'?'].map(n => playerBtn('offense', n, n))}
+              </div>
+              {/* Defense */}
+              <div style={{ fontSize: 10, color: '#4b5563', fontWeight: 600, marginBottom: 5 }}>○ Defensa (hueco)</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+                {[1,2,3,4,5,'?'].map(n => playerBtn('defense', n, n))}
+              </div>
+              {/* X defense */}
+              <div style={{ fontSize: 10, color: '#4b5563', fontWeight: 600, marginBottom: 5 }}>✕ Defensa X</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {[1,2,3,4,5,'?'].map(n => playerBtn('xdefense', n, n))}
+              </div>
+            </div>
+
+            {/* OBJETOS */}
+            <div>
+              <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>Objetos</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {miscBtn('ball',   '🏀', 'Balón')}
+                {miscBtn('cone',   '🔶', 'Cono')}
+                {miscBtn('text',   'T',  'Texto')}
+                {miscBtn('select', '↖',  'Mover')}
+                {miscBtn('erase',  '🗑',  'Borrar')}
+              </div>
+            </div>
+
+            {/* Selected element actions */}
+            {selId && (
+              <div style={{ borderTop: '1px solid #374151', paddingTop: 10 }}>
+                <button onClick={() => { delEl(selId); setSelId(null) }} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid #7f1d1d', background: 'transparent', color: '#ef4444', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                  🗑 Eliminar seleccionado
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Text prompt modal */}
-      {textPrompt && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
-        }}>
-          <div style={{ background: '#1f2937', borderRadius: 14, padding: 24, width: 300 }}>
-            <p style={{ color: '#fff', fontWeight: 700, marginBottom: 12 }}>Añadir texto</p>
+      {/* ── TEXT MODAL ── */}
+      {textModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1f2937', borderRadius: 14, padding: 24, width: 320, boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Añadir texto</div>
             <input
-              autoFocus
-              id="txt-input"
+              autoFocus value={textVal} onChange={e => setTextVal(e.target.value)}
               placeholder="Escribe el texto..."
-              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #374151', background: '#111827', color: '#fff', fontSize: 14, boxSizing: 'border-box' }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  const val = e.target.value.trim()
-                  if (val) addElement({ type: 'text', x: textPrompt.x, y: textPrompt.y, content: val })
-                  setTextPrompt(null)
-                }
-                if (e.key === 'Escape') setTextPrompt(null)
-              }}
+              onKeyDown={e => { if (e.key === 'Enter') { if (textVal.trim()) addEl({ type: 'text', x: textModal.x, y: textModal.y, content: textVal.trim() }); setTextModal(null) } if (e.key === 'Escape') setTextModal(null) }}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #374151', background: '#111827', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
             />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={() => setTextPrompt(null)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: '#374151', color: '#9ca3af', cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
-              <button
-                onClick={() => {
-                  const val = document.getElementById('txt-input').value.trim()
-                  if (val) addElement({ type: 'text', x: textPrompt.x, y: textPrompt.y, content: val })
-                  setTextPrompt(null)
-                }}
-                style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>
-                Añadir
-              </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setTextModal(null)} style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', background: '#374151', color: '#9ca3af', cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
+              <button onClick={() => { if (textVal.trim()) addEl({ type: 'text', x: textModal.x, y: textModal.y, content: textVal.trim() }); setTextModal(null) }}
+                style={{ flex: 1, padding: 9, borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Añadir</button>
             </div>
           </div>
         </div>

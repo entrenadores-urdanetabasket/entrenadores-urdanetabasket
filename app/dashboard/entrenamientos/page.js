@@ -141,6 +141,22 @@ export default function EntrenamientosPage() {
 
   if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
 
+  // Full-screen court editor for exercise play design
+  if (editorExercise) {
+    const initData = editorExercise.play_data
+      ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [] }
+      : { title: editorExercise.title, description: '', steps: [] }
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+        <CourtEditor
+          initialData={initData}
+          onSave={handleSaveExercisePlay}
+          onClose={() => setEditorExercise(null)}
+        />
+      </div>
+    )
+  }
+
   if (!selectedTeam) return (
     <div style={{ textAlign: 'center', padding: '64px 0' }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
@@ -421,26 +437,6 @@ export default function EntrenamientosPage() {
         </div>
       )}
 
-      {/* CourtEditor modal para ejercicio */}
-      {editorExercise && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px 8px', overflowY: 'auto' }}>
-          <div style={{ width: '100%', maxWidth: 700 }}>
-            <div style={{ marginBottom: 10, color: '#9ca3af', fontSize: 13, fontWeight: 600 }}>
-              Diseñando jugada para: <strong style={{ color: '#fff' }}>{editorExercise.title}</strong>
-            </div>
-            <CourtEditor
-              initialData={editorExercise.play_data ? {
-                title: editorExercise.play_data.title || editorExercise.title,
-                description: editorExercise.play_data.description || '',
-                steps: editorExercise.play_data.steps || [],
-              } : { title: editorExercise.title, description: '', steps: [] }}
-              courtType="half"
-              onSave={handleSaveExercisePlay}
-              onClose={() => setEditorExercise(null)}
-            />
-          </div>
-        </div>
-      )}
     </div>
   )
 }

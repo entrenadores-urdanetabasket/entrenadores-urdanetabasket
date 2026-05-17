@@ -59,7 +59,7 @@ export default function IncidenciasPage() {
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
-    await supabase.from('incidents').insert({
+    const { error } = await supabase.from('incidents').insert({
       team_id: selectedTeam.id,
       player_id: form.player_id || null,
       type: form.type,
@@ -69,6 +69,7 @@ export default function IncidenciasPage() {
       resolved: false
     })
     setSaving(false)
+    if (error) { alert('Error: ' + error.message + ' (' + error.code + ')'); return }
     setShowForm(false)
     setForm({ type: 'lesion', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
     await loadTeamData(selectedTeam)

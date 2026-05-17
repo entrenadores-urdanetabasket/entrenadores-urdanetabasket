@@ -5,6 +5,14 @@ import { useAuth } from '@/components/AuthProvider'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
+const TYPES = {
+  lesion:    { label: 'Lesión',    emoji: '🤕', color: '#ef4444', bg: '#fef2f2' },
+  sancion:   { label: 'Sanción',   emoji: '🟨', color: '#d97706', bg: '#fffbeb' },
+  expulsion: { label: 'Expulsión', emoji: '🟥', color: '#dc2626', bg: '#fff1f1' },
+  conflicto: { label: 'Conflicto', emoji: '⚡', color: '#7c3aed', bg: '#f5f3ff' },
+  otro:      { label: 'Otros',     emoji: '📋', color: '#6b7280', bg: '#f9fafb' },
+}
+
 const STATUS = {
   present:   { label: 'Presente',    color: '#16a34a', bg: '#f0fdf4' },
   absent:    { label: 'Ausente',     color: '#ef4444', bg: '#fef2f2' },
@@ -19,6 +27,7 @@ export default function JugadorPage() {
 
   const [player, setPlayer] = useState(null)
   const [records, setRecords] = useState([])
+  const [incidents, setIncidents] = useState([])
   const [stats, setStats] = useState({ total: 0, attended: 0, absent: 0, late: 0, justified: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -29,13 +38,13 @@ export default function JugadorPage() {
     if (!p) { router.replace('/dashboard/equipo'); return }
     setPlayer(p)
 
-    const { data: att } = await supabase
-      .from('attendance')
-      .select('date, status')
-      .eq('player_id', id)
-      .order('date', { ascending: false })
+    const [{ data: att }, { data: inc }] = await Promise.all([
+      supabase.from('attendance').select('date, status').eq('player_id', id).order('date', { ascending: false }),
+      supabase.from('incidents').select('*').eq('player_id', id).order('date', { ascending: false })
+    ])
 
     setRecords(att || [])
+    setIncidents(inc || [])
     const s = { total: 0, attended: 0, absent: 0, late: 0, justified: 0 }
     att?.forEach(r => {
       s.total++
@@ -107,8 +116,51 @@ export default function JugadorPage() {
         </div>
       )}
 
+      {/* Incidencias */}
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 12 }}>
+        Incidencias {incidents.filter(i => !i.resolved).length > 0 && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '2px 8px', borderRadius: 6, marginLeft: 8 }}>
+            {incidents.filter(i => !i.resolved).length} activas
+          </span>
+        )}
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
+        {incidents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #f3f4f6' }}>
+            <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
+            <div style={{ fontSize: 13 }}>Sin incidencias registradas</div>
+          </div>
+        ) : incidents.map(inc => {
+          const t = TYPES[inc.type] || TYPES.otro
+          return (
+            <div key={inc.id} style={{
+              backgroundColor: '#fff', borderRadius: 12, border: `1px solid ${t.bg}`,
+              overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+            }}>
+              <div style={{ backgroundColor: t.bg, padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{t.emoji}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: t.color }}>{t.label}</span>
+                  {!inc.resolved && <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '1px 6px', borderRadius: 4 }}>ACTIVA</span>}
+                  {inc.resolved && <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', backgroundColor: '#f0fdf4', padding: '1px 6px', borderRadius: 4 }}>RESUELTA</span>}
+                </div>
+                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                  {new Date(inc.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+              <div style={{ padding: '10px 14px' }}>
+                <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.5 }}>{inc.description}</p>
+                {inc.resolved && inc.resolved_note && (
+                  <p style={{ fontSize: 12, color: '#16a34a', margin: '6px 0 0', fontStyle: 'italic' }}>↳ {inc.resolved_note}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       {/* Historial completo */}
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Historial completo</h3>
+      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Historial de asistencia</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {records.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>

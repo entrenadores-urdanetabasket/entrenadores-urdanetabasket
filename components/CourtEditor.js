@@ -3,40 +3,24 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 
 /* ── Dimensions ─────────────────────────────────── */
-const CW = 500
-const CH = 556
-const PR = 20   // player radius
-const M  = 22   // court margin
+const CW      = 500
+const HALF_H  = 520   // half court canvas height
+const FULL_H  = 880   // full court canvas height
+const PR      = 20    // player radius
+const M       = 22    // court margin
+
+function getCanvasH(ct) { return ct === 'full' ? FULL_H : HALF_H }
 
 /* ══════════════════════════════════════════════════
-   COURT DRAWING
+   COURT DRAWING — single half (basket at top)
+   draws into region (0,0)→(W,H)
 ══════════════════════════════════════════════════ */
-function drawCourt(ctx, W, H) {
-  // Floor
-  ctx.fillStyle = '#c49a4a'
-  ctx.fillRect(0, 0, W, H)
-  // Wood grain
-  for (let x = 0; x < W; x += 9) {
-    ctx.fillStyle = x % 18 === 0 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)'
-    ctx.fillRect(x, 0, 5, H)
-  }
-
+function drawHalfLines(ctx, W, H) {
   ctx.strokeStyle = '#fff'
   ctx.lineWidth = 2.5
 
   // Boundary
   ctx.strokeRect(M, M, W - M * 2, H - M * 2)
-
-  // Bottom (half-court) line
-  ctx.beginPath()
-  ctx.moveTo(M, H - M)
-  ctx.lineTo(W - M, H - M)
-  ctx.stroke()
-
-  // Center circle (half, at bottom)
-  ctx.beginPath()
-  ctx.arc(W / 2, H - M, 50, Math.PI, 0)
-  ctx.stroke()
 
   /* Paint */
   const pW = 150, pH = 188
@@ -46,56 +30,88 @@ function drawCourt(ctx, W, H) {
   // Backboard
   ctx.lineWidth = 5
   ctx.beginPath()
-  ctx.moveTo(pX + 18, M + 2)
-  ctx.lineTo(pX + pW - 18, M + 2)
+  ctx.moveTo(pX + 18, M + 2); ctx.lineTo(pX + pW - 18, M + 2)
   ctx.stroke()
   ctx.lineWidth = 2.5
 
   // Rim
   const rimX = W / 2, rimY = M + 30
-  ctx.beginPath()
-  ctx.arc(rimX, rimY, 17, 0, Math.PI * 2)
-  ctx.stroke()
+  ctx.beginPath(); ctx.arc(rimX, rimY, 17, 0, Math.PI * 2); ctx.stroke()
 
-  // Restricted arc
-  ctx.beginPath()
-  ctx.arc(rimX, rimY, 40, 0, Math.PI)
-  ctx.stroke()
+  // Restricted arc (below rim)
+  ctx.beginPath(); ctx.arc(rimX, rimY, 40, 0, Math.PI); ctx.stroke()
 
   // FT line
   const ftY = M + pH
-  ctx.beginPath()
-  ctx.moveTo(pX, ftY)
-  ctx.lineTo(pX + pW, ftY)
-  ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(pX, ftY); ctx.lineTo(pX + pW, ftY); ctx.stroke()
 
-  // FT circle – top solid
-  ctx.beginPath()
-  ctx.arc(W / 2, ftY, 73, Math.PI, 0)
-  ctx.stroke()
-  // FT circle – bottom dashed
+  // FT circle – top solid half
+  ctx.beginPath(); ctx.arc(W / 2, ftY, 73, Math.PI, 0); ctx.stroke()
+  // FT circle – bottom dashed half
   ctx.setLineDash([9, 7])
-  ctx.beginPath()
-  ctx.arc(W / 2, ftY, 73, 0, Math.PI)
-  ctx.stroke()
+  ctx.beginPath(); ctx.arc(W / 2, ftY, 73, 0, Math.PI); ctx.stroke()
   ctx.setLineDash([])
 
-  /* 3-point line */
+  /* 3-point line — FIXED */
   const arcR = 207
-  const cX = pX - 32, cXr = pX + pW + 32
-  const sideH = Math.sqrt(Math.max(0, arcR * arcR - (rimX - cX) ** 2))
+  const cX  = pX - 32            // left corner x
+  const cXr = pX + pW + 32       // right corner x
+  const halfChord = rimX - cX    // horizontal distance from rim center to corner line
+  const sideH = Math.sqrt(Math.max(0, arcR * arcR - halfChord * halfChord))
+  // Corner 3 straight lines (from top boundary DOWN to where arc starts)
+  ctx.beginPath(); ctx.moveTo(cX,  M); ctx.lineTo(cX,  rimY + sideH); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(cXr, M); ctx.lineTo(cXr, rimY + sideH); ctx.stroke()
+  // Arc (goes BELOW the rim center, away from basket)
+  const a3 = Math.asin(halfChord / arcR)
   ctx.beginPath()
-  ctx.moveTo(cX, M)
-  ctx.lineTo(cX, rimY - sideH)
+  ctx.arc(rimX, rimY, arcR, Math.PI / 2 - a3, Math.PI / 2 + a3, false)
   ctx.stroke()
+
+  // Bottom arc (center-court half-circle at H-M)
   ctx.beginPath()
-  ctx.moveTo(cXr, M)
-  ctx.lineTo(cXr, rimY - sideH)
+  ctx.arc(W / 2, H - M, 50, Math.PI, 0)
   ctx.stroke()
-  const a3 = Math.asin((rimX - cX) / arcR)
-  ctx.beginPath()
-  ctx.arc(rimX, rimY, arcR, Math.PI + a3, 2 * Math.PI - a3)
-  ctx.stroke()
+}
+
+/* Full court = two halves, second one flipped 180° */
+function drawCourt(ctx, W, H, courtType) {
+  // Floor
+  ctx.fillStyle = '#c49a4a'
+  ctx.fillRect(0, 0, W, H)
+  for (let x = 0; x < W; x += 9) {
+    ctx.fillStyle = x % 18 === 0 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)'
+    ctx.fillRect(x, 0, 5, H)
+  }
+
+  if (courtType === 'full') {
+    const hH = H / 2
+    // Top half
+    ctx.save()
+    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    drawHalfLines(ctx, W, hH)
+    ctx.restore()
+
+    // Bottom half (rotated 180° around center of full canvas)
+    ctx.save()
+    ctx.translate(W, H)
+    ctx.rotate(Math.PI)
+    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    drawHalfLines(ctx, W, hH)
+    ctx.restore()
+
+    // Mid-court line
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.moveTo(M, hH); ctx.lineTo(W - M, hH); ctx.stroke()
+    // Center circle
+    ctx.beginPath(); ctx.arc(W / 2, hH, 50, 0, Math.PI * 2); ctx.stroke()
+    // Center dot
+    ctx.fillStyle = '#fff'
+    ctx.beginPath(); ctx.arc(W / 2, hH, 5, 0, Math.PI * 2); ctx.fill()
+    // Outer boundary (full court)
+    ctx.strokeRect(M, M, W - M * 2, H - M * 2)
+  } else {
+    drawHalfLines(ctx, W, H)
+  }
 }
 
 /* ══════════════════════════════════════════════════
@@ -277,8 +293,9 @@ function drawEl(ctx, el, selected) {
 /* ══════════════════════════════════════════════════
    PHASE THUMBNAIL
 ══════════════════════════════════════════════════ */
-function PhaseThumb({ elements, active, index, onClick }) {
+function PhaseThumb({ elements, active, index, onClick, courtType }) {
   const ref = useRef(null)
+  const CH = getCanvasH(courtType)
   const TW = 132, TH = Math.round(132 * CH / CW)
 
   useEffect(() => {
@@ -287,10 +304,10 @@ function PhaseThumb({ elements, active, index, onClick }) {
     const s = TW / CW
     ctx.clearRect(0, 0, TW, TH)
     ctx.save(); ctx.scale(s, s)
-    drawCourt(ctx, CW, CH)
+    drawCourt(ctx, CW, CH, courtType)
     elements.forEach(el => drawEl(ctx, el, false))
     ctx.restore()
-  }, [elements, TW, TH])
+  }, [elements, TW, TH, courtType, CH])
 
   return (
     <div onClick={onClick} style={{ cursor: 'pointer', borderRadius: 8, overflow: 'hidden', border: `2px solid ${active ? '#3b82f6' : '#374151'}`, position: 'relative', flexShrink: 0, transition: 'border-color 0.15s' }}>
@@ -316,23 +333,25 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       ? initialData.steps.map(s => ({ id: Math.random().toString(36).slice(2), elements: s.elements || [] }))
       : [mkPhase()]
   )
-  const [cur,       setCur]       = useState(0)
-  const [tab,       setTab]       = useState('draw')
-  const [tool,      setTool]      = useState('select')
-  const [selId,     setSelId]     = useState(null)
-  const [dragging,  setDragging]  = useState(null)
-  const [aSt,       setASt]       = useState(null)  // arrow start
-  const [aCur,      setACur]      = useState(null)  // arrow current
-  const [title,     setTitle]     = useState(initialData?.title || '')
-  const [notes,     setNotes]     = useState(initialData?.description || '')
-  const [animating, setAnimating] = useState(false)
-  const [animPh,    setAnimPh]    = useState(0)
-  const [recording, setRecording] = useState(false)
-  const [offNum,    setOffNum]    = useState(1)
-  const [defNum,    setDefNum]    = useState(1)
-  const [textModal, setTextModal] = useState(null)
-  const [textVal,   setTextVal]   = useState('')
+  const [cur,        setCur]       = useState(0)
+  const [tab,        setTab]       = useState('draw')
+  const [tool,       setTool]      = useState('select')
+  const [selId,      setSelId]     = useState(null)
+  const [dragging,   setDragging]  = useState(null)
+  const [aSt,        setASt]       = useState(null)
+  const [aCur,       setACur]      = useState(null)
+  const [title,      setTitle]     = useState(initialData?.title || '')
+  const [notes,      setNotes]     = useState(initialData?.description || '')
+  const [animating,  setAnimating] = useState(false)
+  const [animPh,     setAnimPh]    = useState(0)
+  const [recording,  setRecording] = useState(false)
+  const [offNum,     setOffNum]    = useState(1)
+  const [defNum,     setDefNum]    = useState(1)
+  const [textModal,  setTextModal] = useState(null)
+  const [textVal,    setTextVal]   = useState('')
+  const [courtType,  setCourtType] = useState(initialData?.courtType || 'half')
 
+  const CH = getCanvasH(courtType)
   const els = phases[cur]?.elements || []
   const isArrowTool = ['dribble','pass','cut','shot','handoff','screen'].includes(tool)
 
@@ -341,7 +360,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, CW, CH)
-    drawCourt(ctx, CW, CH)
+    drawCourt(ctx, CW, CH, courtType)
     const ph = animating ? animPh : cur
     const elems = phases[ph]?.elements || []
     elems.forEach(el => drawEl(ctx, el, el.id === selId && !animating))
@@ -351,7 +370,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       drawArrowLine(ctx, tool, aSt.x, aSt.y, aCur.x, aCur.y)
       ctx.restore()
     }
-  }, [phases, cur, selId, aSt, aCur, tool, animating, animPh, isArrowTool])
+  }, [phases, cur, selId, aSt, aCur, tool, animating, animPh, isArrowTool, courtType, CH])
 
   useEffect(() => { render() }, [render])
 
@@ -464,7 +483,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   }
 
   /* ── Save ────────────────────────────────────── */
-  function handleSave() { onSave?.({ title, description: notes, steps: phases.map(p => ({ elements: p.elements })) }) }
+  function handleSave() { onSave?.({ title, description: notes, courtType, steps: phases.map(p => ({ elements: p.elements })) }) }
 
   /* ── Keyboard ────────────────────────────────── */
   useEffect(() => {
@@ -550,6 +569,12 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         </div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Sin título..."
           style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: 15, fontWeight: 700, textAlign: 'center' }} />
+        {/* Court type toggle */}
+        <div style={{ display: 'flex', background: '#111827', borderRadius: 8, padding: 3, gap: 1 }}>
+          {[['half','½ Pista'],['full','Pista Completa']].map(([ct, label]) => (
+            <button key={ct} onClick={() => setCourtType(ct)} style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12, background: courtType === ct ? '#fff' : 'transparent', color: courtType === ct ? '#111827' : '#9ca3af', transition: 'all 0.15s' }}>{label}</button>
+          ))}
+        </div>
         <button onClick={handleSave} style={{ background: '#16a34a', border: 'none', borderRadius: 8, color: '#fff', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
           💾 Guardar
         </button>
@@ -562,7 +587,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         <div style={{ width: 156, background: '#1f2937', borderRight: '1px solid #374151', display: 'flex', flexDirection: 'column', padding: '10px 8px', gap: 8, overflowY: 'auto', flexShrink: 0 }}>
           <div style={{ color: '#6b7280', fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', paddingLeft: 2 }}>Fases</div>
           {phases.map((ph, i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i === cur} onClick={() => { setCur(i); setSelId(null) }} />
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i === cur} courtType={courtType} onClick={() => { setCur(i); setSelId(null) }} />
           ))}
           {/* Phase controls */}
           <div style={{ display: 'flex', gap: 4 }}>

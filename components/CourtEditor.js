@@ -11,6 +11,28 @@ const PR     = 20   // player radius
 function getCanvasH(ct) { return ct === 'full' ? FULL_H : HALF_H }
 function easeInOut(t)   { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t }
 
+/* ── Quadratic bezier helpers ────────────────────── */
+function bezierPt(t, x1, y1, cx, cy, x2, y2) {
+  const mt = 1-t
+  return { x: mt*mt*x1 + 2*mt*t*cx + t*t*x2, y: mt*mt*y1 + 2*mt*t*cy + t*t*y2 }
+}
+function bezierTan(t, x1, y1, cx, cy, x2, y2) {
+  return { x: 2*((1-t)*(cx-x1) + t*(x2-cx)), y: 2*((1-t)*(cy-y1) + t*(y2-cy)) }
+}
+function bezierLen(x1, y1, cx, cy, x2, y2) {
+  let len=0, px=x1, py=y1
+  for (let i=1; i<=20; i++) {
+    const p = bezierPt(i/20, x1, y1, cx, cy, x2, y2)
+    len += Math.hypot(p.x-px, p.y-py); px=p.x; py=p.y
+  }
+  return len
+}
+/* Returns true if cx,cy meaningfully differs from the straight-line midpoint */
+function isCurved(x1, y1, x2, y2, cx, cy) {
+  return cx !== undefined && cy !== undefined &&
+    Math.hypot(cx - (x1+x2)/2, cy - (y1+y2)/2) > 5
+}
+
 /* ── Rounded-rect helper ──────────────────────────── */
 function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath()
@@ -164,69 +186,116 @@ function arrowHead(ctx, x1, y1, x2, y2, sz=11) {
   ctx.closePath(); ctx.fill()
 }
 
-function drawArrowLine(ctx, type, x1, y1, x2, y2) {
+/* cx,cy = optional quadratic bezier control point */
+function drawArrowLine(ctx, type, x1, y1, x2, y2, cx, cy) {
   const dx = x2-x1, dy = y2-y1
   const len = Math.hypot(dx,dy)
   if (len < 5) return
   ctx.save()
   ctx.strokeStyle = '#111827'; ctx.fillStyle = '#111827'; ctx.lineCap = 'round'
 
+  const curved = isCurved(x1, y1, x2, y2, cx, cy)
+  // Arrowhead direction: tangent at t=1 → from CP to endpoint
+  const ahx1 = curved ? cx : x1
+  const ahy1 = curved ? cy : y1
+
+  // Helper: stroke a quadratic bezier or straight line
+  function strokePath(dash) {
+    if (dash) ctx.setLineDash(dash)
+    ctx.beginPath(); ctx.moveTo(x1, y1)
+    if (curved) ctx.quadraticCurveTo(cx, cy, x2, y2)
+    else        ctx.lineTo(x2, y2)
+    ctx.stroke()
+    if (dash) ctx.setLineDash([])
+  }
+
   if (type === 'dribble') {
     ctx.lineWidth = 2.5
-    const nx = -dy/len, ny = dx/len
-    const waves = Math.max(2, Math.round(len/28))
-    ctx.beginPath(); ctx.moveTo(x1,y1)
-    for (let i=0; i<waves; i++) {
-      const s = i%2===0 ? 1 : -1
-      ctx.bezierCurveTo(
-        x1+dx*(i+0.25)/waves + nx*13*s, y1+dy*(i+0.25)/waves + ny*13*s,
-        x1+dx*(i+0.75)/waves - nx*13*s, y1+dy*(i+0.75)/waves - ny*13*s,
-        x1+dx*(i+1)/waves, y1+dy*(i+1)/waves
-      )
+    if (curved) {
+      // Wavy line following the bezier curve
+      const bLen  = bezierLen(x1, y1, cx, cy, x2, y2)
+      const waves = Math.max(2, Math.round(bLen/28))
+      const STEPS = waves * 16
+      ctx.beginPath()
+      for (let i=0; i<=STEPS; i++) {
+        const t   = i/STEPS
+        const pt  = bezierPt(t,  x1, y1, cx, cy, x2, y2)
+        const tan = bezierTan(t, x1, y1, cx, cy, x2, y2)
+        const tl  = Math.hypot(tan.x, tan.y) || 0.001
+        const nx  = -tan.y/tl, ny = tan.x/tl
+        const w   = Math.sin(t * waves * Math.PI * 2) * 11
+        if (i===0) ctx.moveTo(pt.x + nx*w, pt.y + ny*w)
+        else       ctx.lineTo(pt.x + nx*w, pt.y + ny*w)
+      }
+      ctx.stroke()
+    } else {
+      const nx = -dy/len, ny = dx/len
+      const waves = Math.max(2, Math.round(len/28))
+      ctx.beginPath(); ctx.moveTo(x1,y1)
+      for (let i=0; i<waves; i++) {
+        const s = i%2===0 ? 1 : -1
+        ctx.bezierCurveTo(
+          x1+dx*(i+0.25)/waves + nx*13*s, y1+dy*(i+0.25)/waves + ny*13*s,
+          x1+dx*(i+0.75)/waves - nx*13*s, y1+dy*(i+0.75)/waves - ny*13*s,
+          x1+dx*(i+1)/waves, y1+dy*(i+1)/waves
+        )
+      }
+      ctx.stroke()
     }
-    ctx.stroke(); arrowHead(ctx, x1,y1, x2,y2)
+    arrowHead(ctx, ahx1, ahy1, x2, y2)
   }
+
   if (type === 'pass') {
-    ctx.lineWidth=2.5; ctx.setLineDash([12,7])
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
-    ctx.setLineDash([]); arrowHead(ctx,x1,y1,x2,y2)
+    ctx.lineWidth = 2.5
+    strokePath([12,7])
+    arrowHead(ctx, ahx1, ahy1, x2, y2)
   }
+
   if (type === 'cut') {
-    ctx.lineWidth=2.5
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
-    arrowHead(ctx,x1,y1,x2,y2)
+    ctx.lineWidth = 2.5
+    strokePath()
+    arrowHead(ctx, ahx1, ahy1, x2, y2)
   }
+
   if (type === 'shot') {
-    ctx.lineWidth=2; ctx.setLineDash([9,6])
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
-    ctx.setLineDash([]); ctx.lineWidth=1.5
+    ctx.lineWidth = 2
+    strokePath([9,6])
+    ctx.lineWidth = 1.5
     ctx.beginPath(); ctx.arc(x2,y2,8,0,Math.PI*2); ctx.stroke()
     ctx.beginPath()
     ctx.moveTo(x2-13,y2); ctx.lineTo(x2+13,y2)
     ctx.moveTo(x2,y2-13); ctx.lineTo(x2,y2+13)
     ctx.stroke()
   }
+
   if (type === 'handoff') {
-    ctx.lineWidth=2.5
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
-    const mx=(x1+x2)/2, my=(y1+y2)/2
-    ctx.lineWidth=2
+    ctx.lineWidth = 2.5
+    strokePath()
+    const mid = curved
+      ? bezierPt(0.5, x1, y1, cx, cy, x2, y2)
+      : { x:(x1+x2)/2, y:(y1+y2)/2 }
+    ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo(mx-8,my); ctx.lineTo(mx+8,my)
-    ctx.moveTo(mx,my-8); ctx.lineTo(mx,my+8)
-    ctx.stroke(); arrowHead(ctx,x1,y1,x2,y2)
+    ctx.moveTo(mid.x-8, mid.y); ctx.lineTo(mid.x+8, mid.y)
+    ctx.moveTo(mid.x, mid.y-8); ctx.lineTo(mid.x, mid.y+8)
+    ctx.stroke()
+    arrowHead(ctx, ahx1, ahy1, x2, y2)
   }
+
   if (type === 'screen') {
-    ctx.lineWidth=2.5
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke()
-    arrowHead(ctx,x1,y1,x2,y2)
-    const a = Math.atan2(y2-y1,x2-x1), pa = a+Math.PI/2, bL=22
-    ctx.lineWidth=5; ctx.lineCap='round'
+    ctx.lineWidth = 2.5
+    strokePath()
+    arrowHead(ctx, ahx1, ahy1, x2, y2)
+    const a  = curved ? Math.atan2(y2-cy, x2-cx) : Math.atan2(dy, dx)
+    const pa = a + Math.PI/2
+    const bL = 22
+    ctx.lineWidth = 5; ctx.lineCap = 'round'
     ctx.beginPath()
-    ctx.moveTo(x2+bL*Math.cos(pa), y2+bL*Math.sin(pa))
-    ctx.lineTo(x2-bL*Math.cos(pa), y2-bL*Math.sin(pa))
+    ctx.moveTo(x2 + bL*Math.cos(pa), y2 + bL*Math.sin(pa))
+    ctx.lineTo(x2 - bL*Math.cos(pa), y2 - bL*Math.sin(pa))
     ctx.stroke()
   }
+
   ctx.restore()
 }
 
@@ -319,7 +388,7 @@ function drawEl(ctx, el, selected) {
   }
 
   if (['dribble','pass','cut','shot','handoff','screen'].includes(type)) {
-    drawArrowLine(ctx, type, el.x1, el.y1, el.x2, el.y2)
+    drawArrowLine(ctx, type, el.x1, el.y1, el.x2, el.y2, el.cx, el.cy)
   }
 
   ctx.restore()
@@ -413,6 +482,40 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, sel
     drawEl(ctx, drawData, isEditing ? el.id === selId : false)
   }
 
+  // ── Control-point handles (editor only) ───────────
+  // Show a small draggable handle at each arrow's control point
+  if (isEditing) {
+    for (const el of elems) {
+      if (!ARROW_TYPES.includes(el.type)) continue
+      const mx  = (el.x1+el.x2)/2, my = (el.y1+el.y2)/2
+      const cpx = el.cx ?? mx,      cpy = el.cy ?? my
+      const moved = isCurved(el.x1, el.y1, el.x2, el.y2, el.cx, el.cy)
+      // Dashed guide line when CP has been moved
+      if (moved) {
+        ctx.save()
+        ctx.strokeStyle = 'rgba(14,165,233,0.45)'; ctx.lineWidth = 1
+        ctx.setLineDash([4,3])
+        ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(cpx, cpy); ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+      // Handle circle
+      ctx.save()
+      ctx.fillStyle   = moved ? '#f97316' : '#0ea5e9'
+      ctx.strokeStyle = '#fff'
+      ctx.lineWidth   = 1.5
+      ctx.beginPath(); ctx.arc(cpx, cpy, 7, 0, Math.PI*2)
+      ctx.fill(); ctx.stroke()
+      // Cross/arrows icon inside handle
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2
+      ctx.beginPath()
+      ctx.moveTo(cpx-3.5, cpy); ctx.lineTo(cpx+3.5, cpy)
+      ctx.moveTo(cpx, cpy-3.5); ctx.lineTo(cpx, cpy+3.5)
+      ctx.stroke()
+      ctx.restore()
+    }
+  }
+
   // ── Draw flying ball during pass/handoff ──────────
   if (!isEditing && ballAnimX !== null) {
     const bR = 8
@@ -498,6 +601,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   const [textModal,  setTextModal]   = useState(null)
   const [textVal,    setTextVal]     = useState('')
   const [courtType,  setCourtType]   = useState(initialData?.courtType||'half')
+  const [draggingCP, setDraggingCP]  = useState(null)  // { id, ox, oy }
+  const [hoverCP,    setHoverCP]     = useState(false)
 
   const CH = getCanvasH(courtType)
   const els = phases[cur]?.elements || []
@@ -544,6 +649,15 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     }
     return null
   }
+  function findArrowCPHit(x, y) {
+    for (const el of [...(phases[cur]?.elements||[])].reverse()) {
+      if (!ARROW_TYPES.includes(el.type)) continue
+      const cpx = el.cx ?? (el.x1+el.x2)/2
+      const cpy = el.cy ?? (el.y1+el.y2)/2
+      if (Math.hypot(x-cpx, y-cpy) < 13) return { id:el.id, cpx, cpy }
+    }
+    return null
+  }
   function nearestPlayer(x, y) {
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
       if (!PLAYER_TYPES.includes(el.type)) continue
@@ -571,6 +685,13 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       return
     }
     if (tool === 'select') {
+      // CP handles take priority over player selection
+      const cpHit = findArrowCPHit(p.x, p.y)
+      if (cpHit) {
+        setDraggingCP({ id:cpHit.id, ox:p.x-cpHit.cpx, oy:p.y-cpHit.cpy })
+        setSelId(null)
+        return
+      }
       const hit = hitTest(p.x, p.y)
       if (hit) { setSelId(hit.id); setDragging({id:hit.id, ox:p.x-hit.x, oy:p.y-hit.y}) }
       else setSelId(null)
@@ -600,12 +721,16 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function onMove(e) {
     if (animating) return
     const p = pos(e)
-    if (dragging) { updEl(dragging.id,{x:p.x-dragging.ox,y:p.y-dragging.oy}); return }
-    if (aSt) setACur(p)
+    if (draggingCP) { updEl(draggingCP.id, { cx:p.x-draggingCP.ox, cy:p.y-draggingCP.oy }); return }
+    if (dragging)   { updEl(dragging.id, {x:p.x-dragging.ox, y:p.y-dragging.oy}); return }
+    if (aSt) { setACur(p); return }
+    // Update hover-CP indicator
+    if (tool === 'select') setHoverCP(!!findArrowCPHit(p.x, p.y))
   }
   function onUp(e) {
     if (animating) return
-    if (dragging) { setDragging(null); return }
+    if (draggingCP) { setDraggingCP(null); return }
+    if (dragging)   { setDragging(null); return }
     if (aSt) {
       const p = pos(e)
       if (Math.hypot(p.x-aSt.x, p.y-aSt.y) > 20) {
@@ -956,10 +1081,18 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
-              cursor: tool==='select'?'default':tool==='erase'?'cell':tool==='giveball'?'copy':'crosshair',
+              cursor: tool==='select'
+                ? (hoverCP||draggingCP) ? 'grab' : 'default'
+                : tool==='erase' ? 'cell' : tool==='giveball' ? 'copy' : 'crosshair',
               touchAction:'none',
               display:(tab==='notes'||tab==='output')?'none':'block',
               pointerEvents:tab==='animate'?'none':'auto',
+            }}
+            onDoubleClick={e => {
+              if (tool!=='select') return
+              const p = pos(e)
+              const cpHit = findArrowCPHit(p.x, p.y)
+              if (cpHit) updEl(cpHit.id, { cx: undefined, cy: undefined })
             }}
             onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
             onTouchStart={e=>{e.preventDefault();onDown(toMouse(e))}}

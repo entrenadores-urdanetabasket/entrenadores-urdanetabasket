@@ -3,112 +3,192 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 
 /* ── Dimensions ─────────────────────────────────── */
-const CW      = 500
-const HALF_H  = 520   // half court canvas height
-const FULL_H  = 880   // full court canvas height
+// FIBA proportions: half court 15m wide × 14m deep → ratio 15:14 ≈ 1.07
+const CW      = 560   // canvas width
+const HALF_H  = 520   // half court (slightly wider than tall)
+const FULL_H  = 970   // full court (two halves + mid)
 const PR      = 20    // player radius
-const M       = 22    // court margin
 
 function getCanvasH(ct) { return ct === 'full' ? FULL_H : HALF_H }
 
-/* ══════════════════════════════════════════════════
-   COURT DRAWING — single half (basket at top)
-   draws into region (0,0)→(W,H)
-══════════════════════════════════════════════════ */
-function drawHalfLines(ctx, W, H) {
-  ctx.strokeStyle = '#fff'
-  ctx.lineWidth = 2.5
-
-  // Boundary
-  ctx.strokeRect(M, M, W - M * 2, H - M * 2)
-
-  /* Paint */
-  const pW = 150, pH = 188
-  const pX = (W - pW) / 2
-  ctx.strokeRect(pX, M, pW, pH)
-
-  // Backboard
-  ctx.lineWidth = 5
+/* ── Rounded-rect helper ──────────────────────────── */
+function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath()
-  ctx.moveTo(pX + 18, M + 2); ctx.lineTo(pX + pW - 18, M + 2)
-  ctx.stroke()
-  ctx.lineWidth = 2.5
-
-  // Rim
-  const rimX = W / 2, rimY = M + 30
-  ctx.beginPath(); ctx.arc(rimX, rimY, 17, 0, Math.PI * 2); ctx.stroke()
-
-  // Restricted arc (below rim)
-  ctx.beginPath(); ctx.arc(rimX, rimY, 40, 0, Math.PI); ctx.stroke()
-
-  // FT line
-  const ftY = M + pH
-  ctx.beginPath(); ctx.moveTo(pX, ftY); ctx.lineTo(pX + pW, ftY); ctx.stroke()
-
-  // FT circle – top solid half
-  ctx.beginPath(); ctx.arc(W / 2, ftY, 73, Math.PI, 0); ctx.stroke()
-  // FT circle – bottom dashed half
-  ctx.setLineDash([9, 7])
-  ctx.beginPath(); ctx.arc(W / 2, ftY, 73, 0, Math.PI); ctx.stroke()
-  ctx.setLineDash([])
-
-  /* 3-point line — FIXED */
-  const arcR = 207
-  const cX  = pX - 32            // left corner x
-  const cXr = pX + pW + 32       // right corner x
-  const halfChord = rimX - cX    // horizontal distance from rim center to corner line
-  const sideH = Math.sqrt(Math.max(0, arcR * arcR - halfChord * halfChord))
-  // Corner 3 straight lines (from top boundary DOWN to where arc starts)
-  ctx.beginPath(); ctx.moveTo(cX,  M); ctx.lineTo(cX,  rimY + sideH); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(cXr, M); ctx.lineTo(cXr, rimY + sideH); ctx.stroke()
-  // Arc (goes BELOW the rim center, away from basket)
-  const a3 = Math.asin(halfChord / arcR)
-  ctx.beginPath()
-  ctx.arc(rimX, rimY, arcR, Math.PI / 2 - a3, Math.PI / 2 + a3, false)
-  ctx.stroke()
-
-  // Bottom arc (center-court half-circle at H-M)
-  ctx.beginPath()
-  ctx.arc(W / 2, H - M, 50, Math.PI, 0)
-  ctx.stroke()
+  ctx.moveTo(x + r, y)
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y,     x + w, y + r,     r)
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x,     y + h, x,     y + h - r, r)
+  ctx.lineTo(x, y + r); ctx.arcTo(x,     y,     x + r, y,           r)
+  ctx.closePath()
 }
 
-/* Full court = two halves, second one flipped 180° */
-function drawCourt(ctx, W, H, courtType) {
-  // Floor
-  ctx.fillStyle = '#c49a4a'
-  ctx.fillRect(0, 0, W, H)
-  for (let x = 0; x < W; x += 9) {
-    ctx.fillStyle = x % 18 === 0 ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.02)'
-    ctx.fillRect(x, 0, 5, H)
+/* ══════════════════════════════════════════════════
+   COURT DRAWING — single half (basket at top)
+   All measurements as fractions of W / H so it
+   scales correctly for both half and full modes.
+══════════════════════════════════════════════════ */
+function drawHalfLines(ctx, W, H) {
+  const lw = 2.2
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = lw
+  ctx.lineCap   = 'square'
+
+  const mg = 22           // outer margin
+
+  // ── Outer boundary (rounded) ──────────────────
+  rrect(ctx, mg, mg, W - mg * 2, H - mg * 2, 10)
+  ctx.stroke()
+
+  // ── Key / Paint ───────────────────────────────
+  // FIBA: 4.9m wide, 5.8m deep out of 15m × 14m
+  const pW  = Math.round(W * 0.293)   // ≈ 164px at W=560
+  const pH  = Math.round(H * 0.393)   // ≈ 204px at H=520
+  const pX  = (W - pW) / 2
+  const pY  = mg
+  ctx.strokeRect(pX, pY, pW, pH)
+
+  // ── Backboard ─────────────────────────────────
+  const bbW = pW * 0.48               // narrower than paint
+  ctx.lineWidth = 5
+  ctx.beginPath()
+  ctx.moveTo(W / 2 - bbW / 2, pY + 3)
+  ctx.lineTo(W / 2 + bbW / 2, pY + 3)
+  ctx.stroke()
+  ctx.lineWidth = lw
+
+  // ── Rim ───────────────────────────────────────
+  const rimX  = W / 2
+  const rimY  = pY + Math.round(H * 0.048)  // ≈ 25px at H=520
+  const rimR  = Math.round(W * 0.030)        // ≈ 17px
+  ctx.beginPath(); ctx.arc(rimX, rimY, rimR, 0, Math.PI * 2); ctx.stroke()
+
+  // ── Restricted area ───────────────────────────
+  const raR = Math.round(W * 0.072)          // ≈ 40px
+  ctx.beginPath(); ctx.arc(rimX, rimY, raR, 0, Math.PI); ctx.stroke()
+
+  // ── Free-throw line ───────────────────────────
+  const ftY = pY + pH
+  ctx.beginPath(); ctx.moveTo(pX, ftY); ctx.lineTo(pX + pW, ftY); ctx.stroke()
+
+  // ── FT circle – solid top half ────────────────
+  const ftR = Math.round(pW * 0.43)          // ≈ 70px
+  ctx.beginPath(); ctx.arc(W / 2, ftY, ftR, Math.PI, 0); ctx.stroke()
+
+  // ── FT circle – dashed bottom half ───────────
+  ctx.setLineDash([8, 7])
+  ctx.beginPath(); ctx.arc(W / 2, ftY, ftR, 0, Math.PI); ctx.stroke()
+  ctx.setLineDash([])
+
+  // ── Lane space marks (block markers) ─────────
+  // 4 pairs on each side of the paint, inside the key
+  const markW = 10
+  const markGap = Math.round(pH / 5)
+  for (let i = 1; i <= 4; i++) {
+    const my = pY + pH - markGap * i
+    if (my > pY + rimR * 2) {
+      // left inside
+      ctx.beginPath(); ctx.moveTo(pX, my); ctx.lineTo(pX + markW, my); ctx.stroke()
+      // right inside
+      ctx.beginPath(); ctx.moveTo(pX + pW - markW, my); ctx.lineTo(pX + pW, my); ctx.stroke()
+    }
+  }
+  // outer marks (outside paint)
+  const outerMarkW = 10
+  const outerMarkGap = Math.round(pH / 5)
+  for (let i = 1; i <= 3; i++) {
+    const my = pY + pH - outerMarkGap * i
+    if (my > pY + rimR * 2) {
+      ctx.beginPath(); ctx.moveTo(pX - outerMarkW, my); ctx.lineTo(pX, my); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(pX + pW, my); ctx.lineTo(pX + pW + outerMarkW, my); ctx.stroke()
+    }
   }
 
+  // ── 3-point line ──────────────────────────────
+  // FIBA: 6.75m radius from basket, corner lines 0.9m from sideline
+  const arc3R    = Math.round(W * 0.390)     // ≈ 218px at W=560
+  const corner3X = mg + Math.round(W * 0.085)  // ≈ 48px from boundary
+  const corner3Xr = W - corner3X
+  const halfChord = rimX - corner3X
+  const sideH    = Math.sqrt(Math.max(0, arc3R * arc3R - halfChord * halfChord))
+
+  // Corner straight lines (from baseline down to arc tangent)
+  ctx.beginPath(); ctx.moveTo(corner3X,  pY); ctx.lineTo(corner3X,  rimY + sideH); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(corner3Xr, pY); ctx.lineTo(corner3Xr, rimY + sideH); ctx.stroke()
+
+  // Arc (sweeps below basket, away from baseline)
+  const a3 = Math.asin(halfChord / arc3R)
+  ctx.beginPath()
+  ctx.arc(rimX, rimY, arc3R, Math.PI / 2 - a3, Math.PI / 2 + a3, false)
+  ctx.stroke()
+
+  // ── Centre circle (half) at bottom ───────────
+  const ccR = Math.round(W * 0.107)          // ≈ 60px
+  ctx.beginPath(); ctx.arc(W / 2, H - mg, ccR, Math.PI, 0); ctx.stroke()
+}
+
+/* ══════════════════════════════════════════════════
+   FULL COURT = top half + bottom half (180° flip)
+══════════════════════════════════════════════════ */
+function drawCourt(ctx, W, H, courtType) {
+  // ── Floor ──────────────────────────────────────
+  // Light-wood base
+  const grad = ctx.createLinearGradient(0, 0, W, 0)
+  grad.addColorStop(0,    '#d4a855')
+  grad.addColorStop(0.15, '#c8983e')
+  grad.addColorStop(0.5,  '#d4a855')
+  grad.addColorStop(0.85, '#c8983e')
+  grad.addColorStop(1,    '#d4a855')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, W, H)
+
+  // Vertical wood-plank lines
+  ctx.lineWidth = 1
+  for (let x = 0; x <= W; x += 11) {
+    const alpha = (x % 22 < 11) ? 0.06 : 0.03
+    ctx.strokeStyle = `rgba(0,0,0,${alpha})`
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
+  }
+  // Subtle horizontal grain every ~80px
+  ctx.lineWidth = 0.5
+  for (let y = 40; y < H; y += 80) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.04)'
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
+  }
+
+  ctx.lineWidth = 2.2
+
   if (courtType === 'full') {
-    const hH = H / 2
+    const hH = Math.round(H / 2)
+
     // Top half
     ctx.save()
-    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    ctx.beginPath(); ctx.rect(0, 0, W, hH + 2); ctx.clip()
     drawHalfLines(ctx, W, hH)
     ctx.restore()
 
-    // Bottom half (rotated 180° around center of full canvas)
+    // Bottom half — rotate 180° around canvas centre
     ctx.save()
-    ctx.translate(W, H)
-    ctx.rotate(Math.PI)
-    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    ctx.translate(W, H); ctx.rotate(Math.PI)
+    ctx.beginPath(); ctx.rect(0, 0, W, hH + 2); ctx.clip()
     drawHalfLines(ctx, W, hH)
     ctx.restore()
 
     // Mid-court line
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5
-    ctx.beginPath(); ctx.moveTo(M, hH); ctx.lineTo(W - M, hH); ctx.stroke()
-    // Center circle
-    ctx.beginPath(); ctx.arc(W / 2, hH, 50, 0, Math.PI * 2); ctx.stroke()
-    // Center dot
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.2
+    ctx.beginPath(); ctx.moveTo(22, hH); ctx.lineTo(W - 22, hH); ctx.stroke()
+
+    // Centre circle (full)
+    const ccR = Math.round(W * 0.107)
+    ctx.beginPath(); ctx.arc(W / 2, hH, ccR, 0, Math.PI * 2); ctx.stroke()
+
+    // Centre dot
     ctx.fillStyle = '#fff'
-    ctx.beginPath(); ctx.arc(W / 2, hH, 5, 0, Math.PI * 2); ctx.fill()
-    // Outer boundary (full court)
-    ctx.strokeRect(M, M, W - M * 2, H - M * 2)
+    ctx.beginPath(); ctx.arc(W / 2, hH, 4, 0, Math.PI * 2); ctx.fill()
+
+    // Full outer boundary on top
+    rrect(ctx, 22, 22, W - 44, H - 44, 10)
+    ctx.stroke()
+
   } else {
     drawHalfLines(ctx, W, H)
   }

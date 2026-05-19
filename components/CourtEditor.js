@@ -3,11 +3,11 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 
 /* ── Dimensions ─────────────────────────────────── */
-// FIBA proportions: half court 15m wide × 14m deep → ratio 15:14 ≈ 1.07
-const CW      = 560   // canvas width
-const HALF_H  = 520   // half court (slightly wider than tall)
-const FULL_H  = 970   // full court (two halves + mid)
-const PR      = 20    // player radius
+// FIBA: half court 15 m wide × 14 m deep  →  ratio ≈ 1.07 (wider than tall)
+const CW     = 560
+const HALF_H = 520
+const FULL_H = 970
+const PR     = 20   // player radius
 
 function getCanvasH(ct) { return ct === 'full' ? FULL_H : HALF_H }
 
@@ -15,182 +15,179 @@ function getCanvasH(ct) { return ct === 'full' ? FULL_H : HALF_H }
 function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y,     x + w, y + r,     r)
+  ctx.lineTo(x + w - r, y);  ctx.arcTo(x + w, y,     x + w, y + r,     r)
   ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
-  ctx.lineTo(x + r, y + h); ctx.arcTo(x,     y + h, x,     y + h - r, r)
-  ctx.lineTo(x, y + r); ctx.arcTo(x,     y,     x + r, y,           r)
+  ctx.lineTo(x + r, y + h);  ctx.arcTo(x,     y + h, x,     y + h - r, r)
+  ctx.lineTo(x, y + r);      ctx.arcTo(x,     y,     x + r, y,         r)
   ctx.closePath()
 }
 
 /* ══════════════════════════════════════════════════
-   COURT DRAWING — single half (basket at top)
-   All measurements as fractions of W / H so it
-   scales correctly for both half and full modes.
+   drawHalfLines(ctx, W, H, forFullCourt)
+   ─ basket at TOP, court extends downward
+   ─ forFullCourt=true  → skip outer boundary & mid-arc
+     (those are drawn once by drawCourt for full mode)
 ══════════════════════════════════════════════════ */
-function drawHalfLines(ctx, W, H) {
-  const lw = 2.2
+function drawHalfLines(ctx, W, H, forFullCourt = false) {
+  const mg = 22
+
+  // FIBA scale: court = 15 m wide × 14 m deep
+  const sx = (W - 2 * mg) / 15   // px / m  horizontal
+  const sy = (H - 2 * mg) / 14   // px / m  vertical
+  const s  = (sx + sy) / 2        // average for circles
+
   ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = lw
-  ctx.lineCap   = 'square'
+  ctx.lineWidth   = 2.2
+  ctx.lineCap     = 'butt'
 
-  const mg = 22           // outer margin
+  // ── Outer boundary (only in half-court mode) ──
+  if (!forFullCourt) {
+    rrect(ctx, mg, mg, W - 2 * mg, H - 2 * mg, 10)
+    ctx.stroke()
+  }
 
-  // ── Outer boundary (rounded) ──────────────────
-  rrect(ctx, mg, mg, W - mg * 2, H - mg * 2, 10)
-  ctx.stroke()
-
-  // ── Key / Paint ───────────────────────────────
-  // FIBA: 4.9m wide, 5.8m deep out of 15m × 14m
-  const pW  = Math.round(W * 0.293)   // ≈ 164px at W=560
-  const pH  = Math.round(H * 0.393)   // ≈ 204px at H=520
-  const pX  = (W - pW) / 2
-  const pY  = mg
+  // ── Key / Paint  (FIBA: 4.9 m wide × 5.8 m deep) ──
+  const pW = 4.9 * sx
+  const pH = 5.8 * sy
+  const pX = (W - pW) / 2
+  const pY = mg
   ctx.strokeRect(pX, pY, pW, pH)
 
-  // ── Backboard ─────────────────────────────────
-  const bbW = pW * 0.48               // narrower than paint
+  // ── Backboard  (1.83 m wide, sits right at baseline) ──
   ctx.lineWidth = 5
   ctx.beginPath()
-  ctx.moveTo(W / 2 - bbW / 2, pY + 3)
-  ctx.lineTo(W / 2 + bbW / 2, pY + 3)
+  ctx.moveTo(W / 2 - 0.915 * sx, pY + 3)
+  ctx.lineTo(W / 2 + 0.915 * sx, pY + 3)
   ctx.stroke()
-  ctx.lineWidth = lw
+  ctx.lineWidth = 2.2
 
-  // ── Rim ───────────────────────────────────────
-  const rimX  = W / 2
-  const rimY  = pY + Math.round(H * 0.048)  // ≈ 25px at H=520
-  const rimR  = Math.round(W * 0.030)        // ≈ 17px
+  // ── Rim  (FIBA: centre 1.575 m from baseline, ø 0.45 m) ──
+  const rimX = W / 2
+  const rimY = pY + 1.575 * sy          // correct FIBA position
+  const rimR = Math.max(0.225 * s, 13)  // at least 13 px for visibility
   ctx.beginPath(); ctx.arc(rimX, rimY, rimR, 0, Math.PI * 2); ctx.stroke()
 
-  // ── Restricted area ───────────────────────────
-  const raR = Math.round(W * 0.072)          // ≈ 40px
+  // ── Restricted area  (FIBA: 1.25 m radius) ──
+  const raR = 1.25 * s
   ctx.beginPath(); ctx.arc(rimX, rimY, raR, 0, Math.PI); ctx.stroke()
 
-  // ── Free-throw line ───────────────────────────
+  // ── FT line  (bottom of paint = 5.8 m) ──
   const ftY = pY + pH
   ctx.beginPath(); ctx.moveTo(pX, ftY); ctx.lineTo(pX + pW, ftY); ctx.stroke()
 
-  // ── FT circle – solid top half ────────────────
-  const ftR = Math.round(pW * 0.43)          // ≈ 70px
-  ctx.beginPath(); ctx.arc(W / 2, ftY, ftR, Math.PI, 0); ctx.stroke()
-
-  // ── FT circle – dashed bottom half ───────────
+  // ── FT circle  (FIBA: 1.8 m radius) ──
+  const ftR = 1.8 * s
+  ctx.beginPath(); ctx.arc(rimX, ftY, ftR, Math.PI, 0); ctx.stroke()   // top solid
   ctx.setLineDash([8, 7])
-  ctx.beginPath(); ctx.arc(W / 2, ftY, ftR, 0, Math.PI); ctx.stroke()
+  ctx.beginPath(); ctx.arc(rimX, ftY, ftR, 0, Math.PI); ctx.stroke()   // bottom dashed
   ctx.setLineDash([])
 
-  // ── Lane space marks (block markers) ─────────
-  // 4 pairs on each side of the paint, inside the key
-  const markW = 10
-  const markGap = Math.round(pH / 5)
-  for (let i = 1; i <= 4; i++) {
-    const my = pY + pH - markGap * i
-    if (my > pY + rimR * 2) {
-      // left inside
-      ctx.beginPath(); ctx.moveTo(pX, my); ctx.lineTo(pX + markW, my); ctx.stroke()
-      // right inside
-      ctx.beginPath(); ctx.moveTo(pX + pW - markW, my); ctx.lineTo(pX + pW, my); ctx.stroke()
+  // ── Lane space marks (block markers) ──
+  // FIBA positions from baseline: 1.7, 2.9, 3.7, 4.6 m
+  const mk = 9
+  ;[1.7, 2.9, 3.7, 4.6].forEach(d => {
+    const my = pY + d * sy
+    if (my > rimY + rimR + 4 && my < ftY - 2) {
+      ctx.beginPath(); ctx.moveTo(pX,          my); ctx.lineTo(pX + mk,       my); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(pX + pW - mk, my); ctx.lineTo(pX + pW,      my); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(pX - mk,      my); ctx.lineTo(pX,           my); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(pX + pW,      my); ctx.lineTo(pX + pW + mk, my); ctx.stroke()
     }
+  })
+
+  // ── 3-point line  (FIBA: 6.75 m from basket, corner at 0.9 m from sideline) ──
+  const arc3R  = 6.75 * s
+  const c3X    = mg + 0.9 * sx           // left corner line x
+  const c3Xr   = W - c3X                 // right corner line x
+  const hChord = rimX - c3X              // horizontal distance rim→corner
+
+  // Safety: only draw if geometry is valid
+  if (arc3R > hChord + 1) {
+    const sideH = Math.sqrt(arc3R * arc3R - hChord * hChord)
+    const arcBottom = rimY + sideH       // y where corner straight meets the arc
+
+    // Corner straight lines (from baseline down to where arc begins)
+    ctx.beginPath(); ctx.moveTo(c3X,  pY); ctx.lineTo(c3X,  arcBottom); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(c3Xr, pY); ctx.lineTo(c3Xr, arcBottom); ctx.stroke()
+
+    // Arc (centred on RIM, sweeps away from basket — never touches the rim)
+    const a3 = Math.asin(hChord / arc3R)
+    ctx.beginPath()
+    ctx.arc(rimX, rimY, arc3R, Math.PI / 2 - a3, Math.PI / 2 + a3, false)
+    ctx.stroke()
   }
-  // outer marks (outside paint)
-  const outerMarkW = 10
-  const outerMarkGap = Math.round(pH / 5)
-  for (let i = 1; i <= 3; i++) {
-    const my = pY + pH - outerMarkGap * i
-    if (my > pY + rimR * 2) {
-      ctx.beginPath(); ctx.moveTo(pX - outerMarkW, my); ctx.lineTo(pX, my); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(pX + pW, my); ctx.lineTo(pX + pW + outerMarkW, my); ctx.stroke()
-    }
+
+  // ── Centre-court half-circle (only in half-court mode) ──
+  if (!forFullCourt) {
+    const ccR = 1.8 * s
+    ctx.beginPath(); ctx.arc(W / 2, H - mg, ccR, Math.PI, 0); ctx.stroke()
   }
-
-  // ── 3-point line ──────────────────────────────
-  // FIBA: 6.75m radius from basket, corner lines 0.9m from sideline
-  const arc3R    = Math.round(W * 0.390)     // ≈ 218px at W=560
-  const corner3X = mg + Math.round(W * 0.085)  // ≈ 48px from boundary
-  const corner3Xr = W - corner3X
-  const halfChord = rimX - corner3X
-  const sideH    = Math.sqrt(Math.max(0, arc3R * arc3R - halfChord * halfChord))
-
-  // Corner straight lines (from baseline down to arc tangent)
-  ctx.beginPath(); ctx.moveTo(corner3X,  pY); ctx.lineTo(corner3X,  rimY + sideH); ctx.stroke()
-  ctx.beginPath(); ctx.moveTo(corner3Xr, pY); ctx.lineTo(corner3Xr, rimY + sideH); ctx.stroke()
-
-  // Arc (sweeps below basket, away from baseline)
-  const a3 = Math.asin(halfChord / arc3R)
-  ctx.beginPath()
-  ctx.arc(rimX, rimY, arc3R, Math.PI / 2 - a3, Math.PI / 2 + a3, false)
-  ctx.stroke()
-
-  // ── Centre circle (half) at bottom ───────────
-  const ccR = Math.round(W * 0.107)          // ≈ 60px
-  ctx.beginPath(); ctx.arc(W / 2, H - mg, ccR, Math.PI, 0); ctx.stroke()
 }
 
 /* ══════════════════════════════════════════════════
-   FULL COURT = top half + bottom half (180° flip)
+   drawCourt — entry point
 ══════════════════════════════════════════════════ */
 function drawCourt(ctx, W, H, courtType) {
-  // ── Floor ──────────────────────────────────────
-  // Light-wood base
+  // ── Parquet floor ──
   const grad = ctx.createLinearGradient(0, 0, W, 0)
-  grad.addColorStop(0,    '#d4a855')
-  grad.addColorStop(0.15, '#c8983e')
-  grad.addColorStop(0.5,  '#d4a855')
-  grad.addColorStop(0.85, '#c8983e')
-  grad.addColorStop(1,    '#d4a855')
+  grad.addColorStop(0,    '#d4a958')
+  grad.addColorStop(0.2,  '#c89840')
+  grad.addColorStop(0.5,  '#d4a958')
+  grad.addColorStop(0.8,  '#c89840')
+  grad.addColorStop(1,    '#d4a958')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, W, H)
 
-  // Vertical wood-plank lines
-  ctx.lineWidth = 1
+  // Vertical plank lines
   for (let x = 0; x <= W; x += 11) {
-    const alpha = (x % 22 < 11) ? 0.06 : 0.03
-    ctx.strokeStyle = `rgba(0,0,0,${alpha})`
+    ctx.strokeStyle = x % 22 < 11 ? 'rgba(0,0,0,0.055)' : 'rgba(255,255,255,0.025)'
+    ctx.lineWidth = 1
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke()
   }
-  // Subtle horizontal grain every ~80px
-  ctx.lineWidth = 0.5
-  for (let y = 40; y < H; y += 80) {
-    ctx.strokeStyle = 'rgba(0,0,0,0.04)'
+  // Horizontal grain
+  for (let y = 50; y < H; y += 85) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.035)'
+    ctx.lineWidth = 0.5
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke()
   }
 
-  ctx.lineWidth = 2.2
+  const mg = 22
 
   if (courtType === 'full') {
     const hH = Math.round(H / 2)
 
-    // Top half
+    // ── Top half (no boundary, no mid-arc) ──
     ctx.save()
-    ctx.beginPath(); ctx.rect(0, 0, W, hH + 2); ctx.clip()
-    drawHalfLines(ctx, W, hH)
+    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    drawHalfLines(ctx, W, hH, true)
     ctx.restore()
 
-    // Bottom half — rotate 180° around canvas centre
+    // ── Bottom half (rotate 180°, no boundary, no mid-arc) ──
     ctx.save()
     ctx.translate(W, H); ctx.rotate(Math.PI)
-    ctx.beginPath(); ctx.rect(0, 0, W, hH + 2); ctx.clip()
-    drawHalfLines(ctx, W, hH)
+    ctx.beginPath(); ctx.rect(0, 0, W, hH); ctx.clip()
+    drawHalfLines(ctx, W, hH, true)
     ctx.restore()
 
-    // Mid-court line
+    // ── Full-court outer boundary (drawn ONCE) ──
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.2
-    ctx.beginPath(); ctx.moveTo(22, hH); ctx.lineTo(W - 22, hH); ctx.stroke()
+    rrect(ctx, mg, mg, W - 2 * mg, H - 2 * mg, 10)
+    ctx.stroke()
 
-    // Centre circle (full)
-    const ccR = Math.round(W * 0.107)
+    // ── Mid-court line ──
+    ctx.beginPath(); ctx.moveTo(mg, hH); ctx.lineTo(W - mg, hH); ctx.stroke()
+
+    // ── Centre circle (full, drawn ONCE) ──
+    const ccR = 1.8 * ((W - 2 * mg) / 15 + (hH - 2 * mg) / 14) / 2
     ctx.beginPath(); ctx.arc(W / 2, hH, ccR, 0, Math.PI * 2); ctx.stroke()
 
     // Centre dot
     ctx.fillStyle = '#fff'
     ctx.beginPath(); ctx.arc(W / 2, hH, 4, 0, Math.PI * 2); ctx.fill()
 
-    // Full outer boundary on top
-    rrect(ctx, 22, 22, W - 44, H - 44, 10)
-    ctx.stroke()
-
   } else {
-    drawHalfLines(ctx, W, H)
+    // ── Half court (boundary + mid-arc drawn inside drawHalfLines) ──
+    drawHalfLines(ctx, W, H, false)
   }
 }
 

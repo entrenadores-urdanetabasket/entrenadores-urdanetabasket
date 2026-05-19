@@ -326,9 +326,9 @@ function drawEl(ctx, el, selected) {
 }
 
 /* ══════════════════════════════════════════════════
-   Render frame helper (used by both editor and animation loop)
-   t=0..1 → 0=start positions, 1=end positions (arrow targets)
-   arrowAlpha=1..0 → arrows fade as players move
+   Render frame helper (editor + animation loop)
+   t=0..1: 0=start positions, 1=end positions
+   Ball flies along pass/handoff arrows during animation
 ══════════════════════════════════════════════════ */
 function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, selId = null) {
   ctx.clearRect(0, 0, W, H)
@@ -342,9 +342,43 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, sel
 
   const et = easeInOut(t)
 
-  // Draw arrows first (behind players), fading as animation progresses
+  // ── Ball transfer animation data ──────────────────
+  // Find carrier + pass/handoff arrow → animate ball flying
+  let ballAnimX = null, ballAnimY = null
+  let ballCarrierId = null, ballReceiverId = null
+
+  if (!isEditing && t > 0) {
+    const carrier = elems.find(el => PLAYER_TYPES.includes(el.type) && el.hasBall)
+    if (carrier) {
+      const arrow = elems.find(el =>
+        BALL_TRANSFER_TYPES.includes(el.type) && el.fromId === carrier.id
+      )
+      if (arrow) {
+        ballCarrierId = carrier.id
+        // Carrier's animated position (moves along its own arrow if it has one)
+        const cTgt = targets[carrier.id]
+        const cX = cTgt ? carrier.x + (cTgt.x - carrier.x)*et : carrier.x
+        const cY = cTgt ? carrier.y + (cTgt.y - carrier.y)*et : carrier.y
+        // Ball travels from carrier → arrow endpoint
+        ballAnimX = cX + (arrow.x2 - cX) * et
+        ballAnimY = cY + (arrow.y2 - cY) * et
+        // Find receiver: nearest player to arrow endpoint (in final positions)
+        let bestDist = PR + 30, bestId = null
+        for (const el of elems) {
+          if (!PLAYER_TYPES.includes(el.type) || el.id === carrier.id) continue
+          const tx = targets[el.id] ? targets[el.id].x : el.x
+          const ty = targets[el.id] ? targets[el.id].y : el.y
+          const d = Math.hypot(tx - arrow.x2, ty - arrow.y2)
+          if (d < bestDist) { bestDist = d; bestId = el.id }
+        }
+        ballReceiverId = bestId
+      }
+    }
+  }
+
+  // ── Draw arrows first (behind players), fading ────
   for (const el of elems) {
-    if (!['dribble','pass','cut','shot','handoff','screen'].includes(el.type)) continue
+    if (!ARROW_TYPES.includes(el.type)) continue
     if (isEditing) {
       drawEl(ctx, el, el.id === selId)
     } else {
@@ -357,16 +391,40 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, sel
     }
   }
 
-  // Draw players/objects (with interpolation if animating)
+  // ── Draw players/objects with interpolation ────────
   for (const el of elems) {
-    if (['dribble','pass','cut','shot','handoff','screen'].includes(el.type)) continue
-    if (isEditing || !targets[el.id] || t <= 0) {
-      drawEl(ctx, el, isEditing ? el.id === selId : false)
-    } else {
-      const ix = el.x + (targets[el.id].x - el.x) * et
-      const iy = el.y + (targets[el.id].y - el.y) * et
-      drawEl(ctx, { ...el, x: ix, y: iy }, false)
+    if (ARROW_TYPES.includes(el.type)) continue
+
+    // Compute interpolated position
+    let drawData = el
+    if (!isEditing && targets[el.id] && t > 0) {
+      drawData = { ...el,
+        x: el.x + (targets[el.id].x - el.x) * et,
+        y: el.y + (targets[el.id].y - el.y) * et,
+      }
     }
+
+    // Ball-in-air: hide badge from carrier; show on receiver only near end
+    if (!isEditing && ballCarrierId) {
+      if (el.id === ballCarrierId)   drawData = { ...drawData, hasBall: false }
+      else if (el.id === ballReceiverId) drawData = { ...drawData, hasBall: t >= 0.85 }
+    }
+
+    drawEl(ctx, drawData, isEditing ? el.id === selId : false)
+  }
+
+  // ── Draw flying ball during pass/handoff ──────────
+  if (!isEditing && ballAnimX !== null) {
+    const bR = 8
+    ctx.save()
+    ctx.fillStyle = '#f97316'
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI*2); ctx.fill()
+    ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI*2); ctx.stroke()
+    ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=0.9
+    ctx.beginPath(); ctx.moveTo(ballAnimX-bR, ballAnimY); ctx.lineTo(ballAnimX+bR, ballAnimY); ctx.stroke()
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR*0.6, 0, Math.PI); ctx.stroke()
+    ctx.restore()
   }
 }
 
@@ -398,12 +456,14 @@ function PhaseThumb({ elements, active, index, onClick, courtType }) {
   )
 }
 
+/* ── Type constants (module-level so renderPhaseFrame can use them) ── */
+const ARROW_TYPES  = ['dribble','pass','cut','shot','handoff','screen']
+const PLAYER_TYPES = ['offense','defense','xdefense']
+const BALL_TRANSFER_TYPES = ['pass','handoff']  // actions that move the ball
+
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
-const ARROW_TYPES = ['dribble','pass','cut','shot','handoff','screen']
-const PLAYER_TYPES = ['offense','defense','xdefense']
-const OBJECT_TYPES = [...PLAYER_TYPES, 'ball','cone','text']
 
 export default function CourtEditor({ initialData, onSave, onClose }) {
   const canvasRef   = useRef(null)
@@ -517,6 +577,19 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       return
     }
     if (tool === 'erase') { const hit=hitTest(p.x,p.y); if(hit){delEl(hit.id);setSelId(null)}; return }
+    if (tool === 'giveball') {
+      // Transfer ball to clicked player, remove from all others
+      const hit = hitTest(p.x, p.y)
+      if (hit && PLAYER_TYPES.includes(hit.type)) {
+        setPhases(prev => prev.map((ph,i) => i!==cur ? ph : {
+          ...ph,
+          elements: ph.elements.map(e =>
+            PLAYER_TYPES.includes(e.type) ? {...e, hasBall: e.id===hit.id} : e
+          )
+        }))
+      }
+      return
+    }
     if (tool === 'offense')  { addEl({type:'offense',  x:p.x,y:p.y,num:offNum});setOffNum(n=>n>=5?1:n+1); return }
     if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); return }
     if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); return }
@@ -558,16 +631,48 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setCur(phases.length)
   }
 
-  // "→ Avanzar fase" → move players to arrow endpoints, strip arrows
+  // "→ Avanzar fase" → move players to arrow endpoints, strip arrows,
+  //                    auto-transfer ball on pass/handoff
   function advancePhase() {
     const currentElems = phases[cur].elements
+
+    // Build movement targets
     const targets = {}
     for (const el of currentElems) {
       if (el.fromId) targets[el.fromId] = { x:el.x2, y:el.y2 }
     }
+
+    // Auto ball transfer: find pass/handoff from ball carrier
+    const carrier = currentElems.find(el => PLAYER_TYPES.includes(el.type) && el.hasBall)
+    let newBallCarrierId = carrier?.id
+
+    if (carrier) {
+      const transferArrow = currentElems.find(el =>
+        BALL_TRANSFER_TYPES.includes(el.type) && el.fromId === carrier.id
+      )
+      if (transferArrow) {
+        // Find nearest player to the arrow endpoint (using their final positions)
+        const endX = transferArrow.x2, endY = transferArrow.y2
+        let bestDist = PR + 30, bestId = null
+        for (const el of currentElems) {
+          if (!PLAYER_TYPES.includes(el.type) || el.id === carrier.id) continue
+          const tx = targets[el.id] ? targets[el.id].x : el.x
+          const ty = targets[el.id] ? targets[el.id].y : el.y
+          const d = Math.hypot(tx - endX, ty - endY)
+          if (d < bestDist) { bestDist = d; bestId = el.id }
+        }
+        if (bestId) newBallCarrierId = bestId
+      }
+    }
+
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))
-      .map(el => targets[el.id] ? {...el, x:targets[el.id].x, y:targets[el.id].y} : {...el})
+      .map(el => {
+        const moved = targets[el.id] ? {...el, x:targets[el.id].x, y:targets[el.id].y} : {...el}
+        if (PLAYER_TYPES.includes(el.type)) return {...moved, hasBall: el.id === newBallCarrierId}
+        return moved
+      })
+
     const newPh = { id: Math.random().toString(36).slice(2), elements: newElems }
     setPhases(p => [...p, newPh])
     setCur(phases.length)
@@ -851,7 +956,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
-              cursor: tool==='select'?'default':tool==='erase'?'cell':'crosshair',
+              cursor: tool==='select'?'default':tool==='erase'?'cell':tool==='giveball'?'copy':'crosshair',
               touchAction:'none',
               display:(tab==='notes'||tab==='output')?'none':'block',
               pointerEvents:tab==='animate'?'none':'auto',
@@ -940,6 +1045,26 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
             {/* JUGADORES */}
             <div>
               <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',marginBottom:8}}>Jugadores</div>
+
+              {/* ASSIGN BALL — always visible, prominent */}
+              <button onClick={()=>setTool('giveball')} style={{
+                width:'100%', padding:'9px 8px', marginBottom:10, borderRadius:9,
+                border:`2px solid ${tool==='giveball'?'#f97316':'#374151'}`,
+                background: tool==='giveball'
+                  ? 'linear-gradient(135deg,rgba(249,115,22,0.25),rgba(249,115,22,0.12))'
+                  : '#111827',
+                color: tool==='giveball'?'#fb923c':'#9ca3af',
+                fontWeight:700, fontSize:12, cursor:'pointer',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                transition:'all 0.15s',
+              }}>
+                <span style={{fontSize:15}}>🏀</span>
+                {tool==='giveball'
+                  ? <span>Clic en el jugador con balón</span>
+                  : <span>Asignar balón a jugador</span>
+                }
+              </button>
+
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>⬤ Ataque (relleno)</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[1,2,3,4,5,'?'].map(n=>playerBtn('offense',n,n))}
@@ -970,20 +1095,11 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
             {selEl && (
               <div style={{borderTop:'1px solid #374151',paddingTop:10,display:'flex',flexDirection:'column',gap:6}}>
                 <div style={{color:'#9ca3af',fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>Seleccionado</div>
-
-                {/* Jugador con balón toggle */}
-                {selIsPlayer && (
-                  <button onClick={()=>updEl(selId,{hasBall:!selEl.hasBall})} style={{
-                    padding:'8px',borderRadius:8,border:`1.5px solid ${selEl.hasBall?'#f97316':'#374151'}`,
-                    background:selEl.hasBall?'rgba(249,115,22,0.15)':'transparent',
-                    color:selEl.hasBall?'#f97316':'#9ca3af',
-                    fontWeight:700,fontSize:12,cursor:'pointer',
-                    display:'flex',alignItems:'center',justifyContent:'center',gap:6,
-                  }}>
-                    🏀 {selEl.hasBall?'Con balón ✓':'Sin balón'}
-                  </button>
+                {selIsPlayer && selEl.hasBall && (
+                  <div style={{padding:'6px 8px',borderRadius:7,background:'rgba(249,115,22,0.15)',color:'#fb923c',fontSize:11,fontWeight:700,textAlign:'center'}}>
+                    🏀 Este jugador tiene el balón
+                  </div>
                 )}
-
                 <button onClick={()=>{delEl(selId);setSelId(null)}} style={{padding:'7px',borderRadius:8,border:'1px solid #7f1d1d',background:'transparent',color:'#ef4444',fontWeight:600,fontSize:12,cursor:'pointer'}}>
                   🗑 Eliminar
                 </button>

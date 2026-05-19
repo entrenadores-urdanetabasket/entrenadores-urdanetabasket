@@ -396,161 +396,197 @@ function drawEl(ctx, el, selected) {
 
 /* ══════════════════════════════════════════════════
    Render frame helper (editor + animation loop)
-   t=0..1: 0=start positions, 1=end positions
-   Ball flies along pass/handoff arrows during animation
+
+   EDIT mode  (isEditing=true):
+     animStepIdx / stepT  are unused
+     activeDrawStep       – the step currently being drawn
+     Players shown at positions after steps 0…activeDrawStep-1
+     Arrows for other steps dimmed; step badges drawn
+
+   ANIM mode  (isEditing=false):
+     animStepIdx          – which step is currently playing
+     stepT = 0..1         – progress within that step
+     Base positions come from accumulateSteps(elems, animStepIdx)
 ══════════════════════════════════════════════════ */
-function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, selId = null) {
+function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
+                          isEditing = false, selId = null, activeDrawStep = 0) {
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
-  // Build target map: playerId → {x,y}
-  // Only MOVE_ARROW_TYPES (dribble/cut/screen) physically move the player.
-  // Pass, shot, handoff transfer the ball but the player stays in place.
-  const targets = {}
-  for (const el of elems) {
-    if (el.fromId && MOVE_ARROW_TYPES.includes(el.type))
-      targets[el.fromId] = { x: el.x2, y: el.y2 }
-  }
+  /* ─────────── EDIT MODE ─────────── */
+  if (isEditing) {
+    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep)
 
-  // ── Auto-follow: defenders mirror their matching attacker ──
-  // Build map: num → attacker element (only attackers that have a movement arrow)
-  const movingAttackers = {}
-  for (const el of elems) {
-    if (el.type === 'offense' && el.num && targets[el.id]) {
-      movingAttackers[el.num] = el
-    }
-  }
-  // For each defender without a manual arrow, follow matching attacker
-  for (const el of elems) {
-    if ((el.type === 'defense' || el.type === 'xdefense') && el.num && !targets[el.id]) {
-      const att = movingAttackers[el.num]
-      if (att) {
-        targets[el.id] = {
-          x: el.x + (targets[att.id].x - att.x),
-          y: el.y + (targets[att.id].y - att.y),
-        }
-      }
-    }
-  }
-
-  const et = easeInOut(t)
-
-  // ── Ball transfer animation data ──────────────────
-  // Find carrier + pass/handoff arrow → animate ball flying
-  let ballAnimX = null, ballAnimY = null
-  let ballCarrierId = null, ballReceiverId = null
-
-  if (!isEditing && t > 0) {
-    const carrier = elems.find(el => PLAYER_TYPES.includes(el.type) && el.hasBall)
-    if (carrier) {
-      const arrow = elems.find(el =>
-        BALL_TRANSFER_TYPES.includes(el.type) && el.fromId === carrier.id
-      )
-      if (arrow) {
-        ballCarrierId = carrier.id
-        // Carrier's animated position (moves along its own arrow if it has one)
-        const cTgt = targets[carrier.id]
-        const cX = cTgt ? carrier.x + (cTgt.x - carrier.x)*et : carrier.x
-        const cY = cTgt ? carrier.y + (cTgt.y - carrier.y)*et : carrier.y
-        // Ball travels from carrier → arrow endpoint
-        ballAnimX = cX + (arrow.x2 - cX) * et
-        ballAnimY = cY + (arrow.y2 - cY) * et
-        // Find receiver: nearest player to arrow endpoint (in final positions)
-        let bestDist = PR + 30, bestId = null
-        for (const el of elems) {
-          if (!PLAYER_TYPES.includes(el.type) || el.id === carrier.id) continue
-          const tx = targets[el.id] ? targets[el.id].x : el.x
-          const ty = targets[el.id] ? targets[el.id].y : el.y
-          const d = Math.hypot(tx - arrow.x2, ty - arrow.y2)
-          if (d < bestDist) { bestDist = d; bestId = el.id }
-        }
-        ballReceiverId = bestId
-      }
-    }
-  }
-
-  // ── Draw arrows first (behind players), fading ────
-  for (const el of elems) {
-    if (!ARROW_TYPES.includes(el.type)) continue
-    if (isEditing) {
+    // Draw arrows — current step at full opacity, others dimmed
+    for (const el of elems) {
+      if (!ARROW_TYPES.includes(el.type)) continue
+      const elStep = el.step ?? 0
+      const alpha  = elStep === activeDrawStep ? 1 : 0.28
+      ctx.save(); ctx.globalAlpha = alpha
       drawEl(ctx, el, el.id === selId)
-    } else {
-      const alpha = Math.max(0, 1 - et * 1.5)
-      if (alpha > 0) {
-        ctx.save(); ctx.globalAlpha = alpha
-        drawEl(ctx, el, false)
+      ctx.restore()
+
+      // Step badge (colored numbered dot) for every step except step-0 arrows,
+      // OR whenever there are multiple steps so the user can see which is which
+      if (elStep > 0) {
+        const bx  = el.cx ?? (el.x1 + el.x2) / 2
+        const by  = el.cy ?? (el.y1 + el.y2) / 2
+        const col = STEP_COLORS[elStep % STEP_COLORS.length]
+        ctx.save()
+        ctx.fillStyle = col
+        ctx.beginPath(); ctx.arc(bx, by, 9, 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px sans-serif'
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(elStep + 1, bx, by + 0.5)
         ctx.restore()
       }
     }
-  }
 
-  // ── Draw players/objects with interpolation ────────
-  for (const el of elems) {
-    if (ARROW_TYPES.includes(el.type)) continue
-
-    // Compute interpolated position
-    let drawData = el
-    if (!isEditing && targets[el.id] && t > 0) {
-      drawData = { ...el,
-        x: el.x + (targets[el.id].x - el.x) * et,
-        y: el.y + (targets[el.id].y - el.y) * et,
-      }
+    // Draw players at accumulated positions
+    for (const el of elems) {
+      if (ARROW_TYPES.includes(el.type)) continue
+      const p   = playerPos[el.id]
+      let drawData = p ? { ...el, x: p.x, y: p.y } : el
+      if (PLAYER_TYPES.includes(el.type))
+        drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+      drawEl(ctx, drawData, el.id === selId)
     }
 
-    // Ball-in-air: hide badge from carrier; show on receiver only near end
-    if (!isEditing && ballCarrierId) {
-      if (el.id === ballCarrierId)   drawData = { ...drawData, hasBall: false }
-      else if (el.id === ballReceiverId) drawData = { ...drawData, hasBall: t >= 0.85 }
-    }
-
-    drawEl(ctx, drawData, isEditing ? el.id === selId : false)
-  }
-
-  // ── Control-point handles (editor only) ───────────
-  // Show a small draggable handle at each arrow's control point
-  if (isEditing) {
+    // CP handles (all arrows, so any can be curved at any time)
     for (const el of elems) {
       if (!ARROW_TYPES.includes(el.type)) continue
-      const mx  = (el.x1+el.x2)/2, my = (el.y1+el.y2)/2
-      const cpx = el.cx ?? mx,      cpy = el.cy ?? my
+      const mx  = (el.x1 + el.x2) / 2, my  = (el.y1 + el.y2) / 2
+      const cpx = el.cx ?? mx,           cpy = el.cy ?? my
       const moved = isCurved(el.x1, el.y1, el.x2, el.y2, el.cx, el.cy)
-      // Dashed guide line when CP has been moved
       if (moved) {
         ctx.save()
         ctx.strokeStyle = 'rgba(14,165,233,0.45)'; ctx.lineWidth = 1
-        ctx.setLineDash([4,3])
+        ctx.setLineDash([4, 3])
         ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(cpx, cpy); ctx.stroke()
         ctx.setLineDash([])
         ctx.restore()
       }
-      // Handle circle
       ctx.save()
       ctx.fillStyle   = moved ? '#f97316' : '#0ea5e9'
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth   = 1.5
-      ctx.beginPath(); ctx.arc(cpx, cpy, 7, 0, Math.PI*2)
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
+      ctx.beginPath(); ctx.arc(cpx, cpy, 7, 0, Math.PI * 2)
       ctx.fill(); ctx.stroke()
-      // Cross/arrows icon inside handle
       ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2
       ctx.beginPath()
-      ctx.moveTo(cpx-3.5, cpy); ctx.lineTo(cpx+3.5, cpy)
-      ctx.moveTo(cpx, cpy-3.5); ctx.lineTo(cpx, cpy+3.5)
+      ctx.moveTo(cpx - 3.5, cpy); ctx.lineTo(cpx + 3.5, cpy)
+      ctx.moveTo(cpx, cpy - 3.5); ctx.lineTo(cpx, cpy + 3.5)
       ctx.stroke()
+      ctx.restore()
+    }
+    return
+  }
+
+  /* ─────────── ANIMATION MODE ─────────── */
+  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx)
+
+  // Targets for this step (only MOVE_ARROW_TYPES)
+  const targets = {}
+  for (const el of elems) {
+    if (!MOVE_ARROW_TYPES.includes(el.type)) continue
+    if ((el.step ?? 0) !== animStepIdx) continue
+    if (!el.fromId || !basePos[el.fromId]) continue
+    targets[el.fromId] = { x: el.x2, y: el.y2 }
+  }
+
+  // Auto-follow defenders
+  const attMoves = {}
+  for (const el of elems) {
+    if (el.type !== 'offense' || !el.num || !targets[el.id]) continue
+    const base = basePos[el.id]
+    if (base) attMoves[el.num] = { dx: targets[el.id].x - base.x, dy: targets[el.id].y - base.y }
+  }
+  for (const el of elems) {
+    if (!['defense','xdefense'].includes(el.type) || !el.num || targets[el.id]) continue
+    const base = basePos[el.id]
+    if (!base || !attMoves[el.num]) continue
+    targets[el.id] = { x: base.x + attMoves[el.num].dx, y: base.y + attMoves[el.num].dy }
+  }
+
+  const et = easeInOut(stepT)
+
+  // Ball transfer animation for this step
+  let ballAnimX = null, ballAnimY = null, ballReceiverId = null
+  const flyingCarrierId = baseCarrierId
+
+  if (stepT > 0 && baseCarrierId) {
+    const cBase = basePos[baseCarrierId]
+    const arrow = elems.find(el =>
+      BALL_TRANSFER_TYPES.includes(el.type) &&
+      (el.step ?? 0) === animStepIdx &&
+      el.fromId === baseCarrierId
+    )
+    if (arrow && cBase) {
+      const cTgt = targets[baseCarrierId]
+      const cX = cTgt ? cBase.x + (cTgt.x - cBase.x) * et : cBase.x
+      const cY = cTgt ? cBase.y + (cTgt.y - cBase.y) * et : cBase.y
+      ballAnimX = cX + (arrow.x2 - cX) * et
+      ballAnimY = cY + (arrow.y2 - cY) * et
+      // Find receiver
+      let bestDist = PR + 30, bestId = null
+      for (const el of elems) {
+        if (!PLAYER_TYPES.includes(el.type) || el.id === baseCarrierId) continue
+        const ep = basePos[el.id] || { x: el.x, y: el.y }
+        const et2 = targets[el.id]
+        const fx = et2 ? ep.x + (et2.x - ep.x) : ep.x
+        const fy = et2 ? ep.y + (et2.y - ep.y) : ep.y
+        const d = Math.hypot(fx - arrow.x2, fy - arrow.y2)
+        if (d < bestDist) { bestDist = d; bestId = el.id }
+      }
+      ballReceiverId = bestId
+    }
+  }
+
+  // Draw arrows for current step (fading out as players move)
+  for (const el of elems) {
+    if (!ARROW_TYPES.includes(el.type)) continue
+    if ((el.step ?? 0) !== animStepIdx) continue
+    const alpha = Math.max(0, 1 - et * 1.5)
+    if (alpha > 0) {
+      ctx.save(); ctx.globalAlpha = alpha
+      drawEl(ctx, el, false)
       ctx.restore()
     }
   }
 
-  // ── Draw flying ball during pass/handoff ──────────
-  if (!isEditing && ballAnimX !== null) {
+  // Draw players/objects with interpolation from base positions
+  for (const el of elems) {
+    if (ARROW_TYPES.includes(el.type)) continue
+    const base = basePos[el.id]
+    let drawData = base ? { ...el, x: base.x, y: base.y } : el
+    if (base && targets[el.id] && stepT > 0) {
+      drawData = { ...drawData,
+        x: base.x + (targets[el.id].x - base.x) * et,
+        y: base.y + (targets[el.id].y - base.y) * et,
+      }
+    }
+    if (PLAYER_TYPES.includes(el.type)) {
+      if (ballAnimX !== null) {
+        if      (el.id === flyingCarrierId) drawData = { ...drawData, hasBall: false }
+        else if (el.id === ballReceiverId)  drawData = { ...drawData, hasBall: stepT >= 0.85 }
+        else                                drawData = { ...drawData, hasBall: false }
+      } else {
+        drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+      }
+    }
+    drawEl(ctx, drawData, false)
+  }
+
+  // Flying ball
+  if (ballAnimX !== null) {
     const bR = 8
     ctx.save()
     ctx.fillStyle = '#f97316'
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI*2); ctx.fill()
-    ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI*2); ctx.stroke()
-    ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=0.9
-    ctx.beginPath(); ctx.moveTo(ballAnimX-bR, ballAnimY); ctx.lineTo(ballAnimX+bR, ballAnimY); ctx.stroke()
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR*0.6, 0, Math.PI); ctx.stroke()
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.fill()
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.stroke()
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';  ctx.lineWidth = 0.9
+    ctx.beginPath(); ctx.moveTo(ballAnimX - bR, ballAnimY); ctx.lineTo(ballAnimX + bR, ballAnimY); ctx.stroke()
+    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR * 0.6, 0, Math.PI); ctx.stroke()
     ctx.restore()
   }
 }
@@ -569,7 +605,7 @@ function PhaseThumb({ elements, active, index, onClick, courtType }) {
     const s = TW / CW
     ctx.clearRect(0,0,TW,TH)
     ctx.save(); ctx.scale(s,s)
-    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, true, null)
+    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0)
     ctx.restore()
   }, [elements, TW, TH, courtType, CH])
 
@@ -590,6 +626,91 @@ const BALL_TRANSFER_TYPES = ['pass','handoff']   // actions that transfer the ba
 // Only these arrow types physically move the player to the endpoint
 // Pass / shot / handoff do NOT move the player — only the ball transfers
 const MOVE_ARROW_TYPES   = ['dribble','cut','screen']
+
+/* ── Sequential-step constants ───────────────────── */
+const STEP_COLORS   = ['#3b82f6','#a855f7','#ec4899','#f59e0b','#10b981','#ef4444']
+const STEP_MOVE_DUR = 1000   // ms: players move within one step
+const STEP_HOLD_DUR = 300    // ms: hold after players reach target
+const STEP_DUR      = STEP_MOVE_DUR + STEP_HOLD_DUR
+const PHASE_HOLD    = 500    // ms: pause between phases
+
+/* Returns how many action-steps exist in the element array (≥1) */
+function getNumSteps(elems) {
+  let max = -1
+  for (const el of elems) {
+    if (ARROW_TYPES.includes(el.type)) {
+      const s = el.step ?? 0
+      if (s > max) max = s
+    }
+  }
+  return Math.max(1, max + 1)
+}
+
+/*
+ * accumulateSteps(elems, throughStep)
+ * Returns { playerPos: {id→{x,y}}, carrierId }
+ * representing the state of the court AFTER steps 0 … throughStep-1 have played out.
+ */
+function accumulateSteps(elems, throughStep) {
+  // Initialise positions from element data
+  const playerPos = {}
+  for (const el of elems) {
+    if (!ARROW_TYPES.includes(el.type)) playerPos[el.id] = { x: el.x, y: el.y }
+  }
+  // Find initial ball carrier
+  let carrierId = null
+  for (const el of elems) {
+    if (PLAYER_TYPES.includes(el.type) && el.hasBall) { carrierId = el.id; break }
+  }
+
+  for (let s = 0; s < throughStep; s++) {
+    // Displacement map for movement arrows in this step
+    const stepMoves = {}
+    for (const el of elems) {
+      if (!MOVE_ARROW_TYPES.includes(el.type)) continue
+      if ((el.step ?? 0) !== s) continue
+      if (!el.fromId || !playerPos[el.fromId]) continue
+      const base = playerPos[el.fromId]
+      stepMoves[el.fromId] = { dx: el.x2 - base.x, dy: el.y2 - base.y }
+      playerPos[el.fromId] = { x: el.x2, y: el.y2 }
+    }
+
+    // Auto-follow: defenders mirror their matching attacker's displacement
+    for (const el of elems) {
+      if (!['defense','xdefense'].includes(el.type) || !el.num) continue
+      const hasManual = elems.some(e =>
+        MOVE_ARROW_TYPES.includes(e.type) && (e.step ?? 0) === s && e.fromId === el.id
+      )
+      if (hasManual || !playerPos[el.id]) continue
+      const att = elems.find(e => e.type === 'offense' && e.num === el.num)
+      if (att && stepMoves[att.id]) {
+        playerPos[el.id] = {
+          x: playerPos[el.id].x + stepMoves[att.id].dx,
+          y: playerPos[el.id].y + stepMoves[att.id].dy,
+        }
+      }
+    }
+
+    // Ball transfer
+    if (carrierId) {
+      const arr = elems.find(e =>
+        BALL_TRANSFER_TYPES.includes(e.type) && (e.step ?? 0) === s && e.fromId === carrierId
+      )
+      if (arr) {
+        let bestDist = PR + 30, bestId = null
+        for (const el of elems) {
+          if (!PLAYER_TYPES.includes(el.type) || el.id === carrierId) continue
+          const p = playerPos[el.id] || { x: el.x, y: el.y }
+          const d = Math.hypot(p.x - arr.x2, p.y - arr.y2)
+          if (d < bestDist) { bestDist = d; bestId = el.id }
+        }
+        if (bestId) carrierId = bestId
+      }
+    }
+  }
+
+  return { playerPos, carrierId }
+}
 
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
@@ -630,15 +751,20 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   const [courtType,  setCourtType]   = useState(initialData?.courtType||'half')
   const [draggingCP, setDraggingCP]  = useState(null)  // { id, ox, oy }
   const [hoverCP,    setHoverCP]     = useState(false)
+  const [drawStep,   setDrawStep]    = useState(0)     // which action-step new arrows go to
+  const drawStepRef  = useRef(0)
 
   const CH = getCanvasH(courtType)
   const els = phases[cur]?.elements || []
   const isArrowTool = ARROW_TYPES.includes(tool)
 
   // Keep refs in sync with state
-  useEffect(() => { phasesRef.current  = phases     }, [phases])
-  useEffect(() => { courtTypeRef.current = courtType }, [courtType])
-  useEffect(() => { selIdRef.current   = selId      }, [selId])
+  useEffect(() => { phasesRef.current    = phases     }, [phases])
+  useEffect(() => { courtTypeRef.current = courtType  }, [courtType])
+  useEffect(() => { selIdRef.current     = selId      }, [selId])
+  useEffect(() => { drawStepRef.current  = drawStep   }, [drawStep])
+  // Reset to step 0 when user switches to a different phase
+  useEffect(() => { setDrawStep(0) }, [cur])
 
   /* ── Editor render ─────────────────────────────────── */
   const render = useCallback(() => {
@@ -646,14 +772,14 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, true, selIdRef.current)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
       drawArrowLine(ctx, tool, aSt.x, aSt.y, aCur.x, aCur.y)
       ctx.restore()
     }
-  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH])
+  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep])
 
   useEffect(() => { render() }, [render])
 
@@ -766,6 +892,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           type:tool, x1:aSt.x,y1:aSt.y, x2:p.x,y2:p.y,
           x:(aSt.x+p.x)/2, y:(aSt.y+p.y)/2,
           fromId: aSt.fromId || null,
+          step: drawStepRef.current,
         })
       }
       setASt(null); setACur(null)
@@ -784,65 +911,19 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setCur(phases.length)
   }
 
-  // "→ Avanzar fase" → move players to arrow endpoints, strip arrows,
-  //                    auto-transfer ball on pass/handoff
+  // "→ Avanzar fase" → run ALL steps in sequence, move players to their
+  //                    final positions, strip all arrows, transfer ball correctly
   function advancePhase() {
     const currentElems = phases[cur].elements
-
-    // Build movement targets — only dribble/cut/screen physically move the player
-    const targets = {}
-    for (const el of currentElems) {
-      if (el.fromId && MOVE_ARROW_TYPES.includes(el.type))
-        targets[el.fromId] = { x:el.x2, y:el.y2 }
-    }
-
-    // ── Auto-follow: defenders mirror their matching attacker ──
-    const movingAttackers = {}
-    for (const el of currentElems) {
-      if (el.type === 'offense' && el.num && targets[el.id]) {
-        movingAttackers[el.num] = el
-      }
-    }
-    for (const el of currentElems) {
-      if ((el.type === 'defense' || el.type === 'xdefense') && el.num && !targets[el.id]) {
-        const att = movingAttackers[el.num]
-        if (att) {
-          targets[el.id] = {
-            x: el.x + (targets[att.id].x - att.x),
-            y: el.y + (targets[att.id].y - att.y),
-          }
-        }
-      }
-    }
-
-    // Auto ball transfer: find pass/handoff from ball carrier
-    const carrier = currentElems.find(el => PLAYER_TYPES.includes(el.type) && el.hasBall)
-    let newBallCarrierId = carrier?.id
-
-    if (carrier) {
-      const transferArrow = currentElems.find(el =>
-        BALL_TRANSFER_TYPES.includes(el.type) && el.fromId === carrier.id
-      )
-      if (transferArrow) {
-        // Find nearest player to the arrow endpoint (using their final positions)
-        const endX = transferArrow.x2, endY = transferArrow.y2
-        let bestDist = PR + 30, bestId = null
-        for (const el of currentElems) {
-          if (!PLAYER_TYPES.includes(el.type) || el.id === carrier.id) continue
-          const tx = targets[el.id] ? targets[el.id].x : el.x
-          const ty = targets[el.id] ? targets[el.id].y : el.y
-          const d = Math.hypot(tx - endX, ty - endY)
-          if (d < bestDist) { bestDist = d; bestId = el.id }
-        }
-        if (bestId) newBallCarrierId = bestId
-      }
-    }
+    const numSteps = getNumSteps(currentElems)
+    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps)
 
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))
       .map(el => {
-        const moved = targets[el.id] ? {...el, x:targets[el.id].x, y:targets[el.id].y} : {...el}
-        if (PLAYER_TYPES.includes(el.type)) return {...moved, hasBall: el.id === newBallCarrierId}
+        const pos = playerPos[el.id]
+        const moved = pos ? { ...el, x: pos.x, y: pos.y } : { ...el }
+        if (PLAYER_TYPES.includes(el.type)) return { ...moved, hasBall: el.id === newCarrierId }
         return moved
       })
 
@@ -862,10 +943,6 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function clearPhase() { setPhases(p=>p.map((ph,i)=>i!==cur?ph:{...ph,elements:[]})); setSelId(null) }
 
   /* ── Animation ───────────────────────────────────── */
-  const MOVE_DUR = 1400   // ms: players move
-  const HOLD_DUR = 500    // ms: hold at final positions before next phase
-  const PHASE_DUR = MOVE_DUR + HOLD_DUR
-
   function stopAnimate() {
     if (animLoopRef.current) cancelAnimationFrame(animLoopRef.current)
     animRunningRef.current = false
@@ -875,7 +952,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, true, selIdRef.current)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current)
     }, 0)
   }
 
@@ -886,31 +963,47 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setAnimating(true)
     setAnimPh(0)
 
+    const phases   = phasesRef.current
+    const nPhases  = phases.length
+
+    // Pre-compute per-phase step counts + cumulative start times
+    const phaseMeta = phases.map(ph => {
+      const numSteps = getNumSteps(ph.elements)
+      return { numSteps, phaseDur: numSteps * STEP_DUR + PHASE_HOLD }
+    })
+    const phaseStarts = [0]
+    for (let i = 0; i < nPhases; i++) phaseStarts.push(phaseStarts[i] + phaseMeta[i].phaseDur)
+    const totalDur = phaseStarts[nPhases]
+
     const startTs = performance.now()
-    const totalPhases = phasesRef.current.length
 
     function frame(ts) {
       if (!animRunningRef.current) return
-
       const elapsed = ts - startTs
-      const totalDur = totalPhases * PHASE_DUR
 
       if (elapsed >= totalDur) {
-        // Show last phase at final positions for a moment then stop
         const canvas = canvasRef.current
         if (canvas) {
           const ctx = canvas.getContext('2d')
           const W = CW, H = getCanvasH(courtTypeRef.current)
-          const lastElems = phasesRef.current[totalPhases-1]?.elements || []
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastElems, 1, false, null)
+          const lastPh   = phasesRef.current[nPhases - 1]
+          const lastStep = phaseMeta[nPhases - 1].numSteps - 1
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
       }
 
-      const phaseIdx = Math.min(Math.floor(elapsed / PHASE_DUR), totalPhases-1)
-      const phaseElapsed = elapsed - phaseIdx * PHASE_DUR
-      const t = Math.min(phaseElapsed / MOVE_DUR, 1)
+      // Locate current phase
+      let phaseIdx = nPhases - 1
+      for (let i = 0; i < nPhases; i++) {
+        if (elapsed < phaseStarts[i + 1]) { phaseIdx = i; break }
+      }
+
+      const phaseElapsed = elapsed - phaseStarts[phaseIdx]
+      const { numSteps } = phaseMeta[phaseIdx]
+      const stepIdx    = Math.min(Math.floor(phaseElapsed / STEP_DUR), numSteps - 1)
+      const stepT      = Math.min((phaseElapsed - stepIdx * STEP_DUR) / STEP_MOVE_DUR, 1)
 
       setAnimPh(phaseIdx)
 
@@ -919,7 +1012,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, t, false, null)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -948,22 +1041,34 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       URL.revokeObjectURL(url); setRecording(false)
     }
     setRecording(true); rec.start()
-    // Run full animation once while recording
-    const totalPhases = phasesRef.current.length
-    const startTs = performance.now()
-    const totalDur = totalPhases * PHASE_DUR + 800
+    // Run full animation once while recording (same timing as startAnimate)
+    const phases   = phasesRef.current
+    const nPhases  = phases.length
+    const phaseMeta = phases.map(ph => {
+      const numSteps = getNumSteps(ph.elements)
+      return { numSteps, phaseDur: numSteps * STEP_DUR + PHASE_HOLD }
+    })
+    const phaseStarts = [0]
+    for (let i = 0; i < nPhases; i++) phaseStarts.push(phaseStarts[i] + phaseMeta[i].phaseDur)
+    const totalDur = phaseStarts[nPhases] + 800
 
     await new Promise(resolve => {
+      const startTs = performance.now()
       function frame(ts) {
         const elapsed = ts - startTs
         if (elapsed >= totalDur) { resolve(); return }
-        const phaseIdx = Math.min(Math.floor(elapsed/PHASE_DUR), totalPhases-1)
-        const phaseElapsed = elapsed - phaseIdx*PHASE_DUR
-        const t = Math.min(phaseElapsed/MOVE_DUR, 1)
+        let phaseIdx = nPhases - 1
+        for (let i = 0; i < nPhases; i++) {
+          if (elapsed < phaseStarts[i + 1]) { phaseIdx = i; break }
+        }
+        const phaseElapsed = elapsed - phaseStarts[phaseIdx]
+        const { numSteps } = phaseMeta[phaseIdx]
+        const stepIdx = Math.min(Math.floor(phaseElapsed / STEP_DUR), numSteps - 1)
+        const stepT   = Math.min((phaseElapsed - stepIdx * STEP_DUR) / STEP_MOVE_DUR, 1)
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx,W,H,courtTypeRef.current,elems,t,false,null)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1109,16 +1214,49 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         {/* ── CENTER: CANVAS ── */}
         <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0f172a',padding:12,gap:10,overflow:'hidden'}}>
 
-          {/* Phase indicator (draw mode) */}
+          {/* Phase indicator + action-step controls (draw mode) */}
           {tab==='draw' && !animating && (
-            <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
-              <button onClick={()=>cur>0&&setCur(cur-1)} disabled={cur===0}
-                style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:cur===0?'transparent':'#1f2937',color:cur===0?'#374151':'#9ca3af',cursor:cur===0?'default':'pointer',fontSize:12}}>‹</button>
-              <span style={{color:'#6b7280',fontSize:12,fontWeight:600,minWidth:80,textAlign:'center'}}>
-                Fase {cur+1} / {phases.length}
-              </span>
-              <button onClick={()=>cur<phases.length-1&&setCur(cur+1)} disabled={cur===phases.length-1}
-                style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:cur===phases.length-1?'transparent':'#1f2937',color:cur===phases.length-1?'#374151':'#9ca3af',cursor:cur===phases.length-1?'default':'pointer',fontSize:12}}>›</button>
+            <div style={{display:'flex',alignItems:'center',gap:12,flexShrink:0,flexWrap:'wrap',justifyContent:'center'}}>
+              {/* Phase navigation */}
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                <button onClick={()=>cur>0&&setCur(cur-1)} disabled={cur===0}
+                  style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:cur===0?'transparent':'#1f2937',color:cur===0?'#374151':'#9ca3af',cursor:cur===0?'default':'pointer',fontSize:12}}>‹</button>
+                <span style={{color:'#6b7280',fontSize:12,fontWeight:600,minWidth:80,textAlign:'center'}}>
+                  Fase {cur+1} / {phases.length}
+                </span>
+                <button onClick={()=>cur<phases.length-1&&setCur(cur+1)} disabled={cur===phases.length-1}
+                  style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:cur===phases.length-1?'transparent':'#1f2937',color:cur===phases.length-1?'#374151':'#9ca3af',cursor:cur===phases.length-1?'default':'pointer',fontSize:12}}>›</button>
+              </div>
+
+              {/* Separator */}
+              <div style={{width:1,height:22,background:'#374151'}} />
+
+              {/* Action-step controls */}
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {drawStep > 0 && (
+                  <button onClick={()=>setDrawStep(s=>s-1)}
+                    style={{padding:'4px 9px',borderRadius:6,border:'1px solid #374151',background:'#1f2937',color:'#9ca3af',cursor:'pointer',fontSize:12}}>
+                    ← Acción anterior
+                  </button>
+                )}
+                <span style={{
+                  padding:'4px 10px',borderRadius:6,fontSize:12,fontWeight:700,
+                  background: STEP_COLORS[drawStep % STEP_COLORS.length] + '22',
+                  border:`1px solid ${STEP_COLORS[drawStep % STEP_COLORS.length]}`,
+                  color: STEP_COLORS[drawStep % STEP_COLORS.length],
+                  minWidth:76,textAlign:'center',
+                }}>
+                  Acción {drawStep+1}
+                </span>
+                <button onClick={()=>setDrawStep(s=>s+1)}
+                  style={{
+                    padding:'4px 10px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:700,
+                    background: STEP_COLORS[(drawStep+1) % STEP_COLORS.length],
+                    color:'#fff',
+                  }}>
+                  + Acción {drawStep+2}
+                </button>
+              </div>
             </div>
           )}
 
@@ -1164,11 +1302,15 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               </div>
               {animating
                 ? <span style={{color:'#9ca3af',fontSize:13}}>Fase {animPh+1} / {phases.length} — Los jugadores se están moviendo…</span>
-                : <span style={{color:'#6b7280',fontSize:12}}>{phases.length} fase{phases.length!==1?'s':''} · Duración: ~{(phases.length * PHASE_DUR / 1000).toFixed(1)}s</span>
+                : <span style={{color:'#6b7280',fontSize:12}}>
+                    {phases.length} fase{phases.length!==1?'s':''} ·{' '}
+                    {phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements),0)} acción{phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements),0)!==1?'es':''} ·{' '}
+                    ~{(phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements)*STEP_DUR+PHASE_HOLD,0)/1000).toFixed(1)}s
+                  </span>
               }
               {!animating && (
-                <div style={{color:'#4b5563',fontSize:11,textAlign:'center',maxWidth:340}}>
-                  💡 Las flechas dibujadas desde un jugador animarán su movimiento. Usa <strong style={{color:'#6b7280'}}>➡ Avanzar fase</strong> en el panel izquierdo para encadenar fases.
+                <div style={{color:'#4b5563',fontSize:11,textAlign:'center',maxWidth:380}}>
+                  💡 Dibuja acciones en orden. Usa <strong style={{color:'#6b7280'}}>+ Acción</strong> sobre el canvas para añadir pasos dentro de una misma fase. Usa <strong style={{color:'#6b7280'}}>➡ Avanzar fase</strong> para crear la siguiente fase.
                 </div>
               )}
             </div>
@@ -1191,7 +1333,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               <div style={{fontSize:52,marginBottom:14}}>🎬</div>
               <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>Exportar jugada</div>
               <div style={{color:'#9ca3af',fontSize:14,marginBottom:28}}>
-                {phases.length} fase{phases.length!==1?'s':''} · duración estimada ~{(phases.length*PHASE_DUR/1000).toFixed(1)}s
+                {phases.length} fase{phases.length!==1?'s':''} · duración estimada ~{(phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements)*STEP_DUR+PHASE_HOLD,0)/1000).toFixed(1)}s
               </div>
               <button onClick={exportVideo} disabled={recording} style={{
                 background:recording?'#374151':'#7c3aed',border:'none',borderRadius:10,

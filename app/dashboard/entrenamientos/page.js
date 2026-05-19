@@ -30,7 +30,13 @@ export default function EntrenamientosPage() {
   const [savingEx, setSavingEx] = useState(false)
 
   // CourtEditor para ejercicio
-  const [editorExercise, setEditorExercise] = useState(null) // {id, play_data} o null para nuevo
+  const [editorExercise, setEditorExercise] = useState(null)
+
+  // Entrenamientos compartidos
+  const [sharedSessions, setSharedSessions] = useState([])
+  const [sharedProfiles, setSharedProfiles] = useState({}) // created_by → full_name
+  const [sharedLoading, setSharedLoading] = useState(false)
+  const [sharingId, setSharingId] = useState(null) // sesión que se está compartiendo/descompartiendo
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
 
@@ -55,6 +61,35 @@ export default function EntrenamientosPage() {
     const { data } = await supabase.from('training_sessions').select('*').eq('team_id', team.id).order('date', { ascending: false })
     setSessions(data || [])
     setLoading(false)
+  }
+
+  async function loadSharedSessions() {
+    setSharedLoading(true)
+    // Cargamos todos los equipos del club para buscar sesiones compartidas de cualquier equipo
+    const { data: allTeams } = await supabase.from('teams').select('id')
+    const teamIds = (allTeams || []).map(t => t.id)
+    if (teamIds.length === 0) { setSharedLoading(false); return }
+
+    const { data } = await supabase
+      .from('training_sessions')
+      .select('*, teams(name)')
+      .eq('shared', true)
+      .in('team_id', teamIds)
+      .order('date', { ascending: false })
+
+    const list = data || []
+    setSharedSessions(list)
+
+    // Cargamos nombres de los creadores
+    const creatorIds = [...new Set(list.map(s => s.created_by).filter(Boolean))]
+    if (creatorIds.length > 0) {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', creatorIds)
+      const map = {}
+      for (const p of (profs || [])) map[p.id] = p.full_name || 'Entrenador'
+      setSharedProfiles(map)
+    }
+
+    setSharedLoading(false)
   }
 
   async function loadExercises(sessionId) {
@@ -104,6 +139,17 @@ export default function EntrenamientosPage() {
     if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, completed: !s.completed }))
   }
 
+  async function handleToggleShared(session) {
+    const newShared = !session.shared
+    setSharingId(session.id)
+    await supabase.from('training_sessions').update({ shared: newShared }).eq('id', session.id)
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, shared: newShared } : s))
+    if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, shared: newShared }))
+    setSharingId(null)
+    // Refrescar compartidos si estamos en esa pestaña
+    if (tab === 'compartidos') await loadSharedSessions()
+  }
+
   async function handleSaveExercise(e) {
     e.preventDefault()
     setSavingEx(true)
@@ -126,6 +172,11 @@ export default function EntrenamientosPage() {
     await loadExercises(detailSession.id)
   }
 
+  // ¿Puede editar esta sesión? Solo si es suya o es director
+  const canEditDetail = detailSession && (isDirector || detailSession.created_by === user?.id)
+  // ¿Es una sesión compartida de otro entrenador (solo lectura)?
+  const isReadOnly = detailSession && !canEditDetail
+
   const today = new Date().toISOString().split('T')[0]
   const filtered = sessions.filter(s => tab === 'proximos' ? s.date >= today && !s.completed : s.date < today || s.completed)
 
@@ -141,7 +192,7 @@ export default function EntrenamientosPage() {
 
   if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
 
-  // Full-screen court editor for exercise play design
+  // Full-screen court editor para ejercicio
   if (editorExercise) {
     const initData = editorExercise.play_data
       ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [] }
@@ -157,7 +208,7 @@ export default function EntrenamientosPage() {
     )
   }
 
-  if (!selectedTeam) return (
+  if (!selectedTeam && tab !== 'compartidos') return (
     <div style={{ textAlign: 'center', padding: '64px 0' }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
       <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
@@ -180,6 +231,20 @@ export default function EntrenamientosPage() {
           <div style={{ borderRadius: 16, marginBottom: 20, background: detailSession.completed ? 'linear-gradient(135deg,#374151,#6b7280)' : 'linear-gradient(135deg,#1C5C2A,#52B043)', padding: '20px 24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
+                {/* Si es de otro entrenador, mostrar de quién es */}
+                {isReadOnly && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.18)', borderRadius: 6, padding: '3px 8px', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
+                      📤 Compartido por {sharedProfiles[detailSession.created_by] || 'Entrenador'} · {detailSession.teams?.name || ''}
+                    </span>
+                  </div>
+                )}
+                {/* Si es propio y está compartido, mostrar badge */}
+                {!isReadOnly && detailSession.shared && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.18)', borderRadius: 6, padding: '3px 8px', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>📤 Compartido con el club</span>
+                  </div>
+                )}
                 <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
                   {new Date(detailSession.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                   {detailSession.start_time && ` · ${detailSession.start_time.slice(0,5)}h`}
@@ -210,31 +275,69 @@ export default function EntrenamientosPage() {
             </div>
           )}
 
-          {/* Acciones sesión */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-            <button onClick={() => handleToggleCompleted(detailSession)} style={{
-              padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-              background: detailSession.completed ? '#f3f4f6' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-              color: detailSession.completed ? '#374151' : '#fff'
-            }}>{detailSession.completed ? '↩ Marcar pendiente' : '✓ Marcar completado'}</button>
-            <button onClick={() => openEditSession(detailSession)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
-            <button onClick={() => handleDeleteSession(detailSession.id)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Eliminar</button>
-          </div>
+          {/* Acciones sesión — solo si puede editar */}
+          {canEditDetail && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+              {/* Marcar completado */}
+              <button onClick={() => handleToggleCompleted(detailSession)} style={{
+                padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: detailSession.completed ? '#f3f4f6' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
+                color: detailSession.completed ? '#374151' : '#fff'
+              }}>{detailSession.completed ? '↩ Marcar pendiente' : '✓ Marcar completado'}</button>
+
+              {/* Compartir entrenamiento */}
+              <button
+                onClick={() => handleToggleShared(detailSession)}
+                disabled={sharingId === detailSession.id}
+                style={{
+                  padding: '8px 16px', borderRadius: 10, border: detailSession.shared ? 'none' : '1.5px solid #7c3aed', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                  background: detailSession.shared
+                    ? 'linear-gradient(135deg,#7c3aed,#5b21b6)'
+                    : 'transparent',
+                  color: detailSession.shared ? '#fff' : '#7c3aed',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  opacity: sharingId === detailSession.id ? 0.6 : 1,
+                }}
+              >
+                {sharingId === detailSession.id
+                  ? '⏳ Guardando...'
+                  : detailSession.shared
+                    ? '📤 Compartido con el club'
+                    : '📤 Compartir con el club'}
+              </button>
+
+              <button onClick={() => openEditSession(detailSession)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+              <button onClick={() => handleDeleteSession(detailSession.id)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Eliminar</button>
+            </div>
+          )}
+
+          {/* Aviso si es solo lectura */}
+          {isReadOnly && (
+            <div style={{ backgroundColor: '#f5f3ff', borderRadius: 12, padding: '12px 16px', border: '1px solid #ddd6fe', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>👁️</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>Entrenamiento de solo lectura</div>
+                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 2 }}>Puedes ver los ejercicios diseñados por {sharedProfiles[detailSession.created_by] || 'otro entrenador'}, pero no editarlos.</div>
+              </div>
+            </div>
+          )}
 
           {/* Ejercicios */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', margin: 0 }}>Ejercicios · {totalMinutes} min</h3>
-            <button onClick={() => { setShowExForm(true); setExForm({ title: '', duration_minutes: 10, description: '' }) }} style={{
-              padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 13, fontWeight: 700
-            }}>+ Añadir</button>
+            {canEditDetail && (
+              <button onClick={() => { setShowExForm(true); setExForm({ title: '', duration_minutes: 10, description: '' }) }} style={{
+                padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 13, fontWeight: 700
+              }}>+ Añadir</button>
+            )}
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {exercises.length === 0 && (
               <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #f3f4f6' }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🏋️</div>
-                <div style={{ fontSize: 14 }}>Añade ejercicios a esta sesión</div>
+                <div style={{ fontSize: 14 }}>{isReadOnly ? 'Este entrenamiento no tiene ejercicios' : 'Añade ejercicios a esta sesión'}</div>
               </div>
             )}
             {exercises.map((ex, idx) => (
@@ -247,16 +350,29 @@ export default function EntrenamientosPage() {
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{ex.title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>{ex.duration_minutes} min</span>
-                      <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
+                      {canEditDetail && (
+                        <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
+                      )}
                     </div>
                   </div>
                   {ex.description && <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0', lineHeight: 1.5 }}>{ex.description}</p>}
                   <div style={{ marginTop: 8 }}>
                     <button
-                      onClick={() => setEditorExercise(ex)}
-                      style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      disabled={!ex.play_data && isReadOnly}
+                      style={{
+                        fontSize: 12, fontWeight: 600,
+                        color: ex.play_data ? '#2563eb' : '#9ca3af',
+                        background: ex.play_data ? '#eff6ff' : '#f9fafb',
+                        border: 'none', borderRadius: 8, padding: '4px 10px',
+                        cursor: (!ex.play_data && isReadOnly) ? 'default' : 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: 4
+                      }}
+                      onClick={() => {
+                        if (isReadOnly && ex.play_data) setEditorExercise(ex)
+                        else if (!isReadOnly) setEditorExercise(ex)
+                      }}
                     >
-                      🏀 {ex.play_data ? 'Ver/editar entrenamiento' : 'Diseñar entrenamiento'}
+                      🏀 {ex.play_data ? (isReadOnly ? 'Ver diseño' : 'Ver/editar entrenamiento') : 'Diseñar entrenamiento'}
                     </button>
                     {ex.play_data && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8 }}>✓ Jugada guardada</span>}
                   </div>
@@ -308,16 +424,23 @@ export default function EntrenamientosPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
               <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Entrenamientos</h1>
-              <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>{selectedTeam.name} · {sessions.length} sesiones</p>
+              <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+                {tab === 'compartidos'
+                  ? `Entrenamientos compartidos por todos los entrenadores del club`
+                  : `${selectedTeam?.name || ''} · ${sessions.length} sesiones`}
+              </p>
             </div>
-            <button onClick={openNewSession} style={{
-              padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-              fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-            }}>+ Nuevo</button>
+            {tab !== 'compartidos' && (
+              <button onClick={openNewSession} style={{
+                padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
+                fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
+              }}>+ Nuevo</button>
+            )}
           </div>
 
-          {isDirector && teams.length > 1 && (
+          {/* Selector de equipo — solo en pestañas de sesiones propias */}
+          {tab !== 'compartidos' && isDirector && teams.length > 1 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {teams.map(t => (
                 <button key={t.id} onClick={() => { setLoading(true); loadSessions(t) }} style={{
@@ -329,54 +452,149 @@ export default function EntrenamientosPage() {
             </div>
           )}
 
+          {/* Pestañas */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             <button onClick={() => setTab('proximos')} style={tabStyle('proximos')}>📅 Próximos</button>
             <button onClick={() => setTab('pasados')} style={tabStyle('pasados')}>✅ Pasados</button>
+            <button onClick={() => { setTab('compartidos'); loadSharedSessions() }} style={{
+              ...tabStyle('compartidos'),
+              background: tab === 'compartidos' ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#f3f4f6',
+              color: tab === 'compartidos' ? '#fff' : '#374151',
+            }}>
+              📤 Compartidos
+            </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filtered.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>📝</div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{tab === 'proximos' ? 'No hay entrenamientos planificados' : 'No hay entrenamientos pasados'}</div>
-                {tab === 'proximos' && <div style={{ fontSize: 13, marginTop: 4 }}>Crea el primero con el botón de arriba</div>}
-              </div>
-            )}
-            {filtered.map(session => (
-              <div key={session.id} onClick={() => openDetail(session)} style={{
-                backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
-                border: `1px solid ${session.completed ? '#e5e7eb' : '#d1fae5'}`,
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
-              }}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 46, height: 46, borderRadius: 12, flexShrink: 0,
-                    background: session.completed ? 'linear-gradient(135deg,#6b7280,#374151)' : 'linear-gradient(135deg,#52B043,#1C5C2A)',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff'
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 900 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
-                    <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', opacity: 0.8 }}>
-                      {new Date(session.date + 'T12:00:00').toLocaleDateString('es-ES', { month: 'short' })}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: session.completed ? '#9ca3af' : '#111827' }}>{session.title}</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                      {session.start_time ? session.start_time.slice(0,5) + 'h · ' : ''}{session.duration_minutes} min
-                      {session.completed && ' · ✓ Completado'}
-                    </div>
-                    {session.objectives && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{session.objectives}</div>}
+          {/* PESTAÑA COMPARTIDOS */}
+          {tab === 'compartidos' && (
+            <div>
+              {sharedLoading ? (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+                  <div style={{ fontSize: 14 }}>Cargando entrenamientos compartidos...</div>
+                </div>
+              ) : sharedSessions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '64px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6' }}>
+                  <div style={{ fontSize: 52, marginBottom: 14 }}>📤</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin entrenamientos compartidos todavía</div>
+                  <div style={{ fontSize: 13, maxWidth: 320, margin: '0 auto', lineHeight: 1.6 }}>
+                    Cuando un entrenador finalice una sesión y pulse <strong>«Compartir con el club»</strong>, aparecerá aquí para que todos puedan verla.
                   </div>
                 </div>
-                <span style={{ color: '#9ca3af', fontSize: 18, flexShrink: 0 }}>→</span>
-              </div>
-            ))}
-          </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {sharedSessions.map(session => {
+                    const authorName = sharedProfiles[session.created_by] || 'Entrenador'
+                    const teamName   = session.teams?.name || ''
+                    const isOwn      = session.created_by === user?.id
+                    return (
+                      <div key={session.id} onClick={() => openDetail(session)} style={{
+                        backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
+                        border: '1px solid #ede9fe',
+                        boxShadow: '0 1px 4px rgba(124,58,237,0.06)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+                      }}
+                        onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,58,237,0.12)'}
+                        onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(124,58,237,0.06)'}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          {/* Icono fecha */}
+                          <div style={{
+                            width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                            background: 'linear-gradient(135deg,#7c3aed,#5b21b6)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff'
+                          }}>
+                            <div style={{ fontSize: 14, fontWeight: 900 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
+                            <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', opacity: 0.8 }}>
+                              {new Date(session.date + 'T12:00:00').toLocaleDateString('es-ES', { month: 'short' })}
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{session.title}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                              {/* Badge equipo */}
+                              {teamName && (
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 5 }}>
+                                  🏀 {teamName}
+                                </span>
+                              )}
+                              {/* Badge autor */}
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '2px 7px', borderRadius: 5 }}>
+                                {isOwn ? '👤 Tú' : `👤 ${authorName}`}
+                              </span>
+                              {/* Duración */}
+                              <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                                {session.duration_minutes} min
+                              </span>
+                            </div>
+                            {session.objectives && (
+                              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                                {session.objectives}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <span style={{ color: '#7c3aed', fontSize: 18, flexShrink: 0 }}>→</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PESTAÑAS PRÓXIMOS / PASADOS */}
+          {tab !== 'compartidos' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filtered.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>📝</div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{tab === 'proximos' ? 'No hay entrenamientos planificados' : 'No hay entrenamientos pasados'}</div>
+                  {tab === 'proximos' && <div style={{ fontSize: 13, marginTop: 4 }}>Crea el primero con el botón de arriba</div>}
+                </div>
+              )}
+              {filtered.map(session => (
+                <div key={session.id} onClick={() => openDetail(session)} style={{
+                  backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
+                  border: `1px solid ${session.completed ? '#e5e7eb' : '#d1fae5'}`,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+                }}
+                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
+                  onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{
+                      width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                      background: session.completed ? 'linear-gradient(135deg,#6b7280,#374151)' : 'linear-gradient(135deg,#52B043,#1C5C2A)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff'
+                    }}>
+                      <div style={{ fontSize: 14, fontWeight: 900 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
+                      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', opacity: 0.8 }}>
+                        {new Date(session.date + 'T12:00:00').toLocaleDateString('es-ES', { month: 'short' })}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: session.completed ? '#9ca3af' : '#111827' }}>{session.title}</div>
+                        {session.shared && (
+                          <span title="Compartido con el club" style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '1px 6px', borderRadius: 4 }}>📤 Compartido</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                        {session.start_time ? session.start_time.slice(0,5) + 'h · ' : ''}{session.duration_minutes} min
+                        {session.completed && ' · ✓ Completado'}
+                      </div>
+                      {session.objectives && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{session.objectives}</div>}
+                    </div>
+                  </div>
+                  <span style={{ color: '#9ca3af', fontSize: 18, flexShrink: 0 }}>→</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -403,10 +403,13 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, sel
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
-  // Build target map: playerId → {x,y}  (from drawn arrows)
+  // Build target map: playerId → {x,y}
+  // Only MOVE_ARROW_TYPES (dribble/cut/screen) physically move the player.
+  // Pass, shot, handoff transfer the ball but the player stays in place.
   const targets = {}
   for (const el of elems) {
-    if (el.fromId) targets[el.fromId] = { x: el.x2, y: el.y2 }
+    if (el.fromId && MOVE_ARROW_TYPES.includes(el.type))
+      targets[el.fromId] = { x: el.x2, y: el.y2 }
   }
 
   // ── Auto-follow: defenders mirror their matching attacker ──
@@ -581,9 +584,12 @@ function PhaseThumb({ elements, active, index, onClick, courtType }) {
 }
 
 /* ── Type constants (module-level so renderPhaseFrame can use them) ── */
-const ARROW_TYPES  = ['dribble','pass','cut','shot','handoff','screen']
-const PLAYER_TYPES = ['offense','defense','xdefense']
-const BALL_TRANSFER_TYPES = ['pass','handoff']  // actions that move the ball
+const ARROW_TYPES        = ['dribble','pass','cut','shot','handoff','screen']
+const PLAYER_TYPES       = ['offense','defense','xdefense']
+const BALL_TRANSFER_TYPES = ['pass','handoff']   // actions that transfer the ball
+// Only these arrow types physically move the player to the endpoint
+// Pass / shot / handoff do NOT move the player — only the ball transfers
+const MOVE_ARROW_TYPES   = ['dribble','cut','screen']
 
 /* ══════════════════════════════════════════════════
    MAIN COMPONENT
@@ -697,6 +703,14 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     if (animating || tab!=='draw') return
     const p = pos(e)
 
+    // ── CP handles always take priority, regardless of active tool ──
+    const cpHit = findArrowCPHit(p.x, p.y)
+    if (cpHit) {
+      setDraggingCP({ id:cpHit.id, ox:p.x-cpHit.cpx, oy:p.y-cpHit.cpy })
+      setSelId(null)
+      return
+    }
+
     if (isArrowTool) {
       // Snap start to nearest player if close enough
       const near = nearestPlayer(p.x, p.y)
@@ -706,13 +720,6 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       return
     }
     if (tool === 'select') {
-      // CP handles take priority over player selection
-      const cpHit = findArrowCPHit(p.x, p.y)
-      if (cpHit) {
-        setDraggingCP({ id:cpHit.id, ox:p.x-cpHit.cpx, oy:p.y-cpHit.cpy })
-        setSelId(null)
-        return
-      }
       const hit = hitTest(p.x, p.y)
       if (hit) { setSelId(hit.id); setDragging({id:hit.id, ox:p.x-hit.x, oy:p.y-hit.y}) }
       else setSelId(null)
@@ -745,8 +752,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     if (draggingCP) { updEl(draggingCP.id, { cx:p.x-draggingCP.ox, cy:p.y-draggingCP.oy }); return }
     if (dragging)   { updEl(dragging.id, {x:p.x-dragging.ox, y:p.y-dragging.oy}); return }
     if (aSt) { setACur(p); return }
-    // Update hover-CP indicator
-    if (tool === 'select') setHoverCP(!!findArrowCPHit(p.x, p.y))
+    // Update hover-CP indicator (always, regardless of tool)
+    setHoverCP(!!findArrowCPHit(p.x, p.y))
   }
   function onUp(e) {
     if (animating) return
@@ -782,10 +789,11 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function advancePhase() {
     const currentElems = phases[cur].elements
 
-    // Build movement targets from drawn arrows
+    // Build movement targets — only dribble/cut/screen physically move the player
     const targets = {}
     for (const el of currentElems) {
-      if (el.fromId) targets[el.fromId] = { x:el.x2, y:el.y2 }
+      if (el.fromId && MOVE_ARROW_TYPES.includes(el.type))
+        targets[el.fromId] = { x:el.x2, y:el.y2 }
     }
 
     // ── Auto-follow: defenders mirror their matching attacker ──
@@ -1121,9 +1129,11 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
-              cursor: tool==='select'
-                ? (hoverCP||draggingCP) ? 'grab' : 'default'
-                : tool==='erase' ? 'cell' : tool==='giveball' ? 'copy' : 'crosshair',
+              cursor: (hoverCP||draggingCP) ? 'grab'
+                : tool==='select'  ? 'default'
+                : tool==='erase'   ? 'cell'
+                : tool==='giveball'? 'copy'
+                : 'crosshair',
               touchAction:'none',
               display:(tab==='notes'||tab==='output')?'none':'block',
               pointerEvents:tab==='animate'?'none':'auto',

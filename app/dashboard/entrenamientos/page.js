@@ -256,7 +256,7 @@ export default function EntrenamientosPage() {
                       onClick={() => setEditorExercise(ex)}
                       style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', background: '#eff6ff', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     >
-                      🏀 {ex.play_data ? 'Ver/editar jugada' : 'Diseñar jugada'}
+                      🏀 {ex.play_data ? 'Ver/editar entrenamiento' : 'Diseñar entrenamiento'}
                     </button>
                     {ex.play_data && <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 8 }}>✓ Jugada guardada</span>}
                   </div>

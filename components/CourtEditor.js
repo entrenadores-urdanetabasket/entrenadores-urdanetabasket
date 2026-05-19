@@ -96,7 +96,9 @@ function drawHalfLines(ctx, W, H, forFullCourt = false) {
   })
 
   // ── 3-point line  (FIBA: 6.75 m from basket, corner at 0.9 m from sideline) ──
-  const arc3R  = 6.75 * s
+  // Use sx (horizontal scale, constant regardless of court height) so the
+  // condition never fails in full-court mode where sy < sx.
+  const arc3R  = 6.75 * sx
   const c3X    = mg + 0.9 * sx           // left corner line x
   const c3Xr   = W - c3X                 // right corner line x
   const hChord = rimX - c3X              // horizontal distance rim→corner

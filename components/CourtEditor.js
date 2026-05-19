@@ -403,10 +403,31 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, t, isEditing = false, sel
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
-  // Build target map: playerId → {x,y}
+  // Build target map: playerId → {x,y}  (from drawn arrows)
   const targets = {}
   for (const el of elems) {
     if (el.fromId) targets[el.fromId] = { x: el.x2, y: el.y2 }
+  }
+
+  // ── Auto-follow: defenders mirror their matching attacker ──
+  // Build map: num → attacker element (only attackers that have a movement arrow)
+  const movingAttackers = {}
+  for (const el of elems) {
+    if (el.type === 'offense' && el.num && targets[el.id]) {
+      movingAttackers[el.num] = el
+    }
+  }
+  // For each defender without a manual arrow, follow matching attacker
+  for (const el of elems) {
+    if ((el.type === 'defense' || el.type === 'xdefense') && el.num && !targets[el.id]) {
+      const att = movingAttackers[el.num]
+      if (att) {
+        targets[el.id] = {
+          x: el.x + (targets[att.id].x - att.x),
+          y: el.y + (targets[att.id].y - att.y),
+        }
+      }
+    }
   }
 
   const et = easeInOut(t)
@@ -712,8 +733,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       return
     }
     if (tool === 'offense')  { addEl({type:'offense',  x:p.x,y:p.y,num:offNum});setOffNum(n=>n>=5?1:n+1); return }
-    if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); return }
-    if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); return }
+    if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=5?1:n+1); return }
+    if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=5?1:n+1); return }
     if (tool === 'ball')  { addEl({type:'ball',  x:p.x,y:p.y}); return }
     if (tool === 'cone')  { addEl({type:'cone',  x:p.x,y:p.y}); return }
     if (tool === 'text')  { setTextModal(p); setTextVal(''); return }
@@ -761,10 +782,29 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function advancePhase() {
     const currentElems = phases[cur].elements
 
-    // Build movement targets
+    // Build movement targets from drawn arrows
     const targets = {}
     for (const el of currentElems) {
       if (el.fromId) targets[el.fromId] = { x:el.x2, y:el.y2 }
+    }
+
+    // ── Auto-follow: defenders mirror their matching attacker ──
+    const movingAttackers = {}
+    for (const el of currentElems) {
+      if (el.type === 'offense' && el.num && targets[el.id]) {
+        movingAttackers[el.num] = el
+      }
+    }
+    for (const el of currentElems) {
+      if ((el.type === 'defense' || el.type === 'xdefense') && el.num && !targets[el.id]) {
+        const att = movingAttackers[el.num]
+        if (att) {
+          targets[el.id] = {
+            x: el.x + (targets[att.id].x - att.x),
+            y: el.y + (targets[att.id].y - att.y),
+          }
+        }
+      }
     }
 
     // Auto ball transfer: find pass/handoff from ball carrier

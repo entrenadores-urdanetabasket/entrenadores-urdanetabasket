@@ -507,15 +507,25 @@ export default function GamePage() {
   // (técnicas/descalificantes a entrenador o banquillo no cuentan)
   const ourFouls    = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null).length
   const rivalFouls  = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null).length
-  // Faltas del cuarto actual (para detectar bonus: >= 4 → bonus FIBA)
-  const ourFoulsQ   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null&&e.quarter===quarter).length
-  const rivalFoulsQ = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null&&e.quarter===quarter).length
+  // Faltas del cuarto actual — Number() coerción para evitar bug string vs int
+  const ourFoulsQ   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null&&Number(e.quarter)===quarter).length
+  const rivalFoulsQ = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null&&Number(e.quarter)===quarter).length
   // ourBonus = nosotros hemos cometido 4+ faltas → el rival tira TL en las siguientes
   // rivalBonus = el rival ha cometido 4+ faltas → nosotros tiramos TL en las siguientes
   const ourBonus    = ourFoulsQ >= 4
   const rivalBonus  = rivalFoulsQ >= 4
-  const ourTOs      = events.filter(e=>e.team==='us'&&e.event_type==='timeout').length
-  const rivalTOs    = events.filter(e=>e.team==='rival'&&e.event_type==='timeout').length
+
+  // ─── Tiempos muertos FIBA ─────────────────────────────────────────────────
+  // 1ª parte (Q1+Q2): 2 TM · 2ª parte (Q3+Q4): 3 TM · Prórroga (Q5+): 1 TM por período
+  const _toQs  = quarter<=2 ? [1,2] : quarter<=4 ? [3,4] : [quarter]
+  const _toMax = quarter<=2 ? 2     : quarter<=4 ? 3     : 1
+  const ourTOsUsed   = events.filter(e=>e.team==='us'&&e.event_type==='timeout'&&_toQs.includes(Number(e.quarter))).length
+  const rivalTOsUsed = events.filter(e=>e.team==='rival'&&e.event_type==='timeout'&&_toQs.includes(Number(e.quarter))).length
+  const ourTOsLeft   = Math.max(0, _toMax - ourTOsUsed)
+  const rivalTOsLeft = Math.max(0, _toMax - rivalTOsUsed)
+  // Para box-score y log: total de TM del partido
+  const ourTOs   = events.filter(e=>e.team==='us'&&e.event_type==='timeout').length
+  const rivalTOs = events.filter(e=>e.team==='rival'&&e.event_type==='timeout').length
 
   const ourShots   = events.filter(e=>e.team==='us'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
   const rivalShots = events.filter(e=>e.team==='rival'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
@@ -582,10 +592,13 @@ export default function GamePage() {
         {/* Team A */}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:10,color:'#9ca3af',fontWeight:700}}>NOSOTROS</div>
-          <div style={{fontSize:11,color:'#4ade80',fontWeight:800,lineHeight:1.4}}>
+          <div style={{fontSize:11,color:'#4ade80',fontWeight:800,lineHeight:1.5}}>
             F:<span style={{color: ourBonus?'#ef4444':'#4ade80',fontWeight:900}}>{ourFoulsQ}</span>
-            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{ourFouls}</span> TM:{ourTOs}
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{ourFouls}</span>
+            {' '}TM:<span style={{color: ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#fbbf24':'#4ade80',fontWeight:900}}>{ourTOsLeft}</span>
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{_toMax}</span>
             {ourBonus && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10,letterSpacing:0.5}}>⚡BONUS</span>}
+            {ourTOsLeft===0 && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10}}>🚫TM agotados</span>}
           </div>
         </div>
 
@@ -601,7 +614,7 @@ export default function GamePage() {
             {[1,2,3,4,5].map((q,i)=>{
               const lbl=['P1','P2','P3','P4','PT'][i]
               return (
-                <button key={q} onClick={()=>{setQuarter(q);setSecs(600);setRunning(false)}} style={{
+                <button key={q} onClick={()=>{setQuarter(q);setSecs(600);setRunning(false);supabase.from('games').update({quarter:q}).eq('id',id)}} style={{
                   padding:'2px 5px',borderRadius:4,border:'none',cursor:'pointer',
                   fontSize:9,fontWeight:800,
                   backgroundColor:quarter===q?'#f59e0b':'rgba(255,255,255,0.08)',
@@ -644,10 +657,13 @@ export default function GamePage() {
         {/* Team B */}
         <div style={{flex:1,minWidth:0,textAlign:'right'}}>
           <div style={{fontSize:10,color:'#9ca3af',fontWeight:700}}>{game.rival_name}</div>
-          <div style={{fontSize:11,color:'#fbbf24',fontWeight:800,lineHeight:1.4,textAlign:'right'}}>
+          <div style={{fontSize:11,color:'#fbbf24',fontWeight:800,lineHeight:1.5,textAlign:'right'}}>
             F:<span style={{color: rivalBonus?'#ef4444':'#fbbf24',fontWeight:900}}>{rivalFoulsQ}</span>
-            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{rivalFouls}</span> TM:{rivalTOs}
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{rivalFouls}</span>
+            {' '}TM:<span style={{color: rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#fbbf24':'#fbbf24',fontWeight:900}}>{rivalTOsLeft}</span>
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{_toMax}</span>
             {rivalBonus && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10,letterSpacing:0.5}}>⚡BONUS</span>}
+            {rivalTOsLeft===0 && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10}}>🚫TM agotados</span>}
           </div>
         </div>
       </div>
@@ -988,13 +1004,51 @@ export default function GamePage() {
       {/* T.M. equipo */}
       {modal?.type==='timeout_team' && (
         <Overlay onClose={()=>setModal(null)}>
-          <div style={{color:'#fff',fontSize:14,fontWeight:800,marginBottom:14,textAlign:'center'}}>
+          <div style={{color:'#fff',fontSize:14,fontWeight:800,marginBottom:4,textAlign:'center'}}>
             ¿Quién pide tiempo muerto?
           </div>
-          <div style={{display:'flex',gap:10}}>
-            <button onClick={async()=>{setModal(null);setArmed(null);await saveEv('timeout','us',null)}} style={btnStyle('#16a34a')}>🟢 Nosotros</button>
-            <button onClick={async()=>{setModal(null);setArmed(null);await saveEv('timeout','rival',null)}} style={btnStyle('#d97706')}>🟡 Rival</button>
+          <div style={{color:'#9ca3af',fontSize:10,textAlign:'center',marginBottom:14}}>
+            {quarter<=2?'1ª parte':quarter<=4?'2ª parte':'Prórroga'} — máx. {_toMax} TM
           </div>
+          <div style={{display:'flex',gap:10}}>
+            {/* Nosotros */}
+            {ourTOsLeft > 0 ? (
+              <button onClick={async()=>{setModal(null);setArmed(null);await saveEv('timeout','us',null)}}
+                style={btnStyle('#16a34a')}>
+                🟢 Nosotros
+                <span style={{display:'block',fontSize:11,fontWeight:600,marginTop:3,opacity:0.85}}>
+                  {ourTOsLeft} restante{ourTOsLeft!==1?'s':''}
+                </span>
+              </button>
+            ) : (
+              <div style={{flex:1,padding:'12px',backgroundColor:'#1f2937',borderRadius:10,
+                textAlign:'center',border:'1px solid #374151'}}>
+                <div style={{color:'#ef4444',fontWeight:800,fontSize:13}}>🚫 Nosotros</div>
+                <div style={{color:'#6b7280',fontSize:11,marginTop:3}}>TM agotados</div>
+              </div>
+            )}
+            {/* Rival */}
+            {rivalTOsLeft > 0 ? (
+              <button onClick={async()=>{setModal(null);setArmed(null);await saveEv('timeout','rival',null)}}
+                style={btnStyle('#d97706')}>
+                🟡 Rival
+                <span style={{display:'block',fontSize:11,fontWeight:600,marginTop:3,opacity:0.85}}>
+                  {rivalTOsLeft} restante{rivalTOsLeft!==1?'s':''}
+                </span>
+              </button>
+            ) : (
+              <div style={{flex:1,padding:'12px',backgroundColor:'#1f2937',borderRadius:10,
+                textAlign:'center',border:'1px solid #374151'}}>
+                <div style={{color:'#ef4444',fontWeight:800,fontSize:13}}>🚫 Rival</div>
+                <div style={{color:'#6b7280',fontSize:11,marginTop:3}}>TM agotados</div>
+              </div>
+            )}
+          </div>
+          {(ourTOsLeft===0||rivalTOsLeft===0) && (
+            <div style={{marginTop:10,color:'#6b7280',fontSize:10,textAlign:'center'}}>
+              Los TM se renuevan al inicio de la siguiente parte
+            </div>
+          )}
         </Overlay>
       )}
 

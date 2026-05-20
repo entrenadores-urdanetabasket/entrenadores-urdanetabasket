@@ -161,17 +161,30 @@ function CourtSVG({ onShot, shots = [] }) {
       <path d={`M ${bx-rR} ${by} A ${rR} ${rR} 0 0 1 ${bx+rR} ${by}`}
         fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth={1.3} strokeDasharray="4 3"/>
 
-      {/* ── Rectas de esquina del triple (de baseline hasta c3y) ─────────── */}
-      <line x1={c3x}  y1={P} x2={c3x}  y2={c3y} stroke="#fff" strokeWidth={1.8}/>
-      <line x1={c3xR} y1={P} x2={c3xR} y2={c3y} stroke="#fff" strokeWidth={1.8}/>
-
-      {/* ── Arco triple
-           De (c3x,c3y) a (c3xR,c3y) pasando por el fondo (bx, by+r3)
-           El arco correcto es 155.8° (< 180°) → large-arc=0
-           Sentido horario en pantalla → sweep=1
-           (large-arc=1 usaría un círculo diferente al del aro → incorrecto) */}
-      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 0 1 ${c3xR} ${c3y}`}
-        fill="none" stroke="#fff" strokeWidth={1.8}/>
+      {/* ── Línea de 3 puntos: rectas de esquina + arco paramétrico ─────── */}
+      {(() => {
+        // Ángulo desde el aro hasta cada esquina (en coordenadas de pantalla: y↓)
+        // atan2(dy, dx) donde dy = c3y-by ≈ +28 (hacia abajo), dx = c3x-bx ≈ -130 (izq)
+        const a1 = Math.atan2(c3y - by, c3x  - bx)  // ≈ 2.93 rad  (esquina izq)
+        const a2 = Math.atan2(c3y - by, c3xR - bx)  // ≈ 0.21 rad  (esquina dcha)
+        // Interpolando de a1 a a2 DECRECIENDO pasa por π/2 (fondo = hacia cancha) ✓
+        // En el punto medio t=π/2 → (bx, by+r3) = fondo del arco ✓
+        const N = 72
+        const arcPts = Array.from({ length: N + 1 }, (_, i) => {
+          const t = a1 + (a2 - a1) * i / N
+          return `${(bx + r3 * Math.cos(t)).toFixed(2)},${(by + r3 * Math.sin(t)).toFixed(2)}`
+        })
+        // Dibujar todo como un único path: recta izq → arco → recta dcha
+        const d = [
+          `M ${c3x.toFixed(2)},${P}`,          // inicio recta izq (baseline)
+          `L ${c3x.toFixed(2)},${c3y.toFixed(2)}`,  // fin recta izq / inicio arco
+          ...arcPts.map((p, i) => (i === 0 ? `M ${p}` : `L ${p}`)),
+          `L ${c3xR.toFixed(2)},${c3y.toFixed(2)}`, // fin arco / inicio recta dcha
+          `L ${c3xR.toFixed(2)},${P}`,              // fin recta dcha (baseline)
+        ].join(' ')
+        return <path d={d} fill="none" stroke="#fff" strokeWidth={2.2}
+                  strokeLinejoin="round" strokeLinecap="round"/>
+      })()}
 
       {/* ── Tablero ──────────────────────────────────────────────────────── */}
       <rect x={bx-bbW/2} y={bbY-2} width={bbW} height={4}

@@ -110,16 +110,17 @@ function CourtSVG({ onShot, shots = [] }) {
 
       {/* ── Parqué ─────────────────────────────────────────────────────── */}
       <defs>
-        <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%"   stopColor="#c89850"/>
           <stop offset="50%"  stopColor="#b8843a"/>
           <stop offset="100%" stopColor="#c89850"/>
         </linearGradient>
       </defs>
       <rect width={W} height={H} fill="url(#wood)" rx={12}/>
-      {Array.from({length:15},(_,i)=>(
-        <line key={i} x1={0} y1={P+(i+0.5)*CH/15} x2={W} y2={P+(i+0.5)*CH/15}
-          stroke="rgba(0,0,0,0.04)" strokeWidth={1}/>
+      {/* vetas verticales */}
+      {Array.from({length:22},(_,i)=>(
+        <line key={i} x1={P+(i+0.5)*CW/22} y1={0} x2={P+(i+0.5)*CW/22} y2={H}
+          stroke="rgba(0,0,0,0.055)" strokeWidth={0.9}/>
       ))}
 
       {/* ── Contorno y línea de medio campo ────────────────────────────── */}
@@ -152,9 +153,9 @@ function CourtSVG({ onShot, shots = [] }) {
       {/* ── Círculo TL — sólido hacia aro (sweep=0 = arco superior) ────── */}
       <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 0 ${bx+ftR} ${ftY}`}
         fill="none" stroke="#fff" strokeWidth={1.8}/>
-      {/* ── Círculo TL — discontinuo hacia cancha (sweep=1 = arco inferior) */}
+      {/* ── Círculo TL — sólido hacia cancha (sweep=1 = arco inferior) */}
       <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 1 ${bx+ftR} ${ftY}`}
-        fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={1.5} strokeDasharray="7 5"/>
+        fill="none" stroke="#fff" strokeWidth={1.8}/>
 
       {/* ── Zona restringida (semicírculo hacia cancha = sweep=1) ────────── */}
       <path d={`M ${bx-rR} ${by} A ${rR} ${rR} 0 0 1 ${bx+rR} ${by}`}
@@ -224,6 +225,22 @@ export default function GamePage() {
   const [secs, setSecs]         = useState(600)
   const [running, setRunning]   = useState(false)
   const intervalRef             = useRef(null)
+
+  // Reloj editable
+  const [editingClock, setEditingClock] = useState(false)
+  const [clockInput, setClockInput]     = useState('')
+
+  function applyClockInput() {
+    const parts = clockInput.replace(/[^0-9:]/g,'').split(':')
+    if (parts.length === 2) {
+      const m = parseInt(parts[0],10), s = parseInt(parts[1],10)
+      if (!isNaN(m) && !isNaN(s)) setSecs(Math.max(0, m*60+s))
+    } else if (parts.length === 1 && parts[0]) {
+      const v = parseInt(parts[0],10)
+      if (!isNaN(v)) setSecs(Math.max(0, v))
+    }
+    setEditingClock(false)
+  }
 
   // Estado acción seleccionada
   const [armed, setArmed]       = useState(null)  // key de acción
@@ -362,9 +379,9 @@ export default function GamePage() {
       await saveEv('foul_disqualifying', team, ref)
       return
     }
-    // Sustitución
-    if (a === 'sub') {
-      setModal({ type:'sub', outPlayer: ref, team })
+    // Sustitución rival (la nuestra se abre directamente desde armAction)
+    if (a === 'sub' && team === 'rival') {
+      setModal({ type:'sub', outPlayer: ref, team: 'rival' })
       setArmed(null)
       return
     }
@@ -396,10 +413,10 @@ export default function GamePage() {
   }
 
   async function confirmSub(inPlayer) {
-    const { outPlayer, team: subTeam } = modal
-    setModal(null)
+    const { outPlayer, team: subTeam, currentCourt } = modal
     if (subTeam === 'us') {
-      const newCourt = onCourt.map(p => p===outPlayer ? inPlayer : p)
+      const prevCourt = currentCourt || onCourt
+      const newCourt = prevCourt.map(p => p===outPlayer ? inPlayer : p)
       setOnCourt(newCourt)
       await supabase.from('game_events').insert({
         game_id:id, team:'us', event_type:'substitution', quarter,
@@ -407,8 +424,9 @@ export default function GamePage() {
         shot_x:null, shot_y:null,
       })
       setEvents(prev=>[...prev,{id:'sub_'+Date.now(),team:'us',event_type:'substitution',quarter,player_id:inPlayer,linked_event_id:outPlayer}])
+      // Mantener modal abierto — volver a selección de salida
+      setModal({ type:'sub', team:'us', currentCourt: newCourt })
     } else {
-      // Rival sub: inPlayer es jersey number
       const newCourt = rivalOnCourt.map(n => n===outPlayer ? inPlayer : n)
       setRivalOnCourt(newCourt)
       await supabase.from('game_events').insert({
@@ -417,6 +435,7 @@ export default function GamePage() {
         shot_x:null, shot_y:null,
       })
       setEvents(prev=>[...prev,{id:'sub_r_'+Date.now(),team:'rival',event_type:'substitution',quarter,rival_jersey:inPlayer}])
+      setModal(null)
     }
   }
 
@@ -457,8 +476,10 @@ export default function GamePage() {
   // Si no hay rivalOnCourt inicializado, usar primeros 5 de rivals
   const rivalVisible = rivalOnCourt.length > 0 ? rivalOnCourt : rivals.slice(0,5)
 
-  const ourFouls   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')).length
-  const rivalFouls = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')).length
+  // Faltas de equipo: solo se cuentan las que tienen jugador asignado
+  // (técnicas/descalificantes a entrenador o banquillo no cuentan)
+  const ourFouls   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null).length
+  const rivalFouls = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null).length
   const ourTOs     = events.filter(e=>e.team==='us'&&e.event_type==='timeout').length
   const rivalTOs   = events.filter(e=>e.team==='rival'&&e.event_type==='timeout').length
 
@@ -489,6 +510,10 @@ export default function GamePage() {
     }
     if (key === 'timeout') {
       setModal({ type:'timeout_team' })
+      setArmed(null); return
+    }
+    if (key === 'sub') {
+      setModal({ type:'sub', team:'us', currentCourt: [...onCourt] })
       setArmed(null); return
     }
     setArmed(prev => prev===key ? null : key)
@@ -553,11 +578,24 @@ export default function GamePage() {
               )
             })}
           </div>
-          {/* Cronómetro */}
-          <div style={{fontSize:28,fontWeight:900,letterSpacing:2,fontFamily:'monospace',
-            color:secs<=60?'#f87171':secs<=120?'#fbbf24':'#4ade80'}}>
-            {mm}:{ss2}
-          </div>
+          {/* Cronómetro (toca para editar) */}
+          {editingClock ? (
+            <input autoFocus value={clockInput}
+              onChange={e=>setClockInput(e.target.value)}
+              onBlur={applyClockInput}
+              onKeyDown={e=>{ if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
+              style={{fontSize:24,fontWeight:900,letterSpacing:2,fontFamily:'monospace',
+                color:'#fbbf24',background:'transparent',border:'none',borderBottom:'2px solid #fbbf24',
+                outline:'none',width:80,textAlign:'center'}}/>
+          ) : (
+            <div onClick={()=>{ if(!running){ setClockInput(`${mm}:${ss2}`); setEditingClock(true) } }}
+              title="Toca para editar (solo en pausa)"
+              style={{fontSize:28,fontWeight:900,letterSpacing:2,fontFamily:'monospace',
+                color:secs<=60?'#f87171':secs<=120?'#fbbf24':'#4ade80',
+                cursor:running?'default':'pointer'}}>
+              {mm}:{ss2}
+            </div>
+          )}
           {/* Botón ▶/⏸ */}
           <button onClick={()=>setRunning(r=>!r)} style={{
             marginTop:3,padding:'3px 14px',borderRadius:6,border:'none',cursor:'pointer',
@@ -724,7 +762,7 @@ export default function GamePage() {
                 })}
               </div>
 
-              {/* Botones de acción — grid 2 col */}
+              {/* Botones de acción — 2 columnas principales */}
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
                 <BTN label="TIROS LIBRES" color="#374151" aKey="ft" wide/>
                 <BTN label="2 PUNTOS"  color="#2563eb" aKey="2pt"/>
@@ -735,17 +773,13 @@ export default function GamePage() {
                 <BTN label="DESCALIF." color="#4c0519" aKey="disqualifying"/>
                 <BTN label="T. MUERTO" color="#0369a1" aKey="timeout"/>
                 <BTN label="SUSTITUC." color="#059669" aKey="sub"/>
-                <BTN label="+ ACCIONES" color="#4b5563" aKey="extras"/>
               </div>
-
-              {/* Extras si está armado */}
-              {armed==='extras' && (
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5}}>
-                  {[['steal','ROBO','#059669'],['block','TAPÓN','#0284c7'],['turnover','PÉRDIDA','#d97706']].map(([k,l,c])=>(
-                    <BTN key={k} label={l} color={c} aKey={k}/>
-                  ))}
-                </div>
-              )}
+              {/* Acciones de defensa — siempre visibles */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:5,marginTop:3}}>
+                <BTN label="ROBO"    color="#059669" aKey="steal"/>
+                <BTN label="TAPÓN"   color="#0284c7" aKey="block"/>
+                <BTN label="PÉRDIDA" color="#d97706" aKey="turnover"/>
+              </div>
 
               {/* Deshacer + Finalizar */}
               <div style={{display:'flex',gap:6}}>
@@ -944,30 +978,76 @@ export default function GamePage() {
       {/* Sustitución */}
       {modal?.type==='sub' && (
         <Overlay onClose={()=>setModal(null)}>
-          <div style={{color:'#fff',fontSize:14,fontWeight:800,marginBottom:4}}>Sustitución</div>
-          {modal.team === 'us' ? (
-            <>
-              <div style={{color:'#9ca3af',fontSize:12,marginBottom:14}}>
-                Sale #{gps.find(g=>g.player_id===modal.outPlayer)?.players?.number??'?'} — ¿Quién entra?
-              </div>
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                {bench.map(gp=>(
-                  <button key={gp.player_id} onClick={()=>confirmSub(gp.player_id)}
-                    style={{padding:'10px 14px',backgroundColor:'#374151',color:'#fff',border:'none',
-                      borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',textAlign:'left',
-                      display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{width:32,height:32,borderRadius:8,backgroundColor:'#16a34a',
-                      display:'inline-flex',alignItems:'center',justifyContent:'center',
-                      fontSize:14,fontWeight:900,flexShrink:0}}>
-                      {gp.players?.number??'?'}
-                    </span>
-                    {gp.players?.full_name||'—'}
+          <div style={{color:'#fff',fontSize:14,fontWeight:800,marginBottom:10}}>
+            🔄 Sustituciones
+          </div>
+          {modal.team === 'us' ? (() => {
+            const curCourt = modal.currentCourt || onCourt
+            const curBench = gps.filter(g => !curCourt.includes(g.player_id))
+            if (!modal.outPlayer) {
+              // Paso 1: elegir quién sale
+              return (
+                <>
+                  <div style={{color:'#9ca3af',fontSize:12,marginBottom:10}}>¿Quién sale? Toca el jugador en pista</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {curCourt.map(pid => {
+                      const gp = gps.find(g=>g.player_id===pid)
+                      return (
+                        <button key={pid} onClick={()=>setModal({...modal, outPlayer:pid})}
+                          style={{padding:'10px 14px',backgroundColor:'#374151',color:'#fff',border:'none',
+                            borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',textAlign:'left',
+                            display:'flex',alignItems:'center',gap:10}}>
+                          <span style={{width:32,height:32,borderRadius:8,backgroundColor:'#dc2626',
+                            display:'inline-flex',alignItems:'center',justifyContent:'center',
+                            fontSize:14,fontWeight:900,flexShrink:0}}>
+                            {gp?.players?.number??'?'}
+                          </span>
+                          {gp?.players?.full_name||'—'}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <button onClick={()=>setModal(null)}
+                    style={{marginTop:14,width:'100%',padding:'11px',backgroundColor:'#16a34a',
+                      color:'#fff',border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>
+                    ✓ Finalizar cambios
                   </button>
-                ))}
-                {bench.length===0 && <div style={{color:'#6b7280',textAlign:'center',padding:'12px 0',fontSize:13}}>Sin jugadores en banquillo</div>}
-              </div>
-            </>
-          ) : (
+                </>
+              )
+            } else {
+              // Paso 2: elegir quién entra
+              return (
+                <>
+                  <div style={{color:'#9ca3af',fontSize:12,marginBottom:10}}>
+                    Sale #{gps.find(g=>g.player_id===modal.outPlayer)?.players?.number??'?'} → ¿Quién entra?
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                    {curBench.map(gp=>(
+                      <button key={gp.player_id} onClick={()=>confirmSub(gp.player_id)}
+                        style={{padding:'10px 14px',backgroundColor:'#374151',color:'#fff',border:'none',
+                          borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',textAlign:'left',
+                          display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{width:32,height:32,borderRadius:8,backgroundColor:'#16a34a',
+                          display:'inline-flex',alignItems:'center',justifyContent:'center',
+                          fontSize:14,fontWeight:900,flexShrink:0}}>
+                          {gp.players?.number??'?'}
+                        </span>
+                        {gp.players?.full_name||'—'}
+                      </button>
+                    ))}
+                    {curBench.length===0 && (
+                      <div style={{color:'#6b7280',textAlign:'center',padding:'12px 0',fontSize:13}}>Sin jugadores en banquillo</div>
+                    )}
+                  </div>
+                  <button onClick={()=>setModal({...modal, outPlayer:null})}
+                    style={{marginTop:10,width:'100%',padding:'9px',backgroundColor:'#374151',
+                      color:'#9ca3af',border:'none',borderRadius:9,fontSize:12,cursor:'pointer'}}>
+                    ← Volver
+                  </button>
+                </>
+              )
+            }
+          })() : (
             <>
               <div style={{color:'#9ca3af',fontSize:12,marginBottom:14}}>
                 Sale #{modal.outPlayer} — ¿Qué dorsal entra?

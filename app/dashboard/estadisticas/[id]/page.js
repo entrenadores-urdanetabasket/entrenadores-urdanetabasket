@@ -355,11 +355,19 @@ export default function GamePage() {
       setModal({ type:'ft_count', team, ref })
       return
     }
-    // Falta personal → pregunta quién recibió → TL
+    // Falta personal → detectar bonus → pregunta quién recibió → TL
     if (a === 'foul') {
       setArmed(null)
+      // Contar faltas del cuarto actual ANTES de guardar para saber si esta falta entra en bonus
+      const qBefore = events.filter(e=>e.team===team&&e.event_type.startsWith('foul')
+        &&(team==='us'?e.player_id!=null:e.rival_jersey!=null)&&e.quarter===quarter).length
+      const newCount  = qBefore + 1
+      const isBonus   = newCount >= 4          // esta falta ya es bonus
+      const firstBonus = newCount === 4        // exactamente la 4ª → primer aviso
       await saveEv('foul_personal', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: null, foulType:'foul_personal', foulTeam:team })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us',
+        defaultTL: isBonus ? 2 : null, isBonus, bonusAlert: firstBonus,
+        foulType:'foul_personal', foulTeam:team })
       return
     }
     // Antideportiva → FIBA = 2 TL + posesión
@@ -497,10 +505,17 @@ export default function GamePage() {
 
   // Faltas de equipo: solo se cuentan las que tienen jugador asignado
   // (técnicas/descalificantes a entrenador o banquillo no cuentan)
-  const ourFouls   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null).length
-  const rivalFouls = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null).length
-  const ourTOs     = events.filter(e=>e.team==='us'&&e.event_type==='timeout').length
-  const rivalTOs   = events.filter(e=>e.team==='rival'&&e.event_type==='timeout').length
+  const ourFouls    = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null).length
+  const rivalFouls  = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null).length
+  // Faltas del cuarto actual (para detectar bonus: >= 4 → bonus FIBA)
+  const ourFoulsQ   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null&&e.quarter===quarter).length
+  const rivalFoulsQ = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null&&e.quarter===quarter).length
+  // ourBonus = nosotros hemos cometido 4+ faltas → el rival tira TL en las siguientes
+  // rivalBonus = el rival ha cometido 4+ faltas → nosotros tiramos TL en las siguientes
+  const ourBonus    = ourFoulsQ >= 4
+  const rivalBonus  = rivalFoulsQ >= 4
+  const ourTOs      = events.filter(e=>e.team==='us'&&e.event_type==='timeout').length
+  const rivalTOs    = events.filter(e=>e.team==='rival'&&e.event_type==='timeout').length
 
   const ourShots   = events.filter(e=>e.team==='us'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
   const rivalShots = events.filter(e=>e.team==='rival'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
@@ -567,7 +582,11 @@ export default function GamePage() {
         {/* Team A */}
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontSize:10,color:'#9ca3af',fontWeight:700}}>NOSOTROS</div>
-          <div style={{fontSize:11,color:'#4ade80',fontWeight:800}}>F:{ourFouls} TM:{ourTOs}</div>
+          <div style={{fontSize:11,color:'#4ade80',fontWeight:800,lineHeight:1.4}}>
+            F:<span style={{color: ourBonus?'#ef4444':'#4ade80',fontWeight:900}}>{ourFoulsQ}</span>
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{ourFouls}</span> TM:{ourTOs}
+            {ourBonus && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10,letterSpacing:0.5}}>⚡BONUS</span>}
+          </div>
         </div>
 
         {/* Score A */}
@@ -625,7 +644,11 @@ export default function GamePage() {
         {/* Team B */}
         <div style={{flex:1,minWidth:0,textAlign:'right'}}>
           <div style={{fontSize:10,color:'#9ca3af',fontWeight:700}}>{game.rival_name}</div>
-          <div style={{fontSize:11,color:'#fbbf24',fontWeight:800}}>F:{rivalFouls} TM:{rivalTOs}</div>
+          <div style={{fontSize:11,color:'#fbbf24',fontWeight:800,lineHeight:1.4,textAlign:'right'}}>
+            F:<span style={{color: rivalBonus?'#ef4444':'#fbbf24',fontWeight:900}}>{rivalFoulsQ}</span>
+            <span style={{color:'#4b5563',fontWeight:500,fontSize:9}}>/{rivalFouls}</span> TM:{rivalTOs}
+            {rivalBonus && <span style={{display:'block',color:'#ef4444',fontWeight:900,fontSize:10,letterSpacing:0.5}}>⚡BONUS</span>}
+          </div>
         </div>
       </div>
 
@@ -1158,7 +1181,13 @@ export default function GamePage() {
           <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:2,textAlign:'center'}}>
             🎯 ¿Tiros libres?
           </div>
-          {/* Nombre FIBA de la sanción */}
+          {/* Nombre FIBA de la sanción / indicador de bonus */}
+          {modal.isBonus && modal.foulType === 'foul_personal' && (
+            <div style={{backgroundColor:'#450a0a',borderRadius:7,padding:'4px 10px',
+              textAlign:'center',marginBottom:6}}>
+              <span style={{color:'#ef4444',fontWeight:900,fontSize:11}}>⚡ EN BONUS — 2 TL por defecto</span>
+            </div>
+          )}
           {modal.foulType && modal.foulType !== 'foul_personal' && (
             <div style={{color:'#9ca3af',fontSize:10,textAlign:'center',marginBottom:6}}>
               {modal.foulType==='foul_technical' ? 'Técnica · 1 TL'
@@ -1213,6 +1242,23 @@ export default function GamePage() {
       {/* ── OVERLAY: ¿Quién recibió la falta? ──────────────────────────── */}
       {modal?.type==='ask_fouled_player' && (
         <Overlay onClose={()=>setModal(null)}>
+          {/* Aviso de bonus (primera vez que se llega a 4 faltas) */}
+          {modal.bonusAlert && (
+            <div style={{backgroundColor:'#450a0a',border:'1px solid #ef4444',borderRadius:10,
+              padding:'10px 14px',marginBottom:12,textAlign:'center'}}>
+              <div style={{color:'#ef4444',fontWeight:900,fontSize:15,marginBottom:2}}>⚡ ¡BONUS!</div>
+              <div style={{color:'#fca5a5',fontSize:11}}>
+                {modal.ftTeam==='us'
+                  ? 'Nosotros tiramos TL en todas las siguientes faltas del cuarto'
+                  : `${game.rival_name} tirará TL en todas las siguientes faltas del cuarto`}
+              </div>
+            </div>
+          )}
+          {modal.isBonus && !modal.bonusAlert && (
+            <div style={{color:'#ef4444',fontSize:11,fontWeight:800,textAlign:'center',marginBottom:8}}>
+              ⚡ En bonus — se aplicarán 2 TL
+            </div>
+          )}
           <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
             🎯 ¿Quién recibió la falta?
           </div>
@@ -1226,7 +1272,7 @@ export default function GamePage() {
               : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
             ).map(item=>(
               <button key={item.k}
-                onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:item.ref, foulType:modal.foulType, foulTeam:modal.foulTeam })}
+                onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:item.ref, foulType:modal.foulType, foulTeam:modal.foulTeam, isBonus:modal.isBonus })}
                 style={{padding:'8px 12px',borderRadius:8,border:'none',cursor:'pointer',
                   backgroundColor: modal.ftTeam==='us'?'#16a34a':'#d97706',
                   color:'#fff',fontSize:12,fontWeight:800}}>
@@ -1234,7 +1280,7 @@ export default function GamePage() {
               </button>
             ))}
           </div>
-          <button onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:null, foulType:modal.foulType, foulTeam:modal.foulTeam })}
+          <button onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:null, foulType:modal.foulType, foulTeam:modal.foulTeam, isBonus:modal.isBonus })}
             style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
               border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
             Sin jugador específico

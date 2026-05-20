@@ -343,22 +343,7 @@ export default function GamePage() {
     if (!armed) return
     const a = armed
 
-    // Asistencia follow-up
-    if (a === '_assist') {
-      const m = modal
-      setModal(null); setArmed(null)
-      await saveEv('assist', team, ref, { linked: m?.linked })
-      return
-    }
-
-    // Rebote follow-up
-    if (a === '_rebound') {
-      const m = modal
-      const isOff = team === m?.shooterTeam
-      setModal(null); setArmed(null)
-      await saveEv(isOff?'rebound_off':'rebound_def', team, ref, { linked: m?.linked })
-      return
-    }
+    // (los follow-ups de asistencia y rebote ahora van por overlay centrado)
 
     // Tiros
     if (a === '2pt' || a === '3pt') {
@@ -370,16 +355,18 @@ export default function GamePage() {
       setModal({ type:'ft_count', team, ref })
       return
     }
-    // Falta personal
+    // Falta personal → pregunta TL automáticamente
     if (a === 'foul') {
       setArmed(null)
       await saveEv('foul_personal', team, ref)
+      setModal({ type:'ask_ft_after_foul', ftTeam: team==='us'?'rival':'us', defaultTL: null })
       return
     }
-    // Antideportiva
+    // Antideportiva → FIBA = 2 TL + posesión
     if (a === 'unsporting') {
       setArmed(null)
       await saveEv('foul_unsporting', team, ref)
+      setModal({ type:'ask_ft_after_foul', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
       return
     }
     // Técnica → si es jugador ya tenemos el ref
@@ -415,7 +402,7 @@ export default function GamePage() {
     const type = m.action==='2pt' ? (made?'2pt_made':'2pt_miss') : (made?'3pt_made':'3pt_miss')
     const ev = await saveEv(type, m.team, m.ref, { x, y })
     if (!ev) return
-    if (made) setModal({ type:'ask_assist', shooterTeam:m.team, linked:ev.id })
+    if (made) setModal({ type:'ask_assist',  shooterTeam:m.team, linked:ev.id, scorerRef:m.ref })
     else      setModal({ type:'ask_rebound', shooterTeam:m.team, linked:ev.id })
   }
 
@@ -503,14 +490,8 @@ export default function GamePage() {
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
 
   // Colores de jugador según estado armado
-  const aColor    = (armed && armed!=='_assist'&&armed!=='_rebound') ? '#16a34a' : '#1a3020'
-  const aActive   = !!armed
-  const bColor    = (armed && armed!=='_assist'&&armed!=='_rebound') ? '#d97706' : '#2a1f00'
-  const bActive   = !!armed
-
-  // Detectar follow-up activo
-  const showAssistBanner  = modal?.type==='ask_assist'
-  const showReboundBanner = modal?.type==='ask_rebound'
+  const aActive = !!armed
+  const bActive = !!armed
 
   function armAction(key) {
     if (isFinished) return
@@ -657,31 +638,6 @@ export default function GamePage() {
             </div>
           )}
 
-          {/* Banner asistencia */}
-          {showAssistBanner && (
-            <div style={{backgroundColor:'#172554',borderRadius:9,padding:'8px 14px',marginBottom:8}}>
-              <div style={{color:'#fbbf24',fontSize:12,fontWeight:800,marginBottom:8}}>🏀 ¿Hubo asistencia?</div>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={()=>{setArmed('_assist')}} style={{flex:1,padding:'8px',backgroundColor:'#16a34a',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                  ✓ Sí — elige el asistente
-                </button>
-                <button onClick={()=>setModal(null)} style={{flex:1,padding:'8px',backgroundColor:'#374151',color:'#d1d5db',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                  ✗ Sin asistencia
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Banner rebote */}
-          {showReboundBanner && (
-            <div style={{backgroundColor:'#172554',borderRadius:9,padding:'8px 14px',marginBottom:8}}>
-              <div style={{color:'#fbbf24',fontSize:12,fontWeight:800,marginBottom:6}}>🏀 ¿Quién cogió el rebote? Selecciona el jugador</div>
-              <button onClick={()=>{setArmed('_rebound')}} style={{width:'100%',padding:'8px',backgroundColor:'#6d28d9',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>
-                ✦ Seleccionar reboteador
-              </button>
-              <button onClick={()=>setModal(null)} style={{marginTop:6,width:'100%',padding:'6px',backgroundColor:'#374151',color:'#9ca3af',border:'none',borderRadius:7,fontSize:11,cursor:'pointer'}}>Cancelar</button>
-            </div>
-          )}
 
           {/* GRID PRINCIPAL */}
           <div style={{display:'grid',gridTemplateColumns:'60px 60px 1fr',gap:8,alignItems:'start'}}>
@@ -1079,6 +1035,124 @@ export default function GamePage() {
                   <div style={{color:'#6b7280',fontSize:13}}>No hay más dorsales registrados</div>}
               </div>
             </>
+          )}
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: ¿Quién reboteó? ─────────────────────────────────── */}
+      {modal?.type==='ask_rebound' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#fbbf24',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🏀 ¿Quién cogió el rebote?
+          </div>
+          <div style={{color:'#9ca3af',fontSize:11,textAlign:'center',marginBottom:14}}>
+            {modal.shooterTeam==='us' ? 'Tiro fallado nuestro' : `Tiro fallado de ${game.rival_name}`}
+          </div>
+          {/* Nuestro equipo */}
+          <div style={{marginBottom:12}}>
+            <div style={{color:'#4ade80',fontSize:11,fontWeight:800,marginBottom:6}}>🟢 Nuestro equipo</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {courtGps.map(gp=>(
+                <button key={gp.player_id} onClick={async()=>{
+                  const isOff = modal.shooterTeam==='rival'
+                  setModal(null)
+                  await saveEv(isOff?'rebound_off':'rebound_def','us',gp.player_id,{linked:modal.linked})
+                }} style={{padding:'8px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                  backgroundColor:'#16a34a',color:'#fff',fontSize:12,fontWeight:800}}>
+                  #{gp.players?.number} <span style={{fontWeight:500,fontSize:11}}>{gp.players?.full_name?.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Rival */}
+          <div style={{marginBottom:14}}>
+            <div style={{color:'#fbbf24',fontSize:11,fontWeight:800,marginBottom:6}}>🟡 {game.rival_name}</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {rivalVisible.map(n=>(
+                <button key={n} onClick={async()=>{
+                  const isOff = modal.shooterTeam==='us'
+                  setModal(null)
+                  await saveEv(isOff?'rebound_off':'rebound_def','rival',n,{linked:modal.linked})
+                }} style={{padding:'8px 12px',borderRadius:8,border:'none',cursor:'pointer',
+                  backgroundColor:'#d97706',color:'#fff',fontSize:13,fontWeight:900}}>
+                  #{n}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={()=>setModal(null)}
+            style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+              border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            Sin rebote / Fuera
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: ¿Asistencia? ────────────────────────────────────── */}
+      {modal?.type==='ask_assist' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#4ade80',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            👋 ¿Hubo asistencia?
+          </div>
+          <div style={{color:'#9ca3af',fontSize:11,textAlign:'center',marginBottom:14}}>
+            {modal.shooterTeam==='us' ? 'Canasta nuestra' : `Canasta de ${game.rival_name}`}
+          </div>
+          {/* Jugadores del equipo anotador (sin el propio anotador) */}
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
+            {(modal.shooterTeam==='us'
+              ? courtGps.filter(gp=>gp.player_id!==modal.scorerRef)
+              : rivalVisible.filter(n=>n!==modal.scorerRef).map(n=>({player_id:n,players:{number:n,full_name:`#${n}`},isRival:true}))
+            ).map(gp=>(
+              <button key={gp.player_id} onClick={async()=>{
+                const ref = gp.isRival ? gp.player_id : gp.player_id
+                const team = modal.shooterTeam
+                setModal(null)
+                await saveEv('assist',team,ref,{linked:modal.linked})
+              }} style={{padding:'8px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                backgroundColor: modal.shooterTeam==='us'?'#16a34a':'#d97706',
+                color:'#fff',fontSize:12,fontWeight:800}}>
+                #{gp.players?.number} <span style={{fontWeight:500,fontSize:11}}>{gp.players?.full_name?.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>setModal(null)}
+            style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+              border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            Sin asistencia
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: Tiros libres tras falta ─────────────────────────── */}
+      {modal?.type==='ask_ft_after_foul' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🎯 ¿Tiros libres?
+          </div>
+          <div style={{color: modal.ftTeam==='us'?'#4ade80':'#fbbf24',
+            fontSize:12,fontWeight:800,textAlign:'center',marginBottom:16}}>
+            Para: {modal.ftTeam==='us'?'🟢 Nosotros':`🟡 ${game.rival_name}`}
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:8}}>
+            <button onClick={()=>setModal(null)}
+              style={{padding:'18px 0',borderRadius:10,border:'none',cursor:'pointer',
+                backgroundColor:'#374151',color:'#9ca3af',fontSize:13,fontWeight:800}}>
+              No
+            </button>
+            {[1,2,3].map(n=>(
+              <button key={n}
+                onClick={()=>setModal({type:'ft_seq',total:n,done:0,team:modal.ftTeam,ref:null})}
+                style={{padding:'18px 0',borderRadius:10,border:`2px solid ${modal.defaultTL===n?'#fbbf24':'transparent'}`,
+                  cursor:'pointer',backgroundColor: modal.defaultTL===n?'#92400e':'#1d4ed8',
+                  color:'#fff',fontSize:16,fontWeight:900}}>
+                {n}
+              </button>
+            ))}
+          </div>
+          {modal.defaultTL && (
+            <div style={{color:'#fbbf24',fontSize:10,textAlign:'center',fontStyle:'italic'}}>
+              Antideportiva FIBA = {modal.defaultTL} tiros libres + posesión
+            </div>
           )}
         </Overlay>
       )}

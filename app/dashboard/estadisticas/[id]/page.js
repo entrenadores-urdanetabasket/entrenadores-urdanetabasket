@@ -166,9 +166,11 @@ function CourtSVG({ onShot, shots = [] }) {
       <line x1={c3xR} y1={P} x2={c3xR} y2={c3y} stroke="#fff" strokeWidth={1.8}/>
 
       {/* ── Arco triple
-           De (c3x, c3y) a (c3xR, c3y) pasando por el punto más bajo (by+r3)
-           large-arc=1  sweep=1  (horario SVG = pasa por abajo) ──────────── */}
-      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 1 1 ${c3xR} ${c3y}`}
+           De (c3x,c3y) a (c3xR,c3y) pasando por el fondo (bx, by+r3)
+           El arco correcto es 155.8° (< 180°) → large-arc=0
+           Sentido horario en pantalla → sweep=1
+           (large-arc=1 usaría un círculo diferente al del aro → incorrecto) */}
+      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 0 1 ${c3xR} ${c3y}`}
         fill="none" stroke="#fff" strokeWidth={1.8}/>
 
       {/* ── Tablero ──────────────────────────────────────────────────────── */}

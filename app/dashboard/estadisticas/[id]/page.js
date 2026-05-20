@@ -51,24 +51,40 @@ const EV_LABEL = {
   'foul_disqualifying':'Descalif.','timeout':'T. Muerto','substitution':'Cambio',
 }
 
-// ─── Media cancha SVG ───────────────────────────────────────────────────────
+// ─── Media cancha SVG (proporciones FIBA exactas) ───────────────────────────
 function CourtSVG({ onShot, shots = [] }) {
-  const W = 300, H = 270
-  // Proporciones reales FIBA: 15m × 14m → escalado
-  const x = v => 12 + v * (W - 24)
-  const y = v => 10 + v * (H - 20)
-  // basket al 94% del alto (línea de fondo)
-  const bx = x(0.5), by = y(0.94)
-  // zona pintada: 4.9m ancho = 32.7% | 5.8m alto = 41.4%
-  const pw = (W-24)*0.327, ph = (H-20)*0.414
-  // línea TL a 5.8m del fondo
-  const ftY = y(0.94 - 0.414)
-  // radio arco triple FIBA: 6.75m = 45% de 15m
-  const r3 = (W-24)*0.45
-  // esquina triple: 0.9m desde banda = 6%
-  const cx3 = x(0.06)
-  // inicio arco triple en y (donde la línea recta se convierte en arco)
-  const arcY = by - Math.sqrt(Math.max(0, r3*r3 - (bx-cx3)**2))
+  // Cancha FIBA: 15m ancho × 14m profundidad (media cancha)
+  // SVG: 280px × 260px de zona útil, con 10px padding
+  const W = 300, H = 280
+  const PX = 10, PY = 10 // padding
+  const CW = W - PX*2, CH = H - PY*2 // 280 × 260
+  const sx = CW / 15   // px por metro (18.67)
+  const sy = CH / 14   // px por metro (18.57)
+
+  // Convierte metros de cancha a px en SVG
+  // Origen: esquina inf-izq de cancha (baseline izq)
+  // En SVG: baseline = y=H-PY (abajo), midcourt = y=PY (arriba)
+  const fx = m => PX + m * sx
+  const fy = m => (H - PY) - m * sy
+
+  // Posiciones clave (en metros)
+  const BX=7.5, BY=1.575        // Centro aro
+  const bx=fx(BX), by=fy(BY)
+
+  const paintW = 4.9*sx, paintH = 5.8*sy
+  const paintL = fx((15-4.9)/2)  // x izq zona pintada
+  const paintT = fy(5.8)         // y superior zona pintada (FT line)
+
+  const ftR = 1.8 * sx           // radio círculo TL
+  const r3  = 6.75 * sx          // radio arco triple
+
+  // Esquina triple: 0.9m desde banda
+  const c3x  = fx(0.9), c3xR = fx(14.1)
+  // y donde el arco triple toca la línea de esquina
+  const c3y  = by - Math.sqrt(Math.max(0, r3*r3 - (bx-c3x)**2))
+
+  // Zona restringida: r=1.25m
+  const rR = 1.25 * sx
 
   function handleClick(e) {
     if (!onShot) return
@@ -78,46 +94,72 @@ function CourtSVG({ onShot, shots = [] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:'block', borderRadius:10, cursor: onShot?'crosshair':'default', touchAction:'none', maxWidth:W }} onClick={handleClick}>
-      {/* Fondo cancha */}
+      {/* ── Fondo parqué ── */}
       <rect width={W} height={H} fill="#c8a455" rx={10}/>
-      {/* Contorno media cancha */}
-      <rect x={12} y={10} width={W-24} height={H-20} fill="none" stroke="#fff" strokeWidth={2}/>
-      {/* Línea de medio campo (arriba) */}
-      <line x1={12} y1={10} x2={W-12} y2={10} stroke="#fff" strokeWidth={2}/>
-      {/* Zona pintada */}
-      <rect x={bx-pw/2} y={ftY} width={pw} height={ph} fill="rgba(255,255,255,0.07)" stroke="#fff" strokeWidth={1.5}/>
-      {/* Línea de tiros libres */}
-      <line x1={bx-pw/2} y1={ftY} x2={bx+pw/2} y2={ftY} stroke="#fff" strokeWidth={2}/>
-      {/* Semicírculo TL (hacia arriba - campo abierto) */}
-      <path d={`M ${bx-pw/2} ${ftY} A ${pw/2} ${pw/2} 0 0 0 ${bx+pw/2} ${ftY}`} fill="none" stroke="#fff" strokeWidth={1.5} strokeDasharray="5 3"/>
-      {/* Semicírculo TL (hacia abajo - zona cerrada) */}
-      <path d={`M ${bx-pw/2} ${ftY} A ${pw/2} ${pw/2} 0 0 1 ${bx+pw/2} ${ftY}`} fill="none" stroke="#fff" strokeWidth={1.5}/>
-      {/* Zona restringida (semicírculo bajo aro) */}
-      <path d={`M ${bx-22} ${by-2} A 22 22 0 0 1 ${bx+22} ${by-2}`} fill="none" stroke="#fff" strokeWidth={1.2} strokeDasharray="3 2"/>
-      {/* Arco triple - rectas de esquina */}
-      <line x1={cx3} y1={arcY} x2={cx3} y2={by} stroke="#fff" strokeWidth={1.5}/>
-      <line x1={W-cx3} y1={arcY} x2={W-cx3} y2={by} stroke="#fff" strokeWidth={1.5}/>
-      {/* Arco triple - semicírculo */}
-      <path d={`M ${cx3} ${arcY} A ${r3} ${r3} 0 0 1 ${W-cx3} ${arcY}`} fill="none" stroke="#fff" strokeWidth={1.5}/>
-      {/* Tablero */}
-      <rect x={bx-22} y={by+6} width={44} height={4} fill="none" stroke="#fff" strokeWidth={2}/>
-      {/* Poste aro */}
-      <line x1={bx} y1={by+4} x2={bx} y2={by+6} stroke="#fff" strokeWidth={1.5}/>
-      {/* Aro */}
-      <circle cx={bx} cy={by} r={9} fill="none" stroke="#ff6b35" strokeWidth={2.5}/>
+      {/* Líneas de parqué decorativas */}
+      {[0.25,0.5,0.75].map(v=>(
+        <line key={v} x1={0} y1={H*v} x2={W} y2={H*v} stroke="rgba(0,0,0,0.06)" strokeWidth={0.8}/>
+      ))}
 
-      {/* Shots */}
+      {/* ── Contorno cancha ── */}
+      <rect x={PX} y={PY} width={CW} height={CH} fill="none" stroke="#fff" strokeWidth={2}/>
+
+      {/* ── Línea de medio campo ── */}
+      <line x1={PX} y1={PY} x2={PX+CW} y2={PY} stroke="#fff" strokeWidth={2}/>
+
+      {/* ── Semicírculo central (parte visible en media cancha) ── */}
+      <path d={`M ${fx(7.5)-1.8*sx} ${PY} A ${1.8*sx} ${1.8*sx} 0 0 1 ${fx(7.5)+1.8*sx} ${PY}`}
+        fill="none" stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Zona pintada ── */}
+      <rect x={paintL} y={paintT} width={paintW} height={paintH}
+        fill="rgba(180,120,50,0.35)" stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Línea de tiros libres ── */}
+      <line x1={paintL} y1={paintT} x2={paintL+paintW} y2={paintT} stroke="#fff" strokeWidth={2}/>
+
+      {/* ── Círculo TL – mitad hacia cancha (dashed) ── */}
+      <path d={`M ${bx-ftR} ${paintT} A ${ftR} ${ftR} 0 0 0 ${bx+ftR} ${paintT}`}
+        fill="none" stroke="#fff" strokeWidth={1.5} strokeDasharray="6 4"/>
+      {/* ── Círculo TL – mitad hacia zona (solid) ── */}
+      <path d={`M ${bx-ftR} ${paintT} A ${ftR} ${ftR} 0 0 1 ${bx+ftR} ${paintT}`}
+        fill="none" stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Zona restringida bajo aro ── */}
+      <path d={`M ${bx-rR} ${by} A ${rR} ${rR} 0 0 1 ${bx+rR} ${by}`}
+        fill="none" stroke="#fff" strokeWidth={1.2} strokeDasharray="4 3"/>
+
+      {/* ── Rectas de esquina triple ── */}
+      <line x1={c3x} y1={H-PY} x2={c3x} y2={c3y} stroke="#fff" strokeWidth={1.5}/>
+      <line x1={c3xR} y1={H-PY} x2={c3xR} y2={c3y} stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Arco triple (large-arc=1, sweep=0 → va por arriba) ── */}
+      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 1 0 ${c3xR} ${c3y}`}
+        fill="none" stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Tablero ── */}
+      <rect x={bx-1.83/2*sx} y={fy(1.2)+3} width={1.83*sx} height={3.5}
+        fill="none" stroke="#fff" strokeWidth={2}/>
+
+      {/* ── Soporte tablero-aro ── */}
+      <line x1={bx} y1={fy(1.2)+6.5} x2={bx} y2={by-9} stroke="#fff" strokeWidth={1.5}/>
+
+      {/* ── Aro ── */}
+      <circle cx={bx} cy={by} r={0.45*sx*0.5} fill="none" stroke="#ff5722" strokeWidth={2.5}/>
+
+      {/* ── Tiros ── */}
       {shots.map((s, i) => {
-        const sx = 12 + s.x*(W-24), sy = 10 + s.y*(H-20)
+        const px = PX + s.x*CW, py = PY + s.y*CH
         return s.made
-          ? <circle key={i} cx={sx} cy={sy} r={6} fill="rgba(34,197,94,0.85)" stroke="#16a34a" strokeWidth={1.5}/>
+          ? <circle key={i} cx={px} cy={py} r={6} fill="rgba(34,197,94,0.85)" stroke="#16a34a" strokeWidth={1.5}/>
           : <g key={i}>
-              <circle cx={sx} cy={sy} r={6} fill="rgba(239,68,68,0.85)" stroke="#dc2626" strokeWidth={1.5}/>
-              <line x1={sx-3.5} y1={sy-3.5} x2={sx+3.5} y2={sy+3.5} stroke="#fff" strokeWidth={1.2}/>
-              <line x1={sx+3.5} y1={sy-3.5} x2={sx-3.5} y2={sy+3.5} stroke="#fff" strokeWidth={1.2}/>
+              <circle cx={px} cy={py} r={6} fill="rgba(239,68,68,0.8)" stroke="#dc2626" strokeWidth={1.5}/>
+              <line x1={px-3.5} y1={py-3.5} x2={px+3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.2}/>
+              <line x1={px+3.5} y1={py-3.5} x2={px-3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.2}/>
             </g>
       })}
-      {onShot && <text x={W/2} y={H*0.46} textAnchor="middle" fontSize={11} fill="rgba(255,255,255,0.55)" fontWeight="600">Toca para marcar la posición</text>}
+      {onShot && <text x={W/2} y={H*0.48} textAnchor="middle" fontSize={11}
+        fill="rgba(255,255,255,0.6)" fontWeight="600">Toca para marcar la posición</text>}
     </svg>
   )
 }
@@ -130,8 +172,9 @@ export default function GamePage() {
 
   const [game, setGame]         = useState(null)
   const [gps, setGps]           = useState([])      // game_players con jugador
-  const [onCourt, setOnCourt]   = useState([])      // array de player_id
-  const [events, setEvents]     = useState([])
+  const [onCourt, setOnCourt]       = useState([])   // array de player_id (nuestros)
+  const [rivalOnCourt, setRivalOnCourt] = useState([]) // array de jersey numbers (rival)
+  const [events, setEvents]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState('live')
 
@@ -172,6 +215,10 @@ export default function GamePage() {
     const ps = rows || []
     setGps(ps)
     setOnCourt(ps.slice(0,5).map(p=>p.player_id))
+    // Inicializar rival on-court con primeros 5 dorsales
+    if (g.rival_roster && g.rival_roster.length > 0) {
+      setRivalOnCourt(g.rival_roster.slice(0,5))
+    }
 
     const { data: evs } = await supabase
       .from('game_events').select('*').eq('game_id', id).order('created_at',{ascending:true})
@@ -182,20 +229,36 @@ export default function GamePage() {
   // ── Guardar evento ──────────────────────────────────────────────────────
   async function saveEv(type, team, playerRef, extra={}) {
     const isOur = team === 'us'
-    const { data:ev, error } = await supabase.from('game_events').insert({
-      game_id: id, team, event_type: type,
-      player_id:    isOur ? playerRef : null,
-      rival_jersey: isOur ? null : playerRef,
-      quarter, minute: null,
-      points: ['2pt_made'].includes(type)?2:['3pt_made'].includes(type)?3:type==='ft_made'?1:0,
-      shot_x: extra.x ?? null, shot_y: extra.y ?? null,
+    const pts = type==='2pt_made'?2 : type==='3pt_made'?3 : type==='ft_made'?1 : 0
+    const payload = {
+      game_id: id,
+      team,
+      event_type: type,
+      player_id:    (isOur && playerRef) ? playerRef : null,
+      rival_jersey: (!isOur && playerRef !== null && playerRef !== undefined) ? playerRef : null,
+      quarter,
+      points: pts,
+      shot_x: extra.x ?? null,
+      shot_y: extra.y ?? null,
       linked_event_id: extra.linked ?? null,
-    }).select().single()
-    if (!error && ev) {
+    }
+    const { data:ev, error } = await supabase
+      .from('game_events')
+      .insert(payload)
+      .select()
+      .single()
+    if (error) {
+      console.error('saveEv error:', error)
+      alert('Error al guardar: ' + (error.message || JSON.stringify(error)))
+      return null
+    }
+    if (ev) {
       const next = [...events, ev]
       setEvents(next)
       const sc = computeScores(next)
-      supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival, status:'live', quarter }).eq('id',id)
+      await supabase.from('games')
+        .update({ our_score: sc.us, rival_score: sc.rival, status: 'live', quarter })
+        .eq('id', id)
       setGame(prev => prev ? {...prev, our_score:sc.us, rival_score:sc.rival, status:'live'} : prev)
       return ev
     }
@@ -260,7 +323,7 @@ export default function GamePage() {
     }
     // Sustitución
     if (a === 'sub') {
-      setModal({ type:'sub', outPlayer: ref })
+      setModal({ type:'sub', outPlayer: ref, team })
       setArmed(null)
       return
     }
@@ -292,22 +355,28 @@ export default function GamePage() {
   }
 
   async function confirmSub(inPlayer) {
-    const outPlayer = modal.outPlayer
+    const { outPlayer, team: subTeam } = modal
     setModal(null)
-    const newCourt = onCourt.map(p => p===outPlayer ? inPlayer : p)
-    setOnCourt(newCourt)
-    const inGp  = gps.find(g=>g.player_id===inPlayer)
-    const outGp = gps.find(g=>g.player_id===outPlayer)
-    await supabase.from('game_events').insert({
-      game_id:id, team:'us', event_type:'substitution', quarter, minute:null, points:0,
-      player_id: inPlayer, linked_event_id: outPlayer,
-      shot_x:null, shot_y:null,
-    })
-    const subEv = { id: Date.now(), team:'us', event_type:'substitution', quarter,
-      player_id:inPlayer, linked_event_id:outPlayer,
-      _inNum: inGp?.players?.number??'?', _outNum: outGp?.players?.number??'?'
+    if (subTeam === 'us') {
+      const newCourt = onCourt.map(p => p===outPlayer ? inPlayer : p)
+      setOnCourt(newCourt)
+      await supabase.from('game_events').insert({
+        game_id:id, team:'us', event_type:'substitution', quarter,
+        points:0, player_id:inPlayer, linked_event_id:outPlayer,
+        shot_x:null, shot_y:null,
+      })
+      setEvents(prev=>[...prev,{id:'sub_'+Date.now(),team:'us',event_type:'substitution',quarter,player_id:inPlayer,linked_event_id:outPlayer}])
+    } else {
+      // Rival sub: inPlayer es jersey number
+      const newCourt = rivalOnCourt.map(n => n===outPlayer ? inPlayer : n)
+      setRivalOnCourt(newCourt)
+      await supabase.from('game_events').insert({
+        game_id:id, team:'rival', event_type:'substitution', quarter,
+        points:0, rival_jersey:inPlayer, linked_event_id:null,
+        shot_x:null, shot_y:null,
+      })
+      setEvents(prev=>[...prev,{id:'sub_r_'+Date.now(),team:'rival',event_type:'substitution',quarter,rival_jersey:inPlayer}])
     }
-    setEvents(prev=>[...prev, subEv])
   }
 
   async function handleUndo() {
@@ -343,6 +412,9 @@ export default function GamePage() {
   const ss2 = String(secs%60).padStart(2,'0')
   const bench = gps.filter(g=>!onCourt.includes(g.player_id))
   const courtGps = onCourt.map(pid=>gps.find(g=>g.player_id===pid)).filter(Boolean)
+
+  // Si no hay rivalOnCourt inicializado, usar primeros 5 de rivals
+  const rivalVisible = rivalOnCourt.length > 0 ? rivalOnCourt : rivals.slice(0,5)
 
   const ourFouls   = events.filter(e=>e.team==='us'&&e.event_type.startsWith('foul')).length
   const rivalFouls = events.filter(e=>e.team==='rival'&&e.event_type.startsWith('foul')).length
@@ -548,7 +620,7 @@ export default function GamePage() {
             <div>
               <div style={{background:'#d97706',borderRadius:'8px 8px 0 0',padding:'5px 0',textAlign:'center',fontSize:12,fontWeight:900,color:'#fff',marginBottom:2}}>B</div>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
-                {rivals.map(n=>(
+                {rivalVisible.map(n=>(
                   <button key={n} className="tap-btn"
                     onClick={()=>tapPlayer('rival',n)}
                     style={{width:'100%',paddingTop:'100%',borderRadius:10,border:'none',
@@ -829,25 +901,46 @@ export default function GamePage() {
       {modal?.type==='sub' && (
         <Overlay onClose={()=>setModal(null)}>
           <div style={{color:'#fff',fontSize:14,fontWeight:800,marginBottom:4}}>Sustitución</div>
-          <div style={{color:'#9ca3af',fontSize:12,marginBottom:14}}>
-            Sale #{gps.find(g=>g.player_id===modal.outPlayer)?.players?.number??'?'} — ¿Quién entra?
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            {bench.map(gp=>(
-              <button key={gp.player_id} onClick={()=>confirmSub(gp.player_id)}
-                style={{padding:'10px 14px',backgroundColor:'#374151',color:'#fff',border:'none',
-                  borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',textAlign:'left',
-                  display:'flex',alignItems:'center',gap:10}}>
-                <span style={{width:32,height:32,borderRadius:8,backgroundColor:'#16a34a',
-                  display:'inline-flex',alignItems:'center',justifyContent:'center',
-                  fontSize:14,fontWeight:900,flexShrink:0}}>
-                  {gp.players?.number??'?'}
-                </span>
-                {gp.players?.full_name||'—'}
-              </button>
-            ))}
-            {bench.length===0 && <div style={{color:'#6b7280',textAlign:'center',padding:'12px 0',fontSize:13}}>Sin jugadores en banquillo</div>}
-          </div>
+          {modal.team === 'us' ? (
+            <>
+              <div style={{color:'#9ca3af',fontSize:12,marginBottom:14}}>
+                Sale #{gps.find(g=>g.player_id===modal.outPlayer)?.players?.number??'?'} — ¿Quién entra?
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {bench.map(gp=>(
+                  <button key={gp.player_id} onClick={()=>confirmSub(gp.player_id)}
+                    style={{padding:'10px 14px',backgroundColor:'#374151',color:'#fff',border:'none',
+                      borderRadius:10,fontSize:13,fontWeight:700,cursor:'pointer',textAlign:'left',
+                      display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{width:32,height:32,borderRadius:8,backgroundColor:'#16a34a',
+                      display:'inline-flex',alignItems:'center',justifyContent:'center',
+                      fontSize:14,fontWeight:900,flexShrink:0}}>
+                      {gp.players?.number??'?'}
+                    </span>
+                    {gp.players?.full_name||'—'}
+                  </button>
+                ))}
+                {bench.length===0 && <div style={{color:'#6b7280',textAlign:'center',padding:'12px 0',fontSize:13}}>Sin jugadores en banquillo</div>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{color:'#9ca3af',fontSize:12,marginBottom:14}}>
+                Sale #{modal.outPlayer} — ¿Qué dorsal entra?
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                {rivals.filter(n=>!rivalVisible.includes(n)).map(n=>(
+                  <button key={n} onClick={()=>confirmSub(n)}
+                    style={{width:52,height:52,borderRadius:10,backgroundColor:'#d97706',color:'#fff',
+                      border:'none',fontSize:18,fontWeight:900,cursor:'pointer'}}>
+                    #{n}
+                  </button>
+                ))}
+                {rivals.filter(n=>!rivalVisible.includes(n)).length===0 &&
+                  <div style={{color:'#6b7280',fontSize:13}}>No hay más dorsales registrados</div>}
+              </div>
+            </>
+          )}
         </Overlay>
       )}
 

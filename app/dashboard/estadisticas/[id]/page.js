@@ -355,30 +355,32 @@ export default function GamePage() {
       setModal({ type:'ft_count', team, ref })
       return
     }
-    // Falta personal → pregunta TL automáticamente
+    // Falta personal → pregunta quién recibió → TL
     if (a === 'foul') {
       setArmed(null)
       await saveEv('foul_personal', team, ref)
-      setModal({ type:'ask_ft_after_foul', ftTeam: team==='us'?'rival':'us', defaultTL: null })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: null })
       return
     }
     // Antideportiva → FIBA = 2 TL + posesión
     if (a === 'unsporting') {
       setArmed(null)
       await saveEv('foul_unsporting', team, ref)
-      setModal({ type:'ask_ft_after_foul', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
       return
     }
-    // Técnica → si es jugador ya tenemos el ref
+    // Técnica jugador → 1 TL FIBA
     if (a === 'technical_player') {
       setArmed(null)
       await saveEv('foul_technical', team, ref)
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 1 })
       return
     }
-    // Descalificante → jugador
+    // Descalificante jugador → 2 TL FIBA
     if (a === 'disq_player') {
       setArmed(null)
       await saveEv('foul_disqualifying', team, ref)
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
       return
     }
     // Sustitución rival (la nuestra se abre directamente desde armAction)
@@ -387,10 +389,25 @@ export default function GamePage() {
       setArmed(null)
       return
     }
-    // Robo / Tapón / Pérdida
-    if (['steal','block','turnover'].includes(a)) {
+    // Robo → preguntar quién perdió el balón (equipo contrario)
+    if (a === 'steal') {
       setArmed(null)
-      await saveEv(a, team, ref)
+      await saveEv('steal', team, ref)
+      setModal({ type:'ask_steal_chain', stealerTeam: team, otherTeam: team==='us'?'rival':'us' })
+      return
+    }
+    // Tapón → preguntar tiro fallado + rebote
+    if (a === 'block') {
+      setArmed(null)
+      await saveEv('block', team, ref)
+      setModal({ type:'ask_block_chain', blockerTeam: team, otherTeam: team==='us'?'rival':'us' })
+      return
+    }
+    // Pérdida → preguntar quién robó (equipo contrario)
+    if (a === 'turnover') {
+      setArmed(null)
+      await saveEv('turnover', team, ref)
+      setModal({ type:'ask_turnover_chain', turnoverTeam: team, otherTeam: team==='us'?'rival':'us' })
       return
     }
   }
@@ -644,7 +661,8 @@ export default function GamePage() {
 
             {/* ── Columna A ── */}
             <div>
-              <div style={{background:'#16a34a',borderRadius:'8px 8px 0 0',padding:'5px 0',textAlign:'center',fontSize:12,fontWeight:900,color:'#fff',marginBottom:2}}>A</div>
+              <button onClick={()=>{ setModal({ type:'sub', team:'us', currentCourt: [...onCourt] }); setArmed(null) }}
+                style={{background:'#16a34a',borderRadius:'8px 8px 0 0',padding:'5px 0',textAlign:'center',fontSize:11,fontWeight:900,color:'#fff',marginBottom:2,width:'100%',border:'none',cursor:'pointer',letterSpacing:0}}>A 🔄</button>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 {courtGps.map(gp=>{
                   const num = gp.players?.number ?? gp.jersey_number ?? '?'
@@ -671,7 +689,8 @@ export default function GamePage() {
 
             {/* ── Columna B ── */}
             <div>
-              <div style={{background:'#d97706',borderRadius:'8px 8px 0 0',padding:'5px 0',textAlign:'center',fontSize:12,fontWeight:900,color:'#fff',marginBottom:2}}>B</div>
+              <button onClick={()=>{ setModal({ type:'rival_lineup' }); setArmed(null) }}
+                style={{background:'#d97706',borderRadius:'8px 8px 0 0',padding:'5px 0',textAlign:'center',fontSize:11,fontWeight:900,color:'#fff',marginBottom:2,width:'100%',border:'none',cursor:'pointer',letterSpacing:0}}>B 🔄</button>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 {rivalVisible.map(n=>(
                   <button key={n} className="tap-btn"
@@ -906,14 +925,18 @@ export default function GamePage() {
               👤 Jugador — selecciona en cancha
             </button>
             <button onClick={async()=>{
-              setModal(null); setArmed(null)
               const evType = modal.foulType==='technical'?'foul_technical':'foul_disqualifying'
-              await saveEv(evType, modal.team, null, {})
+              const theTeam = modal.team
+              setArmed(null)
+              await saveEv(evType, theTeam, null, {})
+              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: modal.foulType==='technical'?1:2 })
             }} style={{...btnStyle('#374151',13), textAlign:'center'}}>🧑‍💼 Entrenador</button>
             <button onClick={async()=>{
-              setModal(null); setArmed(null)
               const evType = modal.foulType==='technical'?'foul_technical':'foul_disqualifying'
-              await saveEv(evType, modal.team, null, {})
+              const theTeam = modal.team
+              setArmed(null)
+              await saveEv(evType, theTeam, null, {})
+              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: modal.foulType==='technical'?1:2 })
             }} style={{...btnStyle('#374151',13), textAlign:'center'}}>🪑 Banquillo</button>
           </div>
           {/* ¿Qué equipo? */}
@@ -1141,7 +1164,7 @@ export default function GamePage() {
             </button>
             {[1,2,3].map(n=>(
               <button key={n}
-                onClick={()=>setModal({type:'ft_seq',total:n,done:0,team:modal.ftTeam,ref:null})}
+                onClick={()=>setModal({type:'ft_seq',total:n,done:0,team:modal.ftTeam,ref:modal.shooterRef||null})}
                 style={{padding:'18px 0',borderRadius:10,border:`2px solid ${modal.defaultTL===n?'#fbbf24':'transparent'}`,
                   cursor:'pointer',backgroundColor: modal.defaultTL===n?'#92400e':'#1d4ed8',
                   color:'#fff',fontSize:16,fontWeight:900}}>
@@ -1157,7 +1180,210 @@ export default function GamePage() {
         </Overlay>
       )}
 
-      {/* Preguntas sin modal de overlay */}
+      {/* ── OVERLAY: ¿Quién recibió la falta? ──────────────────────────── */}
+      {modal?.type==='ask_fouled_player' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🎯 ¿Quién recibió la falta?
+          </div>
+          <div style={{color: modal.ftTeam==='us'?'#4ade80':'#fbbf24',
+            fontSize:12,fontWeight:800,textAlign:'center',marginBottom:14}}>
+            {modal.ftTeam==='us'?'🟢 Nosotros':`🟡 ${game.rival_name}`}
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
+            {(modal.ftTeam==='us'
+              ? courtGps.map(gp=>({ k:gp.player_id, label:`#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}`, ref:gp.player_id }))
+              : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
+            ).map(item=>(
+              <button key={item.k}
+                onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:item.ref })}
+                style={{padding:'8px 12px',borderRadius:8,border:'none',cursor:'pointer',
+                  backgroundColor: modal.ftTeam==='us'?'#16a34a':'#d97706',
+                  color:'#fff',fontSize:12,fontWeight:800}}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:null })}
+            style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+              border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            Sin jugador específico
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: Alineación rival ─────────────────────────────────── */}
+      {modal?.type==='rival_lineup' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#fbbf24',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🔄 5 en pista — {game.rival_name}
+          </div>
+          <div style={{color:'#9ca3af',fontSize:11,textAlign:'center',marginBottom:14}}>
+            Toca para activar/desactivar · máx. 5 en pista
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'center',marginBottom:12}}>
+            {rivals.map(n=>{
+              const isOn = rivalOnCourt.includes(n)
+              return (
+                <button key={n} onClick={()=>{
+                  if (isOn) {
+                    if (rivalOnCourt.length > 1) setRivalOnCourt(rivalOnCourt.filter(x=>x!==n))
+                  } else {
+                    if (rivalOnCourt.length < 5) setRivalOnCourt([...rivalOnCourt, n])
+                  }
+                }}
+                style={{width:56,height:56,borderRadius:10,border:`2px solid ${isOn?'#fbbf24':'#374151'}`,
+                  cursor:'pointer',
+                  backgroundColor: isOn?'#d97706':'#1f2937',
+                  color: isOn?'#fff':'#6b7280',
+                  fontSize:18,fontWeight:900}}>
+                  #{n}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{color: rivalOnCourt.length===5?'#4ade80':'#fbbf24',
+            fontSize:12,fontWeight:800,textAlign:'center',marginBottom:12}}>
+            {rivalOnCourt.length}/5 en pista
+          </div>
+          <button onClick={()=>setModal(null)}
+            style={{width:'100%',padding:'12px',backgroundColor:'#16a34a',color:'#fff',
+              border:'none',borderRadius:10,fontSize:13,fontWeight:800,cursor:'pointer'}}>
+            ✓ Confirmar
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: Tapón — cadena ───────────────────────────────────── */}
+      {modal?.type==='ask_block_chain' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#0284c7',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🛡 Tapón — ¿quién falló el tiro?
+          </div>
+          <div style={{display:'flex',gap:8,marginBottom:12}}>
+            <button onClick={()=>setModal({...modal, shotType:'2pt'})}
+              style={{flex:1,padding:'12px',borderRadius:8,
+                border:`2px solid ${modal.shotType==='2pt'?'#2563eb':'#374151'}`,
+                backgroundColor:modal.shotType==='2pt'?'#1d4ed8':'#1f2937',
+                color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'}}>
+              2 Puntos
+            </button>
+            <button onClick={()=>setModal({...modal, shotType:'3pt'})}
+              style={{flex:1,padding:'12px',borderRadius:8,
+                border:`2px solid ${modal.shotType==='3pt'?'#7c3aed':'#374151'}`,
+                backgroundColor:modal.shotType==='3pt'?'#6d28d9':'#1f2937',
+                color:'#fff',fontSize:13,fontWeight:800,cursor:'pointer'}}>
+              3 Puntos
+            </button>
+          </div>
+          {modal.shotType && (
+            <>
+              <div style={{color: modal.otherTeam==='us'?'#4ade80':'#fbbf24',
+                fontSize:11,fontWeight:800,marginBottom:8}}>
+                {modal.otherTeam==='us'?'🟢 Nuestro equipo':`🟡 ${game.rival_name}`}
+              </div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+                {(modal.otherTeam==='us'
+                  ? courtGps.map(gp=>({ k:gp.player_id, label:`#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}`, ref:gp.player_id }))
+                  : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
+                ).map(item=>(
+                  <button key={item.k} onClick={async()=>{
+                    const missType = modal.shotType==='2pt'?'2pt_miss':'3pt_miss'
+                    const ev = await saveEv(missType, modal.otherTeam, item.ref)
+                    setModal({ type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null })
+                  }}
+                  style={{padding:'8px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                    backgroundColor: modal.otherTeam==='us'?'#16a34a':'#d97706',
+                    color:'#fff',fontSize:12,fontWeight:800}}>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <button onClick={async()=>{
+            if (modal.shotType) {
+              const missType = modal.shotType==='2pt'?'2pt_miss':'3pt_miss'
+              const ev = await saveEv(missType, modal.otherTeam, null)
+              setModal({ type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null })
+            } else {
+              setModal(null)
+            }
+          }}
+          style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+            border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            {modal.shotType ? '→ Pedir rebote sin jugador' : 'Saltar'}
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: Robo — cadena ────────────────────────────────────── */}
+      {modal?.type==='ask_steal_chain' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#059669',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            🤿 Robo — ¿quién perdió el balón?
+          </div>
+          <div style={{color: modal.otherTeam==='us'?'#4ade80':'#fbbf24',
+            fontSize:11,fontWeight:800,marginBottom:8}}>
+            {modal.otherTeam==='us'?'🟢 Nuestro equipo':`🟡 ${game.rival_name}`}
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+            {(modal.otherTeam==='us'
+              ? courtGps.map(gp=>({ k:gp.player_id, label:`#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}`, ref:gp.player_id }))
+              : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
+            ).map(item=>(
+              <button key={item.k} onClick={async()=>{
+                setModal(null)
+                await saveEv('turnover', modal.otherTeam, item.ref)
+              }}
+              style={{padding:'8px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                backgroundColor: modal.otherTeam==='us'?'#16a34a':'#d97706',
+                color:'#fff',fontSize:12,fontWeight:800}}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>setModal(null)}
+            style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+              border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            Sin jugador específico
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── OVERLAY: Pérdida — cadena ─────────────────────────────────── */}
+      {modal?.type==='ask_turnover_chain' && (
+        <Overlay onClose={()=>setModal(null)}>
+          <div style={{color:'#d97706',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+            💸 Pérdida — ¿quién robó el balón?
+          </div>
+          <div style={{color: modal.otherTeam==='us'?'#4ade80':'#fbbf24',
+            fontSize:11,fontWeight:800,marginBottom:8}}>
+            {modal.otherTeam==='us'?'🟢 Nuestro equipo':`🟡 ${game.rival_name}`}
+          </div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:12}}>
+            {(modal.otherTeam==='us'
+              ? courtGps.map(gp=>({ k:gp.player_id, label:`#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}`, ref:gp.player_id }))
+              : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
+            ).map(item=>(
+              <button key={item.k} onClick={async()=>{
+                setModal(null)
+                await saveEv('steal', modal.otherTeam, item.ref)
+              }}
+              style={{padding:'8px 10px',borderRadius:8,border:'none',cursor:'pointer',
+                backgroundColor: modal.otherTeam==='us'?'#16a34a':'#d97706',
+                color:'#fff',fontSize:12,fontWeight:800}}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>setModal(null)}
+            style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
+              border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
+            Sin jugador específico
+          </button>
+        </Overlay>
+      )}
 
       {/* ── Imprimible ── */}
       <div className="print-only">

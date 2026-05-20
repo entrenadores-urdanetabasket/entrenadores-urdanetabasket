@@ -43,6 +43,8 @@ function computeBoxScore(evs, gamePlayers, rivalJerseys) {
   return { our, riv }
 }
 
+const Q_LABEL = q => ['P1','P2','P3','P4','PT'][(q||1)-1] || `P${q}`
+
 const EV_LABEL = {
   '2pt_made':'2 Pts ✓','2pt_miss':'2 Pts ✗','3pt_made':'3 Pts ✓','3pt_miss':'3 Pts ✗',
   'ft_made':'TL ✓','ft_miss':'TL ✗','rebound_off':'Reb. of.','rebound_def':'Reb. def.',
@@ -51,115 +53,154 @@ const EV_LABEL = {
   'foul_disqualifying':'Descalif.','timeout':'T. Muerto','substitution':'Cambio',
 }
 
-// ─── Media cancha SVG (proporciones FIBA exactas) ───────────────────────────
+// ─── Media cancha SVG — FIBA exacto ──────────────────────────────────────────
+// Baseline ARRIBA · Medidas reales: 15 m ancho × 14 m profundidad
+// Escalado: 296 px = 15 m  |  276 px = 14 m
 function CourtSVG({ onShot, shots = [] }) {
-  // Cancha FIBA: 15m ancho × 14m profundidad (media cancha)
-  // SVG: 280px × 260px de zona útil, con 10px padding
-  const W = 300, H = 280
-  const PX = 10, PY = 10 // padding
-  const CW = W - PX*2, CH = H - PY*2 // 280 × 260
-  const sx = CW / 15   // px por metro (18.67)
-  const sy = CH / 14   // px por metro (18.57)
+  const W = 320, H = 300, P = 12          // canvas y padding
+  const CW = W - P*2                       // 296 px → 15 m
+  const CH = H - P*2                       // 276 px → 14 m
+  const sx = CW / 15                       // 19.733 px/m
+  const sy = CH / 14                       // 19.714 px/m
 
-  // Convierte metros de cancha a px en SVG
-  // Origen: esquina inf-izq de cancha (baseline izq)
-  // En SVG: baseline = y=H-PY (abajo), midcourt = y=PY (arriba)
-  const fx = m => PX + m * sx
-  const fy = m => (H - PY) - m * sy
+  // baseline en y=P (arriba), midcourt en y=P+CH (abajo)
+  const fx = m => P + m * sx
+  const fy = m => P + m * sy
 
-  // Posiciones clave (en metros)
-  const BX=7.5, BY=1.575        // Centro aro
-  const bx=fx(BX), by=fy(BY)
+  // ── medidas FIBA ──────────────────────────────────────────────────────────
+  const bx   = fx(7.5)                     // aro X = centro
+  const by   = fy(1.575)                   // aro Y (1.575 m de baseline)
 
-  const paintW = 4.9*sx, paintH = 5.8*sy
-  const paintL = fx((15-4.9)/2)  // x izq zona pintada
-  const paintT = fy(5.8)         // y superior zona pintada (FT line)
+  // tablero: cara interior a 1.2 m de baseline, 1.83 m de ancho
+  // Lo colocamos visualmente a 0.75 m para que quede sobre el aro
+  const bbY  = fy(0.75)                    // tablero Y (visual)
+  const bbW  = 1.83 * sx                   // 36 px
 
-  const ftR = 1.8 * sx           // radio círculo TL
-  const r3  = 6.75 * sx          // radio arco triple
+  // zona pintada (key): 4.9 m ancho × 5.8 m prof
+  const pL   = fx((15 - 4.9) / 2)         // borde izq pintura
+  const pW   = 4.9 * sx                    // ancho pintura
+  const ftY  = fy(5.8)                     // línea TL
+  const ftR  = 1.8 * sx                    // r círculo TL
 
-  // Esquina triple: 0.9m desde banda
-  const c3x  = fx(0.9), c3xR = fx(14.1)
-  // y donde el arco triple toca la línea de esquina
-  const c3y  = by - Math.sqrt(Math.max(0, r3*r3 - (bx-c3x)**2))
+  // arco triple: r = 6.75 m, rectas a 0.9 m de banda
+  const r3   = 6.75 * sx
+  const c3x  = fx(0.9)
+  const c3xR = fx(14.1)
+  // punto donde el arco conecta con las rectas de esquina
+  const c3y  = by + Math.sqrt(Math.max(0, r3*r3 - (bx - c3x)**2))
 
-  // Zona restringida: r=1.25m
-  const rR = 1.25 * sx
+  // zona restringida (no-carga): r = 1.25 m
+  const rR   = 1.25 * sx
+
+  // semicírculo central: r = 1.8 m  (mitad visible en media cancha)
+  const ccR  = 1.8 * sx
+  const ccY  = P + CH                      // línea de medio campo
 
   function handleClick(e) {
     if (!onShot) return
     const r = e.currentTarget.getBoundingClientRect()
-    onShot((e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height)
+    onShot((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:'block', borderRadius:10, cursor: onShot?'crosshair':'default', touchAction:'none', maxWidth:W }} onClick={handleClick}>
-      {/* ── Fondo parqué ── */}
-      <rect width={W} height={H} fill="#c8a455" rx={10}/>
-      {/* Líneas de parqué decorativas */}
-      {[0.25,0.5,0.75].map(v=>(
-        <line key={v} x1={0} y1={H*v} x2={W} y2={H*v} stroke="rgba(0,0,0,0.06)" strokeWidth={0.8}/>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%"
+      style={{ display:'block', borderRadius:12, cursor:onShot?'crosshair':'default',
+               touchAction:'none', userSelect:'none' }}
+      onClick={handleClick}>
+
+      {/* ── Parqué ─────────────────────────────────────────────────────── */}
+      <defs>
+        <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#c89850"/>
+          <stop offset="50%"  stopColor="#b8843a"/>
+          <stop offset="100%" stopColor="#c89850"/>
+        </linearGradient>
+      </defs>
+      <rect width={W} height={H} fill="url(#wood)" rx={12}/>
+      {Array.from({length:15},(_,i)=>(
+        <line key={i} x1={0} y1={P+(i+0.5)*CH/15} x2={W} y2={P+(i+0.5)*CH/15}
+          stroke="rgba(0,0,0,0.04)" strokeWidth={1}/>
       ))}
 
-      {/* ── Contorno cancha ── */}
-      <rect x={PX} y={PY} width={CW} height={CH} fill="none" stroke="#fff" strokeWidth={2}/>
+      {/* ── Contorno y línea de medio campo ────────────────────────────── */}
+      <rect x={P} y={P} width={CW} height={CH} fill="none" stroke="#fff" strokeWidth={2.5}/>
+      <line x1={P} y1={ccY} x2={P+CW} y2={ccY} stroke="#fff" strokeWidth={2}/>
 
-      {/* ── Línea de medio campo ── */}
-      <line x1={PX} y1={PY} x2={PX+CW} y2={PY} stroke="#fff" strokeWidth={2}/>
-
-      {/* ── Semicírculo central (parte visible en media cancha) ── */}
-      <path d={`M ${fx(7.5)-1.8*sx} ${PY} A ${1.8*sx} ${1.8*sx} 0 0 1 ${fx(7.5)+1.8*sx} ${PY}`}
+      {/* ── Semicírculo central (mitad visible, arco hacia ARRIBA = interior) */}
+      {/* sweep=0 → CCW en SVG → de izq a dcha pasando por arriba ✓ */}
+      <path d={`M ${fx(7.5)-ccR} ${ccY} A ${ccR} ${ccR} 0 0 0 ${fx(7.5)+ccR} ${ccY}`}
         fill="none" stroke="#fff" strokeWidth={1.5}/>
 
-      {/* ── Zona pintada ── */}
-      <rect x={paintL} y={paintT} width={paintW} height={paintH}
-        fill="rgba(180,120,50,0.35)" stroke="#fff" strokeWidth={1.5}/>
+      {/* ── Zona pintada ────────────────────────────────────────────────── */}
+      <rect x={pL} y={P} width={pW} height={ftY-P}
+        fill="rgba(130,70,10,0.28)" stroke="#fff" strokeWidth={1.8}/>
 
-      {/* ── Línea de tiros libres ── */}
-      <line x1={paintL} y1={paintT} x2={paintL+paintW} y2={paintT} stroke="#fff" strokeWidth={2}/>
+      {/* ── Línea de TL ─────────────────────────────────────────────────── */}
+      <line x1={pL} y1={ftY} x2={pL+pW} y2={ftY} stroke="#fff" strokeWidth={2}/>
 
-      {/* ── Círculo TL – mitad hacia cancha (dashed) ── */}
-      <path d={`M ${bx-ftR} ${paintT} A ${ftR} ${ftR} 0 0 0 ${bx+ftR} ${paintT}`}
-        fill="none" stroke="#fff" strokeWidth={1.5} strokeDasharray="6 4"/>
-      {/* ── Círculo TL – mitad hacia zona (solid) ── */}
-      <path d={`M ${bx-ftR} ${paintT} A ${ftR} ${ftR} 0 0 1 ${bx+ftR} ${paintT}`}
-        fill="none" stroke="#fff" strokeWidth={1.5}/>
+      {/* ── Marcas laterales de la zona (4 pares) ──────────────────────── */}
+      {[1.75, 2.75, 3.75, 4.75].map(d => {
+        const my = fy(d)
+        return (
+          <g key={d}>
+            <line x1={pL-7}     y1={my} x2={pL}       y2={my} stroke="#fff" strokeWidth={1.3}/>
+            <line x1={pL+pW}    y1={my} x2={pL+pW+7}  y2={my} stroke="#fff" strokeWidth={1.3}/>
+          </g>
+        )
+      })}
 
-      {/* ── Zona restringida bajo aro ── */}
+      {/* ── Círculo TL — sólido hacia aro (sweep=0 = arco superior) ────── */}
+      <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 0 ${bx+ftR} ${ftY}`}
+        fill="none" stroke="#fff" strokeWidth={1.8}/>
+      {/* ── Círculo TL — discontinuo hacia cancha (sweep=1 = arco inferior) */}
+      <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 1 ${bx+ftR} ${ftY}`}
+        fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={1.5} strokeDasharray="7 5"/>
+
+      {/* ── Zona restringida (semicírculo hacia cancha = sweep=1) ────────── */}
       <path d={`M ${bx-rR} ${by} A ${rR} ${rR} 0 0 1 ${bx+rR} ${by}`}
-        fill="none" stroke="#fff" strokeWidth={1.2} strokeDasharray="4 3"/>
+        fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth={1.3} strokeDasharray="4 3"/>
 
-      {/* ── Rectas de esquina triple ── */}
-      <line x1={c3x} y1={H-PY} x2={c3x} y2={c3y} stroke="#fff" strokeWidth={1.5}/>
-      <line x1={c3xR} y1={H-PY} x2={c3xR} y2={c3y} stroke="#fff" strokeWidth={1.5}/>
+      {/* ── Rectas de esquina del triple (de baseline hasta c3y) ─────────── */}
+      <line x1={c3x}  y1={P} x2={c3x}  y2={c3y} stroke="#fff" strokeWidth={1.8}/>
+      <line x1={c3xR} y1={P} x2={c3xR} y2={c3y} stroke="#fff" strokeWidth={1.8}/>
 
-      {/* ── Arco triple (large-arc=1, sweep=0 → va por arriba) ── */}
-      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 1 0 ${c3xR} ${c3y}`}
-        fill="none" stroke="#fff" strokeWidth={1.5}/>
+      {/* ── Arco triple
+           De (c3x, c3y) a (c3xR, c3y) pasando por el punto más bajo (by+r3)
+           large-arc=1  sweep=1  (horario SVG = pasa por abajo) ──────────── */}
+      <path d={`M ${c3x} ${c3y} A ${r3} ${r3} 0 1 1 ${c3xR} ${c3y}`}
+        fill="none" stroke="#fff" strokeWidth={1.8}/>
 
-      {/* ── Tablero ── */}
-      <rect x={bx-1.83/2*sx} y={fy(1.2)+3} width={1.83*sx} height={3.5}
-        fill="none" stroke="#fff" strokeWidth={2}/>
+      {/* ── Tablero ──────────────────────────────────────────────────────── */}
+      <rect x={bx-bbW/2} y={bbY-2} width={bbW} height={4}
+        fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth={2.5}/>
 
-      {/* ── Soporte tablero-aro ── */}
-      <line x1={bx} y1={fy(1.2)+6.5} x2={bx} y2={by-9} stroke="#fff" strokeWidth={1.5}/>
+      {/* ── Línea soporte tablero → aro ──────────────────────────────────── */}
+      <line x1={bx} y1={bbY+2} x2={bx} y2={by-7} stroke="rgba(255,255,255,0.6)" strokeWidth={1.2}/>
 
-      {/* ── Aro ── */}
-      <circle cx={bx} cy={by} r={0.45*sx*0.5} fill="none" stroke="#ff5722" strokeWidth={2.5}/>
+      {/* ── Aro (naranja) ────────────────────────────────────────────────── */}
+      <circle cx={bx} cy={by} r={7} fill="none" stroke="#ff5722" strokeWidth={3}/>
 
-      {/* ── Tiros ── */}
+      {/* ── Tiros ────────────────────────────────────────────────────────── */}
       {shots.map((s, i) => {
-        const px = PX + s.x*CW, py = PY + s.y*CH
+        const px = P + s.x * CW
+        const py = P + s.y * CH
         return s.made
-          ? <circle key={i} cx={px} cy={py} r={6} fill="rgba(34,197,94,0.85)" stroke="#16a34a" strokeWidth={1.5}/>
+          ? <circle key={i} cx={px} cy={py} r={6}
+              fill="rgba(34,197,94,0.88)" stroke="#15803d" strokeWidth={1.5}/>
           : <g key={i}>
-              <circle cx={px} cy={py} r={6} fill="rgba(239,68,68,0.8)" stroke="#dc2626" strokeWidth={1.5}/>
-              <line x1={px-3.5} y1={py-3.5} x2={px+3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.2}/>
-              <line x1={px+3.5} y1={py-3.5} x2={px-3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.2}/>
+              <circle cx={px} cy={py} r={6}
+                fill="rgba(239,68,68,0.85)" stroke="#b91c1c" strokeWidth={1.5}/>
+              <line x1={px-3.5} y1={py-3.5} x2={px+3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
+              <line x1={px+3.5} y1={py-3.5} x2={px-3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
             </g>
       })}
-      {onShot && <text x={W/2} y={H*0.48} textAnchor="middle" fontSize={11}
-        fill="rgba(255,255,255,0.6)" fontWeight="600">Toca para marcar la posición</text>}
+
+      {onShot && (
+        <text x={W/2} y={H*0.6} textAnchor="middle" fontSize={11}
+          fill="rgba(255,255,255,0.5)" fontWeight="600">
+          Toca para marcar la posición del tiro
+        </text>
+      )}
     </svg>
   )
 }
@@ -178,8 +219,8 @@ export default function GamePage() {
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState('live')
 
-  // Cronómetro
-  const [quarter, setQuarter]   = useState('P1')
+  // Cronómetro  (quarter es INTEGER 1-5 en BD)
+  const [quarter, setQuarter]   = useState(1)
   const [secs, setSecs]         = useState(600)
   const [running, setRunning]   = useState(false)
   const intervalRef             = useRef(null)
@@ -208,7 +249,7 @@ export default function GamePage() {
     const { data: g } = await supabase.from('games').select('*').eq('id', id).single()
     if (!g) { router.replace('/dashboard/estadisticas'); return }
     setGame(g)
-    if (g.quarter) setQuarter(g.quarter)
+    if (g.quarter) setQuarter(Number(g.quarter) || 1)
 
     const { data: rows } = await supabase
       .from('game_players').select('*, players(full_name, number)').eq('game_id', id)
@@ -500,14 +541,17 @@ export default function GamePage() {
         <div style={{textAlign:'center',flexShrink:0}}>
           {/* Periodos */}
           <div style={{display:'flex',gap:3,justifyContent:'center',marginBottom:4}}>
-            {['P1','P2','P3','P4','PT'].map(q=>(
-              <button key={q} onClick={()=>{setQuarter(q);setSecs(600);setRunning(false)}} style={{
-                padding:'2px 5px',borderRadius:4,border:'none',cursor:'pointer',
-                fontSize:9,fontWeight:800,
-                backgroundColor:quarter===q?'#f59e0b':'rgba(255,255,255,0.08)',
-                color:quarter===q?'#000':'#6b7280',
-              }}>{q}</button>
-            ))}
+            {[1,2,3,4,5].map((q,i)=>{
+              const lbl=['P1','P2','P3','P4','PT'][i]
+              return (
+                <button key={q} onClick={()=>{setQuarter(q);setSecs(600);setRunning(false)}} style={{
+                  padding:'2px 5px',borderRadius:4,border:'none',cursor:'pointer',
+                  fontSize:9,fontWeight:800,
+                  backgroundColor:quarter===q?'#f59e0b':'rgba(255,255,255,0.08)',
+                  color:quarter===q?'#000':'#6b7280',
+                }}>{lbl}</button>
+              )
+            })}
           </div>
           {/* Cronómetro */}
           <div style={{fontSize:28,fontWeight:900,letterSpacing:2,fontFamily:'monospace',
@@ -656,7 +700,7 @@ export default function GamePage() {
                         <span style={{fontSize:10,color:'#6b7280',flex:1}}>
                           ↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio
                         </span>
-                        <span style={{fontSize:9,color:'#374151',flexShrink:0}}>{ev.quarter}</span>
+                        <span style={{fontSize:9,color:'#374151',flexShrink:0}}>{Q_LABEL(ev.quarter)}</span>
                       </div>
                     )
                   }
@@ -674,7 +718,7 @@ export default function GamePage() {
                       <span style={{fontSize:10,color:'#9ca3af',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                         {EV_LABEL[ev.event_type]||ev.event_type}
                       </span>
-                      <span style={{fontSize:9,color:'#374151',flexShrink:0}}>{ev.quarter}</span>
+                      <span style={{fontSize:9,color:'#374151',flexShrink:0}}>{Q_LABEL(ev.quarter)}</span>
                     </div>
                   )
                 })}
@@ -756,7 +800,7 @@ export default function GamePage() {
                     borderRadius:8,backgroundColor:'#fff',border:`1px solid ${isOur?'#f0fdf4':'#fef9f0'}`}}>
                     <span style={{fontSize:10,fontWeight:800,color:'#fff',
                       backgroundColor:isOur?'#16a34a':'#d97706',borderRadius:4,padding:'1px 6px',flexShrink:0}}>
-                      {ev.quarter}
+                      {Q_LABEL(ev.quarter)}
                     </span>
                     <span style={{fontSize:12,fontWeight:600,color:'#374151',flex:1}}>{EV_LABEL[ev.event_type]||ev.event_type}</span>
                     <span style={{fontSize:11,color:'#9ca3af'}}>{pl}</span>

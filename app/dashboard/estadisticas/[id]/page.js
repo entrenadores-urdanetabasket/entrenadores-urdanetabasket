@@ -277,6 +277,19 @@ export default function GamePage() {
     return () => clearInterval(intervalRef.current)
   }, [running])
 
+  // ── Auto-sincronización con la BD cada 10 s ──────────────────────────────
+  // Garantiza que el box-score y el log nunca se desfasen, incluso si una
+  // actualización optimista falló o se perdió en la cadena de acciones.
+  useEffect(() => {
+    if (!id || !user) return
+    const sync = setInterval(async () => {
+      const { data } = await supabase
+        .from('game_events').select('*').eq('game_id', id).order('created_at',{ascending:true})
+      if (data) setEvents(data)
+    }, 10000)
+    return () => clearInterval(sync)
+  }, [id, user])
+
   async function load() {
     const { data: g } = await supabase.from('games').select('*').eq('id', id).single()
     if (!g) { router.replace('/dashboard/estadisticas'); return }
@@ -326,8 +339,10 @@ export default function GamePage() {
       return null
     }
     if (ev) {
-      const next = [...events, ev]
-      setEvents(next)
+      // Usar setState funcional para evitar stale closure cuando se encadenan
+      // múltiples saveEv en la misma cadena de acciones (tapón→tiro→rebote, etc.)
+      let next = []
+      setEvents(prev => { next = [...prev, ev]; return next })
       const sc = computeScores(next)
       await supabase.from('games')
         .update({ our_score: sc.us, rival_score: sc.rival, status: 'live', quarter })
@@ -472,8 +487,8 @@ export default function GamePage() {
     if (last.id && typeof last.id === 'string' && last.id.length > 20) {
       await supabase.from('game_events').delete().eq('id', last.id)
     }
-    const next = events.slice(0,-1)
-    setEvents(next)
+    let next = []
+    setEvents(prev => { next = prev.slice(0,-1); return next })
     const sc = computeScores(next)
     supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival }).eq('id',id)
     setGame(prev=>prev?{...prev,our_score:sc.us,rival_score:sc.rival}:prev)

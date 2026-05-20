@@ -359,28 +359,28 @@ export default function GamePage() {
     if (a === 'foul') {
       setArmed(null)
       await saveEv('foul_personal', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: null })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: null, foulType:'foul_personal', foulTeam:team })
       return
     }
     // Antideportiva → FIBA = 2 TL + posesión
     if (a === 'unsporting') {
       setArmed(null)
       await saveEv('foul_unsporting', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2, foulType:'foul_unsporting', foulTeam:team })
       return
     }
     // Técnica jugador → 1 TL FIBA
     if (a === 'technical_player') {
       setArmed(null)
       await saveEv('foul_technical', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 1 })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 1, foulType:'foul_technical', foulTeam:team })
       return
     }
     // Descalificante jugador → 2 TL FIBA
     if (a === 'disq_player') {
       setArmed(null)
       await saveEv('foul_disqualifying', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2 })
+      setModal({ type:'ask_fouled_player', ftTeam: team==='us'?'rival':'us', defaultTL: 2, foulType:'foul_disqualifying', foulTeam:team })
       return
     }
     // Sustitución rival (la nuestra se abre directamente desde armAction)
@@ -927,17 +927,23 @@ export default function GamePage() {
             <button onClick={async()=>{
               const evType = modal.foulType==='technical'?'foul_technical':'foul_disqualifying'
               const theTeam = modal.team
+              const tl = modal.foulType==='technical'?1:2
               setArmed(null)
               await saveEv(evType, theTeam, null, {})
-              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: modal.foulType==='technical'?1:2 })
-            }} style={{...btnStyle('#374151',13), textAlign:'center'}}>🧑‍💼 Entrenador</button>
+              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: tl, foulType: evType, foulTeam: theTeam })
+            }} style={{...btnStyle('#374151',13), textAlign:'center'}}>
+              🧑‍💼 Entrenador {modal.foulType==='technical'?'(C1 — 1 TL)':'(C2 — 2 TL)'}
+            </button>
             <button onClick={async()=>{
               const evType = modal.foulType==='technical'?'foul_technical':'foul_disqualifying'
               const theTeam = modal.team
+              const tl = modal.foulType==='technical'?1:2
               setArmed(null)
               await saveEv(evType, theTeam, null, {})
-              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: modal.foulType==='technical'?1:2 })
-            }} style={{...btnStyle('#374151',13), textAlign:'center'}}>🪑 Banquillo</button>
+              setModal({ type:'ask_fouled_player', ftTeam: theTeam==='us'?'rival':'us', defaultTL: tl, foulType: evType, foulTeam: theTeam })
+            }} style={{...btnStyle('#374151',13), textAlign:'center'}}>
+              🪑 Banquillo {modal.foulType==='technical'?'(B1 — 1 TL)':'(B2 — 2 TL)'}
+            </button>
           </div>
           {/* ¿Qué equipo? */}
           <div style={{marginTop:14}}>
@@ -1149,12 +1155,28 @@ export default function GamePage() {
       {/* ── OVERLAY: Tiros libres tras falta ─────────────────────────── */}
       {modal?.type==='ask_ft_after_foul' && (
         <Overlay onClose={()=>setModal(null)}>
-          <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:4,textAlign:'center'}}>
+          <div style={{color:'#fff',fontSize:15,fontWeight:900,marginBottom:2,textAlign:'center'}}>
             🎯 ¿Tiros libres?
           </div>
+          {/* Nombre FIBA de la sanción */}
+          {modal.foulType && modal.foulType !== 'foul_personal' && (
+            <div style={{color:'#9ca3af',fontSize:10,textAlign:'center',marginBottom:6}}>
+              {modal.foulType==='foul_technical' ? 'Técnica · 1 TL'
+                : modal.foulType==='foul_unsporting' ? 'Antideportiva · 2 TL + posesión'
+                : modal.foulType==='foul_disqualifying' ? 'Descalificante · 2 TL + posesión'
+                : ''}
+            </div>
+          )}
           <div style={{color: modal.ftTeam==='us'?'#4ade80':'#fbbf24',
-            fontSize:12,fontWeight:800,textAlign:'center',marginBottom:16}}>
+            fontSize:12,fontWeight:800,textAlign:'center',marginBottom:12}}>
             Para: {modal.ftTeam==='us'?'🟢 Nosotros':`🟡 ${game.rival_name}`}
+            {modal.shooterRef && (
+              <span style={{fontWeight:500,color:'#d1d5db'}}>
+                {' '}— #{modal.ftTeam==='us'
+                  ? (gps.find(g=>g.player_id===modal.shooterRef)?.players?.number ?? modal.shooterRef)
+                  : modal.shooterRef}
+              </span>
+            )}
           </div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:8}}>
             <button onClick={()=>setModal(null)}
@@ -1172,10 +1194,18 @@ export default function GamePage() {
               </button>
             ))}
           </div>
-          {modal.defaultTL && (
-            <div style={{color:'#fbbf24',fontSize:10,textAlign:'center',fontStyle:'italic'}}>
-              Antideportiva FIBA = {modal.defaultTL} tiros libres + posesión
-            </div>
+          {/* Compensación: solo para técnica / antideportiva / descalificante */}
+          {modal.foulType && modal.foulType !== 'foul_personal' && (
+            <button onClick={async()=>{
+              // El otro equipo cometió la misma infracción simultáneamente → se anulan los TL
+              await saveEv(modal.foulType, modal.ftTeam, null)
+              setModal(null)
+            }}
+            style={{width:'100%',padding:'11px',marginTop:4,
+              backgroundColor:'#1c1917',border:'2px solid #57534e',
+              borderRadius:10,color:'#d6d3d1',fontSize:12,fontWeight:800,cursor:'pointer'}}>
+              ⚖️ Compensar — ambas faltas se anulan (sin TL)
+            </button>
           )}
         </Overlay>
       )}
@@ -1196,7 +1226,7 @@ export default function GamePage() {
               : rivalVisible.map(n=>({ k:n, label:`#${n}`, ref:n }))
             ).map(item=>(
               <button key={item.k}
-                onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:item.ref })}
+                onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:item.ref, foulType:modal.foulType, foulTeam:modal.foulTeam })}
                 style={{padding:'8px 12px',borderRadius:8,border:'none',cursor:'pointer',
                   backgroundColor: modal.ftTeam==='us'?'#16a34a':'#d97706',
                   color:'#fff',fontSize:12,fontWeight:800}}>
@@ -1204,7 +1234,7 @@ export default function GamePage() {
               </button>
             ))}
           </div>
-          <button onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:null })}
+          <button onClick={()=>setModal({ type:'ask_ft_after_foul', ftTeam:modal.ftTeam, defaultTL:modal.defaultTL, shooterRef:null, foulType:modal.foulType, foulTeam:modal.foulTeam })}
             style={{width:'100%',padding:'10px',backgroundColor:'#374151',color:'#9ca3af',
               border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:'pointer'}}>
             Sin jugador específico

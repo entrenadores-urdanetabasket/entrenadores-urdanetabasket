@@ -145,7 +145,7 @@ export default function EstadisticasPage() {
               : '—'
             const isLive = game.status === 'live'
             return (
-              <Link key={game.id} href={`/dashboard/estadisticas/${game.id}`} style={{ textDecoration: 'none' }}>
+              <Link key={game.id} href={`/live/${game.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{
                   backgroundColor: '#fff', borderRadius: 14, border: `1px solid ${isLive ? '#fca5a5' : '#f3f4f6'}`,
                   padding: '14px 18px', boxShadow: isLive ? '0 2px 12px rgba(239,68,68,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',

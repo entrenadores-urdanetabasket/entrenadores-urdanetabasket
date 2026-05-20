@@ -185,26 +185,26 @@ function PlayerTile({ number, name, fouls = 0, active, color = '#22c55e', onClic
     }}>
       <div style={{
         width: 50, height: 50, borderRadius: 25,
-        backgroundColor: active ? color + '22' : color + '0f',
-        border: `2px solid ${active ? color : color + '30'}`,
-        boxShadow: active ? `0 0 16px ${color}44` : 'none',
+        backgroundColor: active ? color + '28' : '#1e2a3a',
+        border: `2px solid ${active ? color : '#3a4a60'}`,
+        boxShadow: active ? `0 0 16px ${color}55` : 'none',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 18, fontWeight: 900,
-        color: active ? color : color + '60',
+        color: active ? color : '#c9d1d9',
         transition: 'all 0.12s',
       }}>{number}</div>
       <div style={{ display: 'flex', gap: 2.5 }}>
         {[1,2,3,4,5].map(i => (
           <div key={i} style={{
             width: 5, height: 5, borderRadius: 3,
-            backgroundColor: i <= f ? dotColor : (active ? color + '20' : '#ffffff0c'),
+            backgroundColor: i <= f ? dotColor : '#2d3e55',
           }}/>
         ))}
       </div>
       {name && (
         <span style={{
           fontSize: 7.5, fontWeight: 600,
-          color: active ? color + 'cc' : '#374151',
+          color: active ? color + 'cc' : '#8899aa',
           maxWidth: 54, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{name.split(' ')[0]}</span>
       )}
@@ -216,14 +216,14 @@ function ActionBtn({ label, color, aKey, armed, armAction, wide, cols3 }) {
   const isActive = armed === aKey
   return (
     <button onClick={() => armAction(aKey)} style={{
-      padding: '8px 3px',
+      padding: '9px 3px',
       gridColumn: wide ? 'span 2' : undefined,
-      borderRadius: 7, cursor: 'pointer',
-      backgroundColor: isActive ? color : color + '14',
-      color: isActive ? '#fff' : color + 'cc',
-      fontSize: cols3 ? 8 : 9, fontWeight: 800, lineHeight: 1.2,
-      border: `1px solid ${isActive ? color : color + '28'}`,
-      boxShadow: isActive ? `0 0 12px ${color}55` : 'none',
+      borderRadius: 8, cursor: 'pointer',
+      backgroundColor: isActive ? color : '#1a2438',
+      color: isActive ? '#fff' : '#d1d9e6',
+      fontSize: cols3 ? 9 : 10, fontWeight: 800, lineHeight: 1.2,
+      border: `1px solid ${isActive ? color : '#2d3f58'}`,
+      boxShadow: isActive ? `0 0 14px ${color}66` : 'none',
       transition: 'all 0.1s',
     }}>{label}</button>
   )
@@ -660,7 +660,7 @@ export default function LivePage() {
       {/* ══ TOP BAR ════════════════════════════════════════════════════════════ */}
       <div className="np" style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 12px', height:38, backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
-        <Link href="/dashboard/estadisticas" style={{ color:'#4b5563', fontSize:11, fontWeight:700, textDecoration:'none' }}>
+        <Link href="/dashboard/estadisticas" style={{ color:'#7a8da8', fontSize:11, fontWeight:700, textDecoration:'none' }}>
           ← Estadísticas
         </Link>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -668,13 +668,13 @@ export default function LivePage() {
             <div style={{ width:6, height:6, borderRadius:3, backgroundColor:'#ef4444',
               boxShadow:'0 0 6px #ef4444', animation:'pulse 1.5s infinite' }}/>
           )}
-          <span style={{ color:'#374151', fontSize:10, fontWeight:600 }}>
+          <span style={{ color:'#8899aa', fontSize:10, fontWeight:600 }}>
             {TYPE_LABEL[game.game_type]||''}{dateStr ? ` · ${dateStr}` : ''}
           </span>
         </div>
         {isFinished
           ? <span style={{ color:'#22c55e', fontSize:10, fontWeight:700 }}>✓ Final</span>
-          : <button onClick={handleFinish} style={{ background:'none', border:'none', color:'#4b5563', fontSize:10, fontWeight:700, cursor:'pointer' }}>🏁 Fin</button>
+          : <button onClick={handleFinish} style={{ background:'none', border:'none', color:'#7a8da8', fontSize:10, fontWeight:700, cursor:'pointer' }}>🏁 Fin</button>
         }
       </div>
 
@@ -689,10 +689,10 @@ export default function LivePage() {
             <div style={{ minWidth:0 }}>
               <div style={{ color:'#22c55e', fontWeight:900, fontSize:11, lineHeight:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ourName}</div>
               <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
-                <span style={{ fontSize:8, color:ourBonus?'#ef4444':'#374151', fontWeight:700 }}>
+                <span style={{ fontSize:8, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
                   F:{ourFoulsQ}{ourBonus&&' ⚡'}
                 </span>
-                <span style={{ fontSize:8, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#374151', fontWeight:700 }}>
+                <span style={{ fontSize:8, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
                   TM:{ourTOsLeft}/{_toMax}
                 </span>
               </div>
@@ -750,10 +750,10 @@ export default function LivePage() {
             <div style={{ minWidth:0, textAlign:'right' }}>
               <div style={{ color:'#f97316', fontWeight:900, fontSize:11, lineHeight:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{rivalName}</div>
               <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2, justifyContent:'flex-end' }}>
-                <span style={{ fontSize:8, color:rivalBonus?'#ef4444':'#374151', fontWeight:700 }}>
+                <span style={{ fontSize:8, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
                   F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
                 </span>
-                <span style={{ fontSize:8, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#374151', fontWeight:700 }}>
+                <span style={{ fontSize:8, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
                   TM:{rivalTOsLeft}/{_toMax}
                 </span>
               </div>
@@ -782,7 +782,7 @@ export default function LivePage() {
           <button key={t.k} onClick={() => setTab(t.k)} style={{
             flex:1, padding:'8px 4px', border:'none', cursor:'pointer', fontSize:10, fontWeight:700,
             backgroundColor:'transparent',
-            color:tab===t.k?'#22c55e':'#374151',
+            color:tab===t.k?'#22c55e':'#7a8da8',
             borderBottom:tab===t.k?'2px solid #22c55e':'2px solid transparent',
             transition:'color 0.15s, border-color 0.15s',
           }}>{t.l}</button>
@@ -839,7 +839,7 @@ export default function LivePage() {
               {/* Live log */}
               <div style={{ flex:1, padding:'0 5px 4px', overflowY:'auto' }}>
                 {events.length===0
-                  ? <div style={{ color:'#1f2937', fontSize:9, textAlign:'center', paddingTop:8 }}>Sin acciones aún</div>
+                  ? <div style={{ color:'#4b5e78', fontSize:9, textAlign:'center', paddingTop:8 }}>Sin acciones aún</div>
                   : [...events].reverse().slice(0,15).map((ev, i) => {
                       const isOur = ev.team==='us'
                       const gp = isOur ? gps.find(g => g.player_id===ev.player_id) : null
@@ -850,22 +850,22 @@ export default function LivePage() {
                         const inGp  = gps.find(g => g.player_id===ev.player_id)
                         const outGp = gps.find(g => g.player_id===ev.linked_event_id)
                         return (
-                          <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'2px 0', borderBottom:'1px solid #0d1018' }}>
+                          <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'3px 0', borderBottom:'1px solid #161e2d' }}>
                             <span style={{ fontSize:8, fontWeight:800, color:isOur?'#22c55e':'#f97316', width:10 }}>{isOur?'A':'B'}</span>
-                            <span style={{ fontSize:8, color:'#374151', flex:1 }}>↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio</span>
-                            <span style={{ fontSize:7, color:'#1f2937' }}>{Q_LABEL(ev.quarter)}</span>
+                            <span style={{ fontSize:8, color:'#8899aa', flex:1 }}>↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio</span>
+                            <span style={{ fontSize:7, color:'#4b5e78' }}>{Q_LABEL(ev.quarter)}</span>
                           </div>
                         )
                       }
                       return (
-                        <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'2px 0',
-                          borderBottom:'1px solid #0d1018', backgroundColor:i===0?'rgba(255,255,255,0.02)':'transparent' }}>
+                        <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'3px 0',
+                          borderBottom:'1px solid #161e2d', backgroundColor:i===0?'rgba(255,255,255,0.03)':'transparent' }}>
                           <span style={{ fontSize:8, fontWeight:800, color:isOur?'#22c55e':'#f97316', width:10 }}>{isOur?'A':'B'}</span>
-                          <span style={{ fontSize:8, fontWeight:700, color:'#4b5563', width:22, flexShrink:0 }}>{pLbl}</span>
-                          <span style={{ fontSize:8, color:'#374151', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <span style={{ fontSize:8, fontWeight:700, color:'#7a8da8', width:22, flexShrink:0 }}>{pLbl}</span>
+                          <span style={{ fontSize:8, color:'#a8b8cc', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {EV_LABEL[ev.event_type]||ev.event_type}
                           </span>
-                          <span style={{ fontSize:7, color:'#1f2937' }}>{Q_LABEL(ev.quarter)}</span>
+                          <span style={{ fontSize:7, color:'#4b5e78' }}>{Q_LABEL(ev.quarter)}</span>
                         </div>
                       )
                     })}

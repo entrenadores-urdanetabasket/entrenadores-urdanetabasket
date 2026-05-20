@@ -27,11 +27,19 @@ export default function NuevoPartidoPage() {
   useEffect(() => { if (user) loadTeam() }, [user])
 
   async function loadTeam() {
+    // Los entrenadores se asignan via tabla team_coaches (igual que en equipo/page.js)
+    const { data: tc } = await supabase
+      .from('team_coaches')
+      .select('team_id')
+      .eq('coach_id', user.id)
+
+    const teamIds = (tc || []).map(r => r.team_id)
+    if (teamIds.length === 0) return
+
     const { data: teams } = await supabase
       .from('teams')
       .select('id, name, category')
-      .eq('coach_id', user.id)
-      .eq('active', true)
+      .in('id', teamIds)
 
     if (!teams || teams.length === 0) return
     setTeam(teams[0])

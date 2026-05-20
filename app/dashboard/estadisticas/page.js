@@ -32,12 +32,19 @@ export default function EstadisticasPage() {
 
   async function loadGames() {
     setLoading(true)
-    // Get coach's team
+    // Los entrenadores se asignan via tabla team_coaches
+    const { data: tc } = await supabase
+      .from('team_coaches')
+      .select('team_id')
+      .eq('coach_id', user.id)
+
+    const teamIds = (tc || []).map(r => r.team_id)
+    if (teamIds.length === 0) { setLoading(false); return }
+
     const { data: teams } = await supabase
       .from('teams')
       .select('id, name, category')
-      .eq('coach_id', user.id)
-      .eq('active', true)
+      .in('id', teamIds)
 
     if (!teams || teams.length === 0) { setLoading(false); return }
     const teamId = teams[0].id

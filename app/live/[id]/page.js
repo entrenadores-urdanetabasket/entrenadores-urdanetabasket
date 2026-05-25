@@ -413,6 +413,130 @@ function PrintBS({ rows }) {
   )
 }
 
+// ── Mapa de pista para PDF (SVG estático, sin interacción) ────────────────────
+function PrintCourtSVG({ shots = [] }) {
+  const W=280, H=196, P=8
+  const CW=W-P*2, CH=H-P*2
+  const sx=CW/15, sy=CH/14
+  const fx=m=>P+m*sx, fy=m=>P+m*sy
+  const bx=fx(7.5), by=fy(1.575)
+  const pL=fx((15-4.9)/2), pW=4.9*sx, ftY=fy(5.8), ftR=1.8*sx
+  const r3=6.75*sx, c3x=fx(0.9), c3xR=fx(14.1)
+  const c3y=by+Math.sqrt(Math.max(0,r3*r3-(bx-c3x)**2))
+  const rR=1.25*sx, bbW=1.83*sx, bbY=fy(0.75), ccR=1.8*sx, ccY=P+CH
+  const a1=Math.atan2(c3y-by,c3x-bx), a2=Math.atan2(c3y-by,c3xR-bx)
+  const arcPts=Array.from({length:73},(_,i)=>{const t=a1+(a2-a1)*i/72;return`${(bx+r3*Math.cos(t)).toFixed(1)},${(by+r3*Math.sin(t)).toFixed(1)}`})
+  const d3=[`M ${c3x.toFixed(1)},${P}`,`L ${c3x.toFixed(1)},${c3y.toFixed(1)}`,...arcPts.map((p,i)=>i===0?`M ${p}`:`L ${p}`),`L ${c3xR.toFixed(1)},${c3y.toFixed(1)}`,`L ${c3xR.toFixed(1)},${P}`].join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display:'block', borderRadius:6 }}>
+      <rect width={W} height={H} fill="#c89445" rx={6}/>
+      {Array.from({length:18},(_,i)=><line key={i} x1={P+(i+0.5)*CW/18} y1={0} x2={P+(i+0.5)*CW/18} y2={H} stroke="rgba(0,0,0,0.06)" strokeWidth={0.7}/>)}
+      <rect x={P} y={P} width={CW} height={CH} fill="none" stroke="#fff" strokeWidth={1.8}/>
+      <line x1={P} y1={ccY} x2={P+CW} y2={ccY} stroke="#fff" strokeWidth={1.5}/>
+      <path d={`M ${fx(7.5)-ccR} ${ccY} A ${ccR} ${ccR} 0 0 0 ${fx(7.5)+ccR} ${ccY}`} fill="none" stroke="#fff" strokeWidth={1.2}/>
+      <rect x={pL} y={P} width={pW} height={ftY-P} fill="rgba(120,60,5,0.25)" stroke="#fff" strokeWidth={1.3}/>
+      <line x1={pL} y1={ftY} x2={pL+pW} y2={ftY} stroke="#fff" strokeWidth={1.5}/>
+      <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 0 ${bx+ftR} ${ftY}`} fill="none" stroke="#fff" strokeWidth={1.3}/>
+      <path d={`M ${bx-ftR} ${ftY} A ${ftR} ${ftR} 0 0 1 ${bx+ftR} ${ftY}`} fill="none" stroke="#fff" strokeWidth={1.3}/>
+      <path d={d3} fill="none" stroke="#fff" strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round"/>
+      <path d={`M ${bx-rR} ${by} A ${rR} ${rR} 0 0 1 ${bx+rR} ${by}`} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={1} strokeDasharray="3 2"/>
+      <rect x={bx-bbW/2} y={bbY-1.5} width={bbW} height={3} fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth={2}/>
+      <line x1={bx} y1={bbY+2} x2={bx} y2={by-5} stroke="rgba(255,255,255,0.5)" strokeWidth={1}/>
+      <circle cx={bx} cy={by} r={5} fill="none" stroke="#ff5722" strokeWidth={2.5}/>
+      {shots.map((s,i)=>{
+        const px=P+s.x*CW, py=P+s.y*CH
+        return s.made
+          ? <circle key={i} cx={px} cy={py} r={5} fill="rgba(22,163,74,0.9)" stroke="#14532d" strokeWidth={1.2}/>
+          : <g key={i}><circle cx={px} cy={py} r={5} fill="rgba(220,38,38,0.85)" stroke="#991b1b" strokeWidth={1.2}/><line x1={px-3} y1={py-3} x2={px+3} y2={py+3} stroke="#fff" strokeWidth={1.2}/><line x1={px+3} y1={py-3} x2={px-3} y2={py+3} stroke="#fff" strokeWidth={1.2}/></g>
+      })}
+    </svg>
+  )
+}
+
+// ── Tarjeta individual de jugador para PDF ────────────────────────────────────
+function PrintPlayerCard({ number, name, stats, shots, color='#1C5C2A' }) {
+  const s = stats || {}
+  const totalFGA = (s.fg2a||0)+(s.fg3a||0)
+  const totalFGM = (s.fg2m||0)+(s.fg3m||0)
+  const fgPct  = totalFGA>0 ? Math.round(totalFGM/totalFGA*100) : '—'
+  const fg3Pct = (s.fg3a||0)>0 ? Math.round((s.fg3m||0)/(s.fg3a||0)*100) : '—'
+  const ftPct  = (s.fta||0)>0  ? Math.round((s.ftm||0)/(s.fta||0)*100)   : '—'
+  const madeShots   = shots.filter(sh=>sh.made).length
+  const totalShots  = shots.length
+  const shotPct     = totalShots>0 ? Math.round(madeShots/totalShots*100) : null
+
+  const cells = [
+    { l:'PTS',  v: s.pts||0,  big:true, hi:(s.pts||0)>0 },
+    { l:'TC',   v: `${totalFGM}/${totalFGA}` },
+    { l:'TC%',  v: `${fgPct}${fgPct!=='—'?'%':''}` },
+    { l:'2P',   v: `${s.fg2m||0}/${s.fg2a||0}` },
+    { l:'3P',   v: `${s.fg3m||0}/${s.fg3a||0}` },
+    { l:'3P%',  v: `${fg3Pct}${fg3Pct!=='—'?'%':''}` },
+    { l:'TL',   v: `${s.ftm||0}/${s.fta||0}` },
+    { l:'TL%',  v: `${ftPct}${ftPct!=='—'?'%':''}` },
+    { l:'REB',  v: s.reb||0 },
+    { l:'AST',  v: s.ast||0 },
+    { l:'ROB',  v: s.stl||0 },
+    { l:'TAP',  v: s.blk||0 },
+    { l:'PÉR',  v: s.tov||0 },
+    { l:'F',    v: s.fouls||0, warn:(s.fouls||0)>=5 },
+  ]
+
+  return (
+    <div style={{ border:`1.5px solid ${color}44`, borderRadius:8, overflow:'hidden',
+      breakInside:'avoid', pageBreakInside:'avoid', backgroundColor:'#fff', fontFamily:'Arial,sans-serif' }}>
+      {/* Cabecera jugador */}
+      <div style={{ background:`linear-gradient(135deg,${color},${color}cc)`, padding:'7px 10px',
+        display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ width:30, height:30, borderRadius:7, backgroundColor:'rgba(255,255,255,0.25)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:14, fontWeight:900, color:'#fff', flexShrink:0 }}>
+          {number}
+        </div>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:11, fontWeight:900, color:'#fff', lineHeight:1.2 }}>{name}</div>
+        </div>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:22, fontWeight:900, color:'#fff', lineHeight:1 }}>{s.pts||0}</div>
+          <div style={{ fontSize:7, color:'rgba(255,255,255,0.7)', fontWeight:600 }}>puntos</div>
+        </div>
+      </div>
+
+      {/* Grid estadísticas */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:1, padding:4, backgroundColor:'#f9fafb' }}>
+        {cells.map(c=>(
+          <div key={c.l} style={{ textAlign:'center', padding:'4px 2px',
+            backgroundColor:c.warn?'#fef2f2':c.big?`${color}12`:'#fff',
+            borderRadius:3, border:`1px solid ${c.warn?'#fca5a5':'#e5e7eb'}` }}>
+            <div style={{ fontSize:5.5, color:'#9ca3af', fontWeight:700, letterSpacing:0.3 }}>{c.l}</div>
+            <div style={{ fontSize:c.big?11:8, fontWeight:c.big?900:700,
+              color:c.warn?'#dc2626':c.big?color:'#374151', lineHeight:1.2, marginTop:1 }}>
+              {c.v}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Mapa de tiro */}
+      <div style={{ padding:'4px 6px 6px' }}>
+        <PrintCourtSVG shots={shots}/>
+        <div style={{ display:'flex', gap:10, justifyContent:'center', marginTop:3, fontSize:7.5, color:'#555' }}>
+          <span style={{ display:'flex', alignItems:'center', gap:3 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', backgroundColor:'#16a34a', display:'inline-block' }}/>
+            Anotado ({madeShots})
+          </span>
+          <span style={{ display:'flex', alignItems:'center', gap:3 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', backgroundColor:'#dc2626', display:'inline-block' }}/>
+            Fallado ({totalShots-madeShots})
+          </span>
+          {shotPct!==null && <span style={{ fontWeight:700 }}>TC: {shotPct}%</span>}
+          {totalShots===0 && <span style={{ color:'#9ca3af' }}>Sin tiros registrados</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function LivePage() {
   const { user, supabase } = useAuth()
@@ -834,7 +958,12 @@ export default function LivePage() {
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
         .tb:active{transform:scale(0.88);filter:brightness(1.4)}
-        @media print{.np{display:none!important}.po{display:block!important}}
+        @media print{
+          .np{display:none!important}
+          .po{display:block!important}
+          body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          @page{margin:1.2cm}
+        }
         .po{display:none}
         ::-webkit-scrollbar{width:3px;height:3px}
         ::-webkit-scrollbar-track{background:transparent}
@@ -1901,13 +2030,118 @@ export default function LivePage() {
       })()}
 
       {/* ══ PRINTABLE ═════════════════════════════════════════════════════════ */}
-      <div className="po">
-        <h1 style={{ textAlign:'center', fontSize:18, margin:'0 0 4px' }}>vs {rivalName}</h1>
-        <p style={{ textAlign:'center', fontSize:12, color:'#666', margin:'0 0 16px' }}>{game.date} · {scores.us}–{scores.rival}</p>
-        <h2 style={{ fontSize:14, marginBottom:8 }}>{ourName}</h2>
-        <PrintBS rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
-        <h2 style={{ fontSize:14, marginTop:20, marginBottom:8 }}>{rivalName}</h2>
-        <PrintBS rows={rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
+      <div className="po" style={{ fontFamily:'Arial,sans-serif', color:'#111827' }}>
+
+        {/* ── Página 1: Cabecera + Box Score global ── */}
+        <div style={{ maxWidth:720, margin:'0 auto', padding:'0 8px' }}>
+
+          {/* Cabecera */}
+          <div style={{ textAlign:'center', marginBottom:16, paddingBottom:12, borderBottom:'3px solid #1C5C2A' }}>
+            <div style={{ fontSize:9, fontWeight:700, color:'#9ca3af', letterSpacing:1.5, textTransform:'uppercase', marginBottom:4 }}>
+              Estadísticas de Partido — {TYPE_LABEL[game?.game_type]||''}
+            </div>
+            <div style={{ fontSize:22, fontWeight:900, color:'#111827', marginBottom:4 }}>
+              {ourName} <span style={{ color:'#9ca3af', fontSize:16, fontWeight:400 }}>vs</span> {rivalName}
+            </div>
+            <div style={{ fontSize:11, color:'#6b7280', marginBottom:8 }}>
+              {game?.date ? new Date(game.date+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : ''}
+              {game?.location ? ` · ${game.location}` : ''}
+            </div>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:16,
+              padding:'8px 24px', borderRadius:10, backgroundColor:'#f3f4f6', border:'1px solid #e5e7eb' }}>
+              <span style={{ fontSize:32, fontWeight:900, color:'#1C5C2A' }}>{scores.us}</span>
+              <span style={{ fontSize:14, color:'#9ca3af', fontWeight:600 }}>—</span>
+              <span style={{ fontSize:32, fontWeight:900, color:'#d97706' }}>{scores.rival}</span>
+            </div>
+          </div>
+
+          {/* Box score equipo local */}
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:12, fontWeight:900, color:'#1C5C2A', marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ width:10, height:10, borderRadius:'50%', backgroundColor:'#22c55e', display:'inline-block' }}/>
+              {ourName}
+              <span style={{ marginLeft:'auto', fontSize:11, color:'#6b7280', fontWeight:600 }}>
+                {scores.us} pts totales
+              </span>
+            </div>
+            <PrintBS rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
+          </div>
+
+          {/* Box score rival */}
+          <div>
+            <div style={{ fontSize:12, fontWeight:900, color:'#d97706', marginBottom:6, display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ width:10, height:10, borderRadius:'50%', backgroundColor:'#f97316', display:'inline-block' }}/>
+              {rivalName}
+              <span style={{ marginLeft:'auto', fontSize:11, color:'#6b7280', fontWeight:600 }}>
+                {scores.rival} pts totales
+              </span>
+            </div>
+            <PrintBS rows={rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
+          </div>
+        </div>
+
+        {/* ── Página 2+: Tarjetas individuales equipo local ── */}
+        <div style={{ pageBreakBefore:'always', maxWidth:720, margin:'0 auto', padding:'0 8px' }}>
+          <div style={{ fontSize:13, fontWeight:900, color:'#1C5C2A', marginBottom:12,
+            paddingBottom:8, borderBottom:'2px solid #1C5C2A', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ width:12, height:12, borderRadius:'50%', backgroundColor:'#22c55e', display:'inline-block' }}/>
+            Estadísticas individuales — {ourName}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            {gps.map(gp => {
+              const pid   = gp.player_id
+              const shots = events
+                .filter(e => e.team==='us' && e.player_id===pid
+                  && ['2pt_made','2pt_miss','3pt_made','3pt_miss'].includes(e.event_type)
+                  && e.shot_x != null)
+                .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y }))
+              return (
+                <PrintPlayerCard
+                  key={pid}
+                  number={gp.players?.number??'?'}
+                  name={gp.players?.full_name||'—'}
+                  stats={ourBS[pid]||{}}
+                  shots={shots}
+                  color="#1C5C2A"
+                />
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Página 3+: Tarjetas individuales rival (solo si hay tiros) ── */}
+        {rivals.some(n => {
+          const shots = events.filter(e => e.team==='rival' && e.rival_jersey===n
+            && ['2pt_made','2pt_miss','3pt_made','3pt_miss'].includes(e.event_type) && e.shot_x!=null)
+          return shots.length > 0 || (rivBS[n]?.pts||0) > 0
+        }) && (
+          <div style={{ pageBreakBefore:'always', maxWidth:720, margin:'0 auto', padding:'0 8px' }}>
+            <div style={{ fontSize:13, fontWeight:900, color:'#d97706', marginBottom:12,
+              paddingBottom:8, borderBottom:'2px solid #d97706', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ width:12, height:12, borderRadius:'50%', backgroundColor:'#f97316', display:'inline-block' }}/>
+              Estadísticas individuales — {rivalName}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {rivals.filter(n => (rivBS[n]?.pts||0) > 0 || events.some(e=>e.team==='rival'&&e.rival_jersey===n&&e.event_type.includes('_made'))).map(n => {
+                const shots = events
+                  .filter(e => e.team==='rival' && e.rival_jersey===n
+                    && ['2pt_made','2pt_miss','3pt_made','3pt_miss'].includes(e.event_type)
+                    && e.shot_x!=null)
+                  .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y }))
+                return (
+                  <PrintPlayerCard
+                    key={n}
+                    number={n}
+                    name={`#${n}`}
+                    stats={rivBS[n]||{}}
+                    shots={shots}
+                    color="#b45309"
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

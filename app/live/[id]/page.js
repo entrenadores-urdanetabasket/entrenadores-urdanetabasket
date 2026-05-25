@@ -802,17 +802,16 @@ export default function LivePage() {
       {tab==='live' && (
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
-          {/* 4-column: our players | log | actions | rival players */}
-          <div style={{ display:'grid', gridTemplateColumns:'76px 1fr 120px 54px', flex:1, overflow:'hidden' }}>
+          {/* SWISH layout: [our players] [rival players] [log] [actions] */}
+          <div style={{ display:'grid', gridTemplateColumns:'90px 66px 1fr 138px', flex:1, overflow:'hidden' }}>
 
-            {/* ── Col 1: Our players ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #141a26', display:'flex', flexDirection:'column' }}>
+            {/* ── Col A: Our players ── */}
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
               <button onClick={() => { setModal({ type:'sub', team:'us', currentCourt:[...onCourt] }); setArmed(null) }}
-                style={{ flexShrink:0, padding:'6px 4px', background:'#0d1a14',
-                  border:'none', borderBottom:'2px solid #22c55e44', cursor:'pointer',
-                  color:'#22c55e', fontSize:8, fontWeight:900, letterSpacing:0.3, textAlign:'center', lineHeight:1.5 }}>
+                style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
+                  background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
+                  color:'#22c55e', fontSize:11, fontWeight:900, letterSpacing:1 }}>
                 {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'NOS'}
-                <br/><span style={{ fontSize:7, opacity:0.65 }}>🔄 SUB</span>
               </button>
               {courtGps.map(gp => (
                 <PlayerTile key={gp.player_id}
@@ -824,85 +823,13 @@ export default function LivePage() {
               ))}
             </div>
 
-            {/* ── Col 2: Event log ── */}
-            <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
-              <div style={{ padding:'5px 8px 4px', borderBottom:'1px solid #141a26', flexShrink:0,
-                display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span style={{ fontSize:8, fontWeight:700, color:'#3a5070', letterSpacing:0.8 }}>ACCIONES</span>
-                <span style={{ fontSize:7, color:'#2d3e55' }}>{events.length}</span>
-              </div>
-              {events.length === 0
-                ? <div style={{ color:'#2d3e55', fontSize:10, textAlign:'center', padding:'24px 8px' }}>🏀<br/>Sin acciones</div>
-                : [...events].reverse().map((ev, i) => {
-                    const isOur = ev.team === 'us'
-                    const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
-                    const pLbl = isOur
-                      ? (gp?.players?.number != null ? `#${gp.players.number}` : '—')
-                      : (ev.rival_jersey != null ? `#${ev.rival_jersey}` : '—')
-                    const teamColor = isOur ? '#22c55e' : '#f97316'
-                    const label = EV_LABEL[ev.event_type] || ev.event_type
-                    if (ev.event_type === 'substitution') {
-                      const inGp  = gps.find(g => g.player_id === ev.player_id)
-                      const outGp = gps.find(g => g.player_id === ev.linked_event_id)
-                      return (
-                        <div key={ev.id||i} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 8px',
-                          borderBottom:'1px solid #0e1520', backgroundColor: i===0 ? '#0f1d2e' : 'transparent' }}>
-                          <span style={{ width:16, height:16, borderRadius:4, flexShrink:0,
-                            backgroundColor: teamColor+'22', border:`1px solid ${teamColor}55`,
-                            display:'flex', alignItems:'center', justifyContent:'center',
-                            fontSize:7, fontWeight:900, color:teamColor }}>{isOur?'A':'B'}</span>
-                          <span style={{ fontSize:9, color:'#6b82a0', flex:1 }}>
-                            ↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio
-                          </span>
-                          <span style={{ fontSize:8, color:'#2d3e55' }}>{Q_LABEL(ev.quarter)}</span>
-                        </div>
-                      )
-                    }
-                    return (
-                      <div key={ev.id||i} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 8px',
-                        borderBottom:'1px solid #0e1520', backgroundColor: i===0 ? '#0f1d2e' : 'transparent' }}>
-                        <span style={{ width:16, height:16, borderRadius:4, flexShrink:0,
-                          backgroundColor: teamColor+'22', border:`1px solid ${teamColor}55`,
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:7, fontWeight:900, color:teamColor }}>{isOur?'A':'B'}</span>
-                        <span style={{ fontSize:9, fontWeight:700, color:'#4b6480', flexShrink:0, minWidth:20 }}>{pLbl}</span>
-                        <span style={{ fontSize:9, fontWeight:700, color:'#b0c4d8', flex:1,
-                          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
-                        <span style={{ fontSize:8, color:'#2d3e55', flexShrink:0 }}>{Q_LABEL(ev.quarter)}</span>
-                      </div>
-                    )
-                  })}
-            </div>
-
-            {/* ── Col 3: Action buttons ── */}
-            <div style={{ overflowY:'auto', borderLeft:'1px solid #141a26', borderRight:'1px solid #141a26',
-              display:'flex', flexDirection:'column', padding:'5px 5px', gap:3 }}>
-              <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"            armed={armed} armAction={armAction}/>
-              <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"           armed={armed} armAction={armAction}/>
-              <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"           armed={armed} armAction={armAction}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
-                <ActionBtn label="FALTA"   color="#dc2626" aKey="foul"         armed={armed} armAction={armAction} small/>
-                <ActionBtn label="TÉCNICA" color="#b91c1c" aKey="technical"   armed={armed} armAction={armAction} small/>
-                <ActionBtn label="ANTIDEP" color="#b45309" aKey="unsporting"  armed={armed} armAction={armAction} small/>
-                <ActionBtn label="DESCAL." color="#7f1d1d" aKey="disqualifying" armed={armed} armAction={armAction} small/>
-              </div>
-              <ActionBtn label="T. MUERTO"   color="#0369a1" aKey="timeout"    armed={armed} armAction={armAction}/>
-              <ActionBtn label="SUSTITUCIÓN" color="#059669" aKey="sub"        armed={armed} armAction={armAction}/>
-              <div style={{ height:1, backgroundColor:'#141a26', margin:'1px 0' }}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:2 }}>
-                <ActionBtn label="ROB" color="#059669" aKey="steal"    armed={armed} armAction={armAction} small/>
-                <ActionBtn label="TAP" color="#0284c7" aKey="block"    armed={armed} armAction={armAction} small/>
-                <ActionBtn label="PÉR" color="#d97706" aKey="turnover" armed={armed} armAction={armAction} small/>
-              </div>
-            </div>
-
-            {/* ── Col 4: Rival players ── */}
-            <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
+            {/* ── Col B: Rival players ── */}
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
-                style={{ flexShrink:0, padding:'6px 4px', background:'#1a0e00',
-                  border:'none', borderBottom:'2px solid #f9731644', cursor:'pointer',
-                  color:'#f97316', fontSize:8, fontWeight:900, textAlign:'center', lineHeight:1.5 }}>
-                RIV<br/><span style={{ fontSize:7, opacity:0.65 }}>🔄 SUB</span>
+                style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
+                  background:'#1a0f00', border:'none', borderBottom:'2px solid #f97316',
+                  color:'#f97316', fontSize:11, fontWeight:900, letterSpacing:1 }}>
+                {rivalName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'RIV'}
               </button>
               {rivalVisible.map(n => (
                 <PlayerTile key={n}
@@ -912,23 +839,86 @@ export default function LivePage() {
                   onClick={() => tapPlayer('rival', n)}/>
               ))}
             </div>
-          </div>
 
-          {/* Bottom bar */}
-          <div style={{ display:'flex', gap:6, padding:'6px 8px', backgroundColor:'#0d1018',
-            borderTop:'1px solid #141a26', flexShrink:0 }}>
-            <button onClick={handleUndo}
-              style={{ flex:1, padding:'8px', backgroundColor:'transparent', border:'1px solid #1f2937',
-                color:'#ef4444', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>
-              ↩ Deshacer
-            </button>
-            {!isFinished && (
-              <button onClick={handleFinish}
-                style={{ flex:1, padding:'8px', backgroundColor:'#200808', border:'1px solid #3f0e0e',
-                  color:'#fca5a5', borderRadius:8, fontSize:10, fontWeight:800, cursor:'pointer' }}>
-                🏁 Finalizar
+            {/* ── Col C: Event log (compact) ── */}
+            <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
+              <div style={{ padding:'4px 6px', borderBottom:'1px solid #141a26', flexShrink:0,
+                display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:7, fontWeight:700, color:'#2d4060', letterSpacing:1 }}>LOG</span>
+                <span style={{ fontSize:7, color:'#1e2d42' }}>{events.length}</span>
+              </div>
+              {events.length === 0
+                ? <div style={{ color:'#1e2d42', fontSize:9, textAlign:'center', padding:'16px 4px' }}>—</div>
+                : [...events].reverse().map((ev, i) => {
+                    const isOur = ev.team === 'us'
+                    const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
+                    const pNum = isOur
+                      ? (gp?.players?.number != null ? gp.players.number : '—')
+                      : (ev.rival_jersey != null ? ev.rival_jersey : '—')
+                    const teamColor = isOur ? '#22c55e' : '#f97316'
+                    const label = EV_LABEL[ev.event_type] || ev.event_type
+                    if (ev.event_type === 'substitution') {
+                      const inGp  = gps.find(g => g.player_id === ev.player_id)
+                      const outGp = gps.find(g => g.player_id === ev.linked_event_id)
+                      return (
+                        <div key={ev.id||i} style={{ padding:'3px 5px', borderBottom:'1px solid #0d1520',
+                          backgroundColor: i===0 ? '#0f1a2a' : 'transparent' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                            <span style={{ fontSize:7, fontWeight:900, color:teamColor, width:7 }}>{isOur?'A':'B'}</span>
+                            <span style={{ fontSize:8, color:'#8899aa', flex:1 }}>↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'}</span>
+                            <span style={{ fontSize:7, color:'#2d3e55' }}>{Q_LABEL(ev.quarter)}</span>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={ev.id||i} style={{ padding:'3px 5px', borderBottom:'1px solid #0d1520',
+                        backgroundColor: i===0 ? '#0f1a2a' : 'transparent',
+                        borderLeft: `2px solid ${teamColor}44` }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                          <span style={{ fontSize:9, fontWeight:900, color:teamColor, minWidth:16 }}>#{pNum}</span>
+                          <span style={{ fontSize:8, fontWeight:700, color:'#a8bccf', flex:1,
+                            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+                          <span style={{ fontSize:7, color:'#2d3e55', flexShrink:0 }}>{Q_LABEL(ev.quarter)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+            </div>
+
+            {/* ── Col D: Action buttons ── */}
+            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', padding:'5px 6px', gap:4 }}>
+              <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"              armed={armed} armAction={armAction}/>
+              <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"             armed={armed} armAction={armAction}/>
+              <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"             armed={armed} armAction={armAction}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
+                <ActionBtn label="FALTA"    color="#dc2626" aKey="foul"          armed={armed} armAction={armAction} small/>
+                <ActionBtn label="TÉCNICA"  color="#b91c1c" aKey="technical"    armed={armed} armAction={armAction} small/>
+                <ActionBtn label="ANTIDEP." color="#b45309" aKey="unsporting"   armed={armed} armAction={armAction} small/>
+                <ActionBtn label="DESCAL."  color="#7f1d1d" aKey="disqualifying" armed={armed} armAction={armAction} small/>
+              </div>
+              <ActionBtn label="T. MUERTO"    color="#0369a1" aKey="timeout"     armed={armed} armAction={armAction}/>
+              <ActionBtn label="SUSTITUCIÓN"  color="#059669" aKey="sub"         armed={armed} armAction={armAction}/>
+              <div style={{ height:1, backgroundColor:'#1a2540', margin:'1px 0' }}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
+                <ActionBtn label="ROB"  color="#059669" aKey="steal"    armed={armed} armAction={armAction} small/>
+                <ActionBtn label="TAP"  color="#0284c7" aKey="block"    armed={armed} armAction={armAction} small/>
+                <ActionBtn label="PÉR"  color="#d97706" aKey="turnover" armed={armed} armAction={armAction} small/>
+              </div>
+              <div style={{ height:1, backgroundColor:'#1a2540', margin:'1px 0' }}/>
+              <button onClick={handleUndo}
+                style={{ width:'100%', padding:'7px 4px', backgroundColor:'transparent',
+                  border:'1px solid #1f2937', color:'#ef4444', borderRadius:6, fontSize:9, fontWeight:700, cursor:'pointer' }}>
+                ↩ Deshacer
               </button>
-            )}
+              {!isFinished && (
+                <button onClick={handleFinish}
+                  style={{ width:'100%', padding:'7px 4px', backgroundColor:'#1c0505',
+                    border:'1px solid #3a0c0c', color:'#fca5a5', borderRadius:6, fontSize:9, fontWeight:800, cursor:'pointer' }}>
+                  🏁 Finalizar
+                </button>
+              )}
+            </div>
           </div>
 
           {isFinished && (

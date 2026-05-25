@@ -189,17 +189,16 @@ function TeamBadge({ name = '', color = '#888', size = 38, logoUrl = null }) {
     ? (words[0].length >= 3 ? words[0].slice(0, 3).toUpperCase() : words.map(w => w[0].toUpperCase()).join('').slice(0, 3))
     : (name[0]?.toUpperCase() || '?')
   if (logoUrl) {
-    // Wider container for landscape logos; height matches size
     return (
       <div style={{
-        height: size, minWidth: size, maxWidth: size * 2.8,
-        borderRadius: size * 0.2,
-        background: `#ffffff12`, border: `1.5px solid ${color}33`,
+        width: size, height: size,
+        borderRadius: size * 0.18,
+        background: 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0, overflow: 'hidden', padding: '0 4px',
+        flexShrink: 0, overflow: 'hidden',
       }}>
-        <img src={logoUrl} alt={init}
-          style={{ height: size - 8, maxWidth: size * 2.6, objectFit: 'contain' }}/>
+        <img src={logoUrl} alt={name}
+          style={{ width: size, height: size, objectFit: 'contain' }}/>
       </div>
     )
   }
@@ -502,24 +501,31 @@ export default function LivePage() {
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
 
     if (g.team_id) {
-      // Try direct query first; fall back to team_coaches join (handles RLS via coach_id column)
+      // Same pattern as estadisticas/page.js — get teams via team_coaches then query by IDs
       let teamName = null
-      const { data: t } = await supabase.from('teams').select('name').eq('id', g.team_id).single()
-      if (t?.name) {
-        teamName = t.name
-      } else {
-        // Fallback: get team name via team_coaches (same pattern as estadisticas page)
-        const { data: tc } = await supabase
-          .from('team_coaches')
-          .select('team_id, teams(name)')
-          .eq('coach_id', user.id)
-        const match = (tc || []).find(r => r.team_id === g.team_id)
-        if (match?.teams?.name) teamName = match.teams.name
+      const { data: tc } = await supabase
+        .from('team_coaches')
+        .select('team_id')
+        .eq('coach_id', user.id)
+      const teamIds = (tc || []).map(r => r.team_id)
+      if (teamIds.length > 0) {
+        const { data: tList } = await supabase
+          .from('teams')
+          .select('id, name')
+          .in('id', teamIds)
+        const match = (tList || []).find(t => t.id === g.team_id)
+        if (match?.name) teamName = match.name
+      }
+      // Final fallback: direct query (works if teams.coach_id = user.id)
+      if (!teamName) {
+        const { data: t } = await supabase.from('teams').select('name').eq('id', g.team_id).single()
+        if (t?.name) teamName = t.name
       }
       if (teamName) {
         setOurTeamName(teamName)
-        if (teamName.toLowerCase().includes('urdaneta')) setOurTeamLogo('/urdaneta-logo.svg')
       }
+      // Always show the club logo (all teams in this app belong to Club Deportivo Urdaneta)
+      setOurTeamLogo('/urdaneta-logo.svg')
     }
 
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
@@ -787,7 +793,7 @@ export default function LivePage() {
 
   const aActive = !!armed
   const bActive = !!armed
-  const ourName  = ourTeamName || 'Nosotros'
+  const ourName  = ourTeamName || 'Urdaneta'
   const rivalName = game.rival_name || 'Rival'
   const dateStr = game.date
     ? new Date(game.date+'T12:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'})

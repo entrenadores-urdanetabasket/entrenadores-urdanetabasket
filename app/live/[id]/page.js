@@ -953,7 +953,7 @@ export default function LivePage() {
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ height:'100dvh', overflow:'hidden', display:'flex', flexDirection:'column', backgroundColor:'#0a0c10' }}>
+    <div className="live-root" style={{ height:'100dvh', overflow:'hidden', display:'flex', flexDirection:'column', backgroundColor:'#0a0c10' }}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
@@ -961,8 +961,14 @@ export default function LivePage() {
         @media print{
           .np{display:none!important}
           .po{display:block!important}
-          body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+          body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff!important}
           @page{margin:1.2cm}
+          .live-root{
+            height:auto!important;max-height:none!important;
+            overflow:visible!important;display:block!important;
+            background-color:#fff!important;
+          }
+          .live-root *{overflow:visible!important}
         }
         .po{display:none}
         ::-webkit-scrollbar{width:3px;height:3px}

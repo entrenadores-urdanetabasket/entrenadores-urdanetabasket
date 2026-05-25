@@ -182,8 +182,23 @@ function CourtSVG({ onShot, shots = [] }) {
 
 // ─── UI COMPONENTS ────────────────────────────────────────────────────────────
 
-function TeamBadge({ name = '', color = '#888', size = 38 }) {
-  const init = name.split(' ').filter(w => w.length > 1).map(w => w[0].toUpperCase()).join('').slice(0, 3) || (name[0]?.toUpperCase() || '?')
+function TeamBadge({ name = '', color = '#888', size = 38, logoUrl = null }) {
+  // Use first 3 chars of first word (e.g. URDANETA → URD) instead of initials
+  const words = name.split(' ').filter(w => w.length > 1)
+  const init = words.length > 0
+    ? (words[0].length >= 3 ? words[0].slice(0, 3).toUpperCase() : words.map(w => w[0].toUpperCase()).join('').slice(0, 3))
+    : (name[0]?.toUpperCase() || '?')
+  if (logoUrl) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: size * 0.28,
+        background: `${color}10`, border: `1.5px solid ${color}44`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden',
+      }}>
+        <img src={logoUrl} alt={init} style={{ width: size - 6, height: size - 6, objectFit: 'contain' }}/>
+      </div>
+    )
+  }
   return (
     <div style={{
       width: size, height: size, borderRadius: size * 0.28,
@@ -404,6 +419,7 @@ export default function LivePage() {
   const [game, setGame]                 = useState(null)
   const [gps, setGps]                   = useState([])
   const [ourTeamName, setOurTeamName]   = useState('')
+  const [ourTeamLogo, setOurTeamLogo]   = useState(null)
   const [onCourt, setOnCourt]           = useState([])
   const [rivalOnCourt, setRivalOnCourt] = useState([])
   const [events, setEvents]             = useState([])
@@ -414,6 +430,8 @@ export default function LivePage() {
   const [secs, setSecs]         = useState(600)
   const [running, setRunning]   = useState(false)
   const intervalRef             = useRef(null)
+  const timerExpiredRef         = useRef(false)
+  const eventsRef               = useRef([])
 
   const [editingClock, setEditingClock] = useState(false)
   const [clockInput, setClockInput]     = useState('')
@@ -424,15 +442,44 @@ export default function LivePage() {
   // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => { if (user) load() }, [user])
 
+  useEffect(() => { eventsRef.current = events }, [events])
+
   useEffect(() => {
     clearInterval(intervalRef.current)
     if (running) {
       intervalRef.current = setInterval(() => {
-        setSecs(s => { if (s <= 1) { clearInterval(intervalRef.current); setRunning(false); return 0 } return s-1 })
+        setSecs(s => {
+          if (s <= 1) { clearInterval(intervalRef.current); setRunning(false); timerExpiredRef.current = true; return 0 }
+          return s - 1
+        })
       }, 1000)
     }
     return () => clearInterval(intervalRef.current)
   }, [running])
+
+  // Fin de cuarto — detectar cuando el reloj llega a 0 de forma natural
+  useEffect(() => {
+    if (timerExpiredRef.current && secs === 0 && !running) {
+      timerExpiredRef.current = false
+      if (game && !game?.status?.includes('finished')) {
+        setModal(prev => prev ? prev : { type: 'quarter_end' })
+      }
+    }
+  }, [running, secs])
+
+  // Regla FIBA: si a 1:59 del Q4 un equipo no ha pedido TM en la 2ª parte, pierde uno
+  useEffect(() => {
+    if (!running || secs !== 119 || quarter !== 4) return
+    const cur = eventsRef.current
+    const halfQs = [3, 4]
+    const ourTO = cur.filter(e => e.team==='us'    && e.event_type==='timeout' && halfQs.includes(Number(e.quarter))).length
+    const rivTO = cur.filter(e => e.team==='rival' && e.event_type==='timeout' && halfQs.includes(Number(e.quarter))).length
+    if (ourTO === 0 || rivTO === 0) {
+      if (ourTO === 0) saveEv('timeout', 'us',    null)
+      if (rivTO === 0) saveEv('timeout', 'rival',  null)
+      setModal(prev => prev ? prev : { type:'auto_timeout', ourDeducted:ourTO===0, rivDeducted:rivTO===0 })
+    }
+  }, [secs])
 
   useEffect(() => {
     if (!id || !user) return
@@ -451,8 +498,9 @@ export default function LivePage() {
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
 
     if (g.team_id) {
-      const { data: t } = await supabase.from('teams').select('name').eq('id', g.team_id).single()
+      const { data: t } = await supabase.from('teams').select('name, logo_url').eq('id', g.team_id).single()
       if (t?.name) setOurTeamName(t.name)
+      if (t?.logo_url) setOurTeamLogo(t.logo_url)
     }
 
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
@@ -768,7 +816,7 @@ export default function LivePage() {
         <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
           {/* Our team */}
           <div style={{ display:'flex', alignItems:'center', gap:6, flex:1, minWidth:0 }}>
-            <TeamBadge name={ourName} color="#22c55e" size={34}/>
+            <TeamBadge name={ourName} color="#22c55e" size={34} logoUrl={ourTeamLogo}/>
             <div style={{ minWidth:0 }}>
               <div style={{ color:'#22c55e', fontWeight:900, fontSize:11, lineHeight:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ourName}</div>
               <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:2 }}>
@@ -925,33 +973,53 @@ export default function LivePage() {
               </div>
               {events.length === 0
                 ? <div style={{ color:'#1e2d42', fontSize:9, textAlign:'center', padding:'12px 2px' }}>—</div>
-                : [...events].reverse().map((ev, i) => {
-                    const isOur = ev.team === 'us'
-                    const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
-                    const pNum = isOur
-                      ? (gp?.players?.number != null ? gp.players.number : '?')
-                      : (ev.rival_jersey != null ? ev.rival_jersey : '?')
-                    const teamColor = isOur ? '#22c55e' : '#f97316'
-                    const label = EV_LABEL[ev.event_type] || ev.event_type
-                    return (
-                      <button key={ev.id||i}
-                        onClick={() => setModal({ type:'edit_event', ev })}
-                        style={{ background:'none', border:'none', cursor:'pointer', width:'100%',
-                          padding:'5px 2px', borderBottom:`1px solid #0d1520`,
-                          backgroundColor: i===0 ? '#101c2e' : 'transparent',
-                          borderLeft: `2px solid ${teamColor}55`,
-                          textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
-                        <span style={{ fontSize:12, fontWeight:900, color:teamColor, lineHeight:1 }}>
-                          {ev.event_type==='substitution' ? '🔄' : `#${pNum}`}
-                        </span>
-                        <span style={{ fontSize:6.5, fontWeight:700, color:'#7a9ab8', lineHeight:1.2,
-                          maxWidth:52, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {label}
-                        </span>
-                        <span style={{ fontSize:6, color:'#2d3e55', lineHeight:1 }}>{Q_LABEL(ev.quarter)}</span>
-                      </button>
-                    )
-                  })}
+                : (() => {
+                    // Group by quarter, most recent quarter first
+                    const entries = []
+                    const seenQ = new Set()
+                    ;[...events].reverse().forEach((ev, i) => {
+                      const q = Number(ev.quarter) || 1
+                      if (!seenQ.has(q)) { seenQ.add(q); entries.push({ type:'qheader', q }) }
+                      entries.push({ type:'ev', ev, i })
+                    })
+                    return entries.map((item, idx) => {
+                      if (item.type === 'qheader') {
+                        return (
+                          <div key={`qh-${item.q}`} style={{ padding:'3px 2px', backgroundColor:'#0a1020',
+                            borderBottom:'1px solid #1a2540', textAlign:'center', flexShrink:0 }}>
+                            <span style={{ fontSize:7, fontWeight:900, color:'#f59e0b', letterSpacing:1 }}>
+                              — {Q_LABEL(item.q)} —
+                            </span>
+                          </div>
+                        )
+                      }
+                      const { ev, i } = item
+                      const isOur = ev.team === 'us'
+                      const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
+                      const pNum = isOur
+                        ? (gp?.players?.number != null ? gp.players.number : '?')
+                        : (ev.rival_jersey != null ? ev.rival_jersey : '?')
+                      const teamColor = isOur ? '#22c55e' : '#f97316'
+                      const label = EV_LABEL[ev.event_type] || ev.event_type
+                      return (
+                        <button key={ev.id||i}
+                          onClick={() => setModal({ type:'edit_event', ev })}
+                          style={{ background:'none', border:'none', cursor:'pointer', width:'100%',
+                            padding:'5px 2px', borderBottom:'1px solid #0d1520',
+                            backgroundColor: i===0 ? '#101c2e' : 'transparent',
+                            borderLeft: `2px solid ${teamColor}55`,
+                            textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
+                          <span style={{ fontSize:12, fontWeight:900, color:teamColor, lineHeight:1 }}>
+                            {ev.event_type==='substitution' ? '🔄' : `#${pNum}`}
+                          </span>
+                          <span style={{ fontSize:6.5, fontWeight:700, color:'#7a9ab8', lineHeight:1.2,
+                            maxWidth:52, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {label}
+                          </span>
+                        </button>
+                      )
+                    })
+                  })()}
             </div>
 
             {/* ── Col D: Action buttons ── */}
@@ -1514,6 +1582,85 @@ export default function LivePage() {
             ))}
           </div>
           <button onClick={() => setModal(null)} style={{ width:'100%', padding:'9px', backgroundColor:'#1a2030', color:'#6b7280', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>Sin jugador específico</button>
+        </Overlay>
+      )}
+
+      {/* Fin de cuarto / partido */}
+      {modal?.type==='quarter_end' && (
+        <Overlay>
+          <div style={{ textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontSize:32, lineHeight:1, marginBottom:10 }}>⏱</div>
+            <div style={{ fontSize:17, fontWeight:900, color:'#f59e0b', marginBottom:4 }}>
+              ¡Fin del {Q_LABEL(quarter)}!
+            </div>
+            <div style={{ fontSize:13, color:'#6b7280' }}>
+              {quarter < 4 ? `Tiempo agotado — período ${quarter} finalizado` : `Tiempo agotado — ${scores.us} — ${scores.rival}`}
+            </div>
+          </div>
+          {quarter < 4 ? (
+            <>
+              <button onClick={() => {
+                const nq = quarter + 1
+                setQuarter(nq); setSecs(600); setRunning(false)
+                supabase.from('games').update({ quarter:nq }).eq('id', id)
+                setModal(null)
+              }} style={{ ...btnStyle('#f59e0b', 14), marginBottom:8 }}>
+                ✓ Pasar al {Q_LABEL(quarter + 1)}
+              </button>
+              <button onClick={() => setModal(null)} style={btnStyle('#1f2937', 12)}>
+                Continuar en {Q_LABEL(quarter)}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { setModal(null); handleFinish() }} style={{ ...btnStyle('#22c55e', 14), marginBottom:8 }}>
+                🏁 Finalizar partido
+              </button>
+              <button onClick={() => {
+                const nq = quarter + 1
+                setQuarter(nq); setSecs(300); setRunning(false)
+                supabase.from('games').update({ quarter:nq }).eq('id', id)
+                setModal(null)
+              }} style={{ ...btnStyle('#7c3aed', 12), marginBottom:8 }}>
+                → Prórroga (PT)
+              </button>
+              <button onClick={() => setModal(null)} style={btnStyle('#1f2937', 12)}>
+                Continuar
+              </button>
+            </>
+          )}
+        </Overlay>
+      )}
+
+      {/* Tiempo muerto automático FIBA (1:59 Q4) */}
+      {modal?.type==='auto_timeout' && (
+        <Overlay onClose={() => setModal(null)}>
+          <div style={{ textAlign:'center', marginBottom:12 }}>
+            <div style={{ fontSize:28, lineHeight:1, marginBottom:8 }}>⏰</div>
+            <div style={{ fontSize:15, fontWeight:900, color:'#f59e0b' }}>
+              Tiempo muerto deducido automáticamente
+            </div>
+          </div>
+          <div style={{ padding:'10px 12px', backgroundColor:'#1a1200', borderRadius:10,
+            border:'1px solid #3a2500', marginBottom:14, fontSize:11, color:'#d1d5db', lineHeight:1.6 }}>
+            <b style={{ color:'#f59e0b' }}>Regla FIBA:</b> A 2:00 del final del partido, todo equipo que no haya
+            pedido ningún tiempo muerto en la 2ª parte pierde automáticamente uno.
+          </div>
+          {modal.ourDeducted && (
+            <div style={{ padding:'6px 10px', backgroundColor:'#0c1f15', borderRadius:8,
+              border:'1px solid #22c55e44', marginBottom:6, fontSize:12, color:'#22c55e', fontWeight:700 }}>
+              📉 {ourName}: −1 tiempo muerto
+            </div>
+          )}
+          {modal.rivDeducted && (
+            <div style={{ padding:'6px 10px', backgroundColor:'#1a0f00', borderRadius:8,
+              border:'1px solid #f9731644', marginBottom:6, fontSize:12, color:'#f97316', fontWeight:700 }}>
+              📉 {rivalName}: −1 tiempo muerto
+            </div>
+          )}
+          <button onClick={() => setModal(null)} style={{ ...btnStyle('#1f2937', 12), marginTop:8 }}>
+            Entendido
+          </button>
         </Overlay>
       )}
 

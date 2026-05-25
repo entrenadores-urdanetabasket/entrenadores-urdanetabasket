@@ -502,11 +502,23 @@ export default function LivePage() {
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
 
     if (g.team_id) {
+      // Try direct query first; fall back to team_coaches join (handles RLS via coach_id column)
+      let teamName = null
       const { data: t } = await supabase.from('teams').select('name').eq('id', g.team_id).single()
       if (t?.name) {
-        setOurTeamName(t.name)
-        // Auto-assign logo by team name (logo_url DB column not yet added)
-        if (t.name.toLowerCase().includes('urdaneta')) setOurTeamLogo('/urdaneta-logo.svg')
+        teamName = t.name
+      } else {
+        // Fallback: get team name via team_coaches (same pattern as estadisticas page)
+        const { data: tc } = await supabase
+          .from('team_coaches')
+          .select('team_id, teams(name)')
+          .eq('coach_id', user.id)
+        const match = (tc || []).find(r => r.team_id === g.team_id)
+        if (match?.teams?.name) teamName = match.teams.name
+      }
+      if (teamName) {
+        setOurTeamName(teamName)
+        if (teamName.toLowerCase().includes('urdaneta')) setOurTeamLogo('/urdaneta-logo.svg')
       }
     }
 

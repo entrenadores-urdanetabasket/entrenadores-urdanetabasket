@@ -19,8 +19,11 @@ CREATE TABLE IF NOT EXISTS teams (
   category TEXT NOT NULL,
   season TEXT NOT NULL DEFAULT '2025-2026',
   coach_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  logo_url TEXT,                        -- URL del escudo del equipo (Supabase Storage o CDN)
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Si la tabla ya existe, añadir la columna logo_url si no está:
+-- ALTER TABLE teams ADD COLUMN IF NOT EXISTS logo_url TEXT;
 
 -- Jugadores
 CREATE TABLE IF NOT EXISTS players (

@@ -189,13 +189,17 @@ function TeamBadge({ name = '', color = '#888', size = 38, logoUrl = null }) {
     ? (words[0].length >= 3 ? words[0].slice(0, 3).toUpperCase() : words.map(w => w[0].toUpperCase()).join('').slice(0, 3))
     : (name[0]?.toUpperCase() || '?')
   if (logoUrl) {
+    // Wider container for landscape logos; height matches size
     return (
       <div style={{
-        width: size, height: size, borderRadius: size * 0.28,
-        background: `${color}10`, border: `1.5px solid ${color}44`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden',
+        height: size, minWidth: size, maxWidth: size * 2.8,
+        borderRadius: size * 0.2,
+        background: `#ffffff12`, border: `1.5px solid ${color}33`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, overflow: 'hidden', padding: '0 4px',
       }}>
-        <img src={logoUrl} alt={init} style={{ width: size - 6, height: size - 6, objectFit: 'contain' }}/>
+        <img src={logoUrl} alt={init}
+          style={{ height: size - 8, maxWidth: size * 2.6, objectFit: 'contain' }}/>
       </div>
     )
   }
@@ -498,9 +502,12 @@ export default function LivePage() {
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
 
     if (g.team_id) {
-      const { data: t } = await supabase.from('teams').select('name, logo_url').eq('id', g.team_id).single()
-      if (t?.name) setOurTeamName(t.name)
-      if (t?.logo_url) setOurTeamLogo(t.logo_url)
+      const { data: t } = await supabase.from('teams').select('name').eq('id', g.team_id).single()
+      if (t?.name) {
+        setOurTeamName(t.name)
+        // Auto-assign logo by team name (logo_url DB column not yet added)
+        if (t.name.toLowerCase().includes('urdaneta')) setOurTeamLogo('/urdaneta-logo.svg')
+      }
     }
 
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)

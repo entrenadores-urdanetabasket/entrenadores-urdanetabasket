@@ -176,54 +176,63 @@ function TeamBadge({ name = '', color = '#888', size = 38 }) {
 
 function PlayerTile({ number, name, fouls = 0, active, color = '#22c55e', onClick }) {
   const f = Math.min(fouls, 5)
-  const dotColor = f >= 5 ? '#ef4444' : f >= 4 ? '#f59e0b' : '#ef4444'
+  const foulColor = f >= 5 ? '#ef4444' : f >= 4 ? '#f59e0b' : '#ef4444'
   return (
     <button onClick={onClick} className="tb" style={{
       background: 'none', border: 'none', cursor: active ? 'pointer' : 'default',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-      padding: '5px 4px', width: '100%',
+      padding: '3px 5px', width: '100%',
     }}>
       <div style={{
-        width: 50, height: 50, borderRadius: 25,
-        backgroundColor: active ? color + '28' : '#1e2a3a',
-        border: `2px solid ${active ? color : '#3a4a60'}`,
-        boxShadow: active ? `0 0 16px ${color}55` : 'none',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 18, fontWeight: 900,
-        color: active ? color : '#c9d1d9',
-        transition: 'all 0.12s',
-      }}>{number}</div>
-      <div style={{ display: 'flex', gap: 2.5 }}>
-        {[1,2,3,4,5].map(i => (
-          <div key={i} style={{
-            width: 5, height: 5, borderRadius: 3,
-            backgroundColor: i <= f ? dotColor : '#2d3e55',
-          }}/>
-        ))}
+        width: '100%', borderRadius: 8,
+        backgroundColor: active ? color + '22' : '#131d2f',
+        border: `1px solid ${active ? color + '99' : '#1e2d42'}`,
+        boxShadow: active ? `0 0 14px ${color}40` : 'none',
+        padding: '8px 5px 6px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+        transition: 'all 0.12s', position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Left accent bar */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
+          backgroundColor: color, borderRadius: '8px 0 0 8px',
+          opacity: active ? 1 : 0.5,
+        }}/>
+        <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: active ? color : '#dde5f0' }}>
+          {number}
+        </div>
+        <div style={{ display: 'flex', gap: 2 }}>
+          {[1,2,3,4,5].map(i => (
+            <div key={i} style={{
+              width: 5, height: 5, borderRadius: 2,
+              backgroundColor: i <= f ? foulColor : '#253345',
+            }}/>
+          ))}
+        </div>
+        {name && (
+          <span style={{
+            fontSize: 7, fontWeight: 600,
+            color: active ? '#a8b8cc' : '#4b5e78',
+            maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{name.split(' ')[0]}</span>
+        )}
       </div>
-      {name && (
-        <span style={{
-          fontSize: 7.5, fontWeight: 600,
-          color: active ? color + 'cc' : '#8899aa',
-          maxWidth: 54, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{name.split(' ')[0]}</span>
-      )}
     </button>
   )
 }
 
-function ActionBtn({ label, color, aKey, armed, armAction, wide, cols3 }) {
+function ActionBtn({ label, color, aKey, armed, armAction, small }) {
   const isActive = armed === aKey
   return (
     <button onClick={() => armAction(aKey)} style={{
-      padding: '9px 3px',
-      gridColumn: wide ? 'span 2' : undefined,
-      borderRadius: 8, cursor: 'pointer',
-      backgroundColor: isActive ? color : '#1a2438',
-      color: isActive ? '#fff' : '#d1d9e6',
-      fontSize: cols3 ? 9 : 10, fontWeight: 800, lineHeight: 1.2,
-      border: `1px solid ${isActive ? color : '#2d3f58'}`,
-      boxShadow: isActive ? `0 0 14px ${color}66` : 'none',
+      width: '100%',
+      padding: small ? '8px 6px' : '11px 10px',
+      borderRadius: 6, cursor: 'pointer',
+      backgroundColor: isActive ? color + '1a' : '#0e1826',
+      color: isActive ? '#fff' : '#c8d5e8',
+      fontSize: small ? 9 : 11, fontWeight: 800, lineHeight: 1.2, textAlign: 'center',
+      border: 'none',
+      borderBottom: `2.5px solid ${isActive ? color : color + '55'}`,
+      boxShadow: isActive ? `inset 0 0 20px ${color}12` : 'none',
       transition: 'all 0.1s',
     }}>{label}</button>
   )
@@ -793,16 +802,17 @@ export default function LivePage() {
       {tab==='live' && (
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
-          {/* 3-column main area */}
-          <div style={{ display:'grid', gridTemplateColumns:'62px 1fr 62px', flex:1, overflow:'hidden' }}>
+          {/* 4-column: our players | log | actions | rival players */}
+          <div style={{ display:'grid', gridTemplateColumns:'76px 1fr 120px 54px', flex:1, overflow:'hidden' }}>
 
-            {/* ── Column A: Our team ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #141a26' }}>
+            {/* ── Col 1: Our players ── */}
+            <div style={{ overflowY:'auto', borderRight:'1px solid #141a26', display:'flex', flexDirection:'column' }}>
               <button onClick={() => { setModal({ type:'sub', team:'us', currentCourt:[...onCourt] }); setArmed(null) }}
-                style={{ width:'100%', padding:'5px 2px', background:'linear-gradient(180deg,#0f2015,#0a0c10)',
-                  border:'none', borderBottom:'1px solid #141a26', cursor:'pointer', textAlign:'center',
-                  color:'#22c55e', fontSize:8, fontWeight:900, lineHeight:1.4 }}>
-                {(ourName).split(' ').find(w=>w.length>1)?.[0]||'A'}<br/>🔄
+                style={{ flexShrink:0, padding:'6px 4px', background:'#0d1a14',
+                  border:'none', borderBottom:'2px solid #22c55e44', cursor:'pointer',
+                  color:'#22c55e', fontSize:8, fontWeight:900, letterSpacing:0.3, textAlign:'center', lineHeight:1.5 }}>
+                {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'NOS'}
+                <br/><span style={{ fontSize:7, opacity:0.65 }}>🔄 SUB</span>
               </button>
               {courtGps.map(gp => (
                 <PlayerTile key={gp.player_id}
@@ -814,71 +824,85 @@ export default function LivePage() {
               ))}
             </div>
 
-            {/* ── Column CENTER: Actions + Log ── */}
+            {/* ── Col 2: Event log ── */}
             <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
-              {/* Action buttons */}
-              <div style={{ padding:'6px 5px 0', display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
-                <ActionBtn label="2 PUNTOS"   color="#2563eb" aKey="2pt"          armed={armed} armAction={armAction}/>
-                <ActionBtn label="3 PUNTOS"   color="#7c3aed" aKey="3pt"          armed={armed} armAction={armAction}/>
-                <ActionBtn label="TIROS LIBRES" color="#374151" aKey="ft"         armed={armed} armAction={armAction} wide/>
-                <ActionBtn label="FALTA"       color="#dc2626" aKey="foul"        armed={armed} armAction={armAction}/>
-                <ActionBtn label="TÉCNICA"     color="#991b1b" aKey="technical"   armed={armed} armAction={armAction}/>
-                <ActionBtn label="ANTIDEP."    color="#b45309" aKey="unsporting"  armed={armed} armAction={armAction}/>
-                <ActionBtn label="DESCALIF."   color="#4c0519" aKey="disqualifying" armed={armed} armAction={armAction}/>
-                <ActionBtn label="T. MUERTO"   color="#0369a1" aKey="timeout"     armed={armed} armAction={armAction}/>
-                <ActionBtn label="SUSTITUCIÓN" color="#059669" aKey="sub"         armed={armed} armAction={armAction} wide/>
+              <div style={{ padding:'5px 8px 4px', borderBottom:'1px solid #141a26', flexShrink:0,
+                display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:8, fontWeight:700, color:'#3a5070', letterSpacing:0.8 }}>ACCIONES</span>
+                <span style={{ fontSize:7, color:'#2d3e55' }}>{events.length}</span>
               </div>
-              <div style={{ margin:'5px 5px 3px', height:1, backgroundColor:'#141a26' }}/>
-              <div style={{ padding:'0 5px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
-                <ActionBtn label="ROBO"    color="#059669" aKey="steal"    armed={armed} armAction={armAction} cols3/>
-                <ActionBtn label="TAPÓN"   color="#0284c7" aKey="block"    armed={armed} armAction={armAction} cols3/>
-                <ActionBtn label="PÉRDIDA" color="#d97706" aKey="turnover" armed={armed} armAction={armAction} cols3/>
-              </div>
-              <div style={{ margin:'5px 5px 3px', height:1, backgroundColor:'#141a26' }}/>
-
-              {/* Live log */}
-              <div style={{ flex:1, padding:'0 5px 4px', overflowY:'auto' }}>
-                {events.length===0
-                  ? <div style={{ color:'#4b5e78', fontSize:9, textAlign:'center', paddingTop:8 }}>Sin acciones aún</div>
-                  : [...events].reverse().slice(0,15).map((ev, i) => {
-                      const isOur = ev.team==='us'
-                      const gp = isOur ? gps.find(g => g.player_id===ev.player_id) : null
-                      const pLbl = isOur
-                        ? (gp?.players?.number!=null ? `#${gp.players.number}` : '—')
-                        : (ev.rival_jersey!=null ? `#${ev.rival_jersey}` : '—')
-                      if (ev.event_type==='substitution') {
-                        const inGp  = gps.find(g => g.player_id===ev.player_id)
-                        const outGp = gps.find(g => g.player_id===ev.linked_event_id)
-                        return (
-                          <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'3px 0', borderBottom:'1px solid #161e2d' }}>
-                            <span style={{ fontSize:8, fontWeight:800, color:isOur?'#22c55e':'#f97316', width:10 }}>{isOur?'A':'B'}</span>
-                            <span style={{ fontSize:8, color:'#8899aa', flex:1 }}>↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio</span>
-                            <span style={{ fontSize:7, color:'#4b5e78' }}>{Q_LABEL(ev.quarter)}</span>
-                          </div>
-                        )
-                      }
+              {events.length === 0
+                ? <div style={{ color:'#2d3e55', fontSize:10, textAlign:'center', padding:'24px 8px' }}>🏀<br/>Sin acciones</div>
+                : [...events].reverse().map((ev, i) => {
+                    const isOur = ev.team === 'us'
+                    const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
+                    const pLbl = isOur
+                      ? (gp?.players?.number != null ? `#${gp.players.number}` : '—')
+                      : (ev.rival_jersey != null ? `#${ev.rival_jersey}` : '—')
+                    const teamColor = isOur ? '#22c55e' : '#f97316'
+                    const label = EV_LABEL[ev.event_type] || ev.event_type
+                    if (ev.event_type === 'substitution') {
+                      const inGp  = gps.find(g => g.player_id === ev.player_id)
+                      const outGp = gps.find(g => g.player_id === ev.linked_event_id)
                       return (
-                        <div key={ev.id||i} style={{ display:'flex', gap:3, alignItems:'center', padding:'3px 0',
-                          borderBottom:'1px solid #161e2d', backgroundColor:i===0?'rgba(255,255,255,0.03)':'transparent' }}>
-                          <span style={{ fontSize:8, fontWeight:800, color:isOur?'#22c55e':'#f97316', width:10 }}>{isOur?'A':'B'}</span>
-                          <span style={{ fontSize:8, fontWeight:700, color:'#7a8da8', width:22, flexShrink:0 }}>{pLbl}</span>
-                          <span style={{ fontSize:8, color:'#a8b8cc', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {EV_LABEL[ev.event_type]||ev.event_type}
+                        <div key={ev.id||i} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 8px',
+                          borderBottom:'1px solid #0e1520', backgroundColor: i===0 ? '#0f1d2e' : 'transparent' }}>
+                          <span style={{ width:16, height:16, borderRadius:4, flexShrink:0,
+                            backgroundColor: teamColor+'22', border:`1px solid ${teamColor}55`,
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontSize:7, fontWeight:900, color:teamColor }}>{isOur?'A':'B'}</span>
+                          <span style={{ fontSize:9, color:'#6b82a0', flex:1 }}>
+                            ↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'} Cambio
                           </span>
-                          <span style={{ fontSize:7, color:'#4b5e78' }}>{Q_LABEL(ev.quarter)}</span>
+                          <span style={{ fontSize:8, color:'#2d3e55' }}>{Q_LABEL(ev.quarter)}</span>
                         </div>
                       )
-                    })}
+                    }
+                    return (
+                      <div key={ev.id||i} style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 8px',
+                        borderBottom:'1px solid #0e1520', backgroundColor: i===0 ? '#0f1d2e' : 'transparent' }}>
+                        <span style={{ width:16, height:16, borderRadius:4, flexShrink:0,
+                          backgroundColor: teamColor+'22', border:`1px solid ${teamColor}55`,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:7, fontWeight:900, color:teamColor }}>{isOur?'A':'B'}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:'#4b6480', flexShrink:0, minWidth:20 }}>{pLbl}</span>
+                        <span style={{ fontSize:9, fontWeight:700, color:'#b0c4d8', flex:1,
+                          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+                        <span style={{ fontSize:8, color:'#2d3e55', flexShrink:0 }}>{Q_LABEL(ev.quarter)}</span>
+                      </div>
+                    )
+                  })}
+            </div>
+
+            {/* ── Col 3: Action buttons ── */}
+            <div style={{ overflowY:'auto', borderLeft:'1px solid #141a26', borderRight:'1px solid #141a26',
+              display:'flex', flexDirection:'column', padding:'5px 5px', gap:3 }}>
+              <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"            armed={armed} armAction={armAction}/>
+              <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"           armed={armed} armAction={armAction}/>
+              <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"           armed={armed} armAction={armAction}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
+                <ActionBtn label="FALTA"   color="#dc2626" aKey="foul"         armed={armed} armAction={armAction} small/>
+                <ActionBtn label="TÉCNICA" color="#b91c1c" aKey="technical"   armed={armed} armAction={armAction} small/>
+                <ActionBtn label="ANTIDEP" color="#b45309" aKey="unsporting"  armed={armed} armAction={armAction} small/>
+                <ActionBtn label="DESCAL." color="#7f1d1d" aKey="disqualifying" armed={armed} armAction={armAction} small/>
+              </div>
+              <ActionBtn label="T. MUERTO"   color="#0369a1" aKey="timeout"    armed={armed} armAction={armAction}/>
+              <ActionBtn label="SUSTITUCIÓN" color="#059669" aKey="sub"        armed={armed} armAction={armAction}/>
+              <div style={{ height:1, backgroundColor:'#141a26', margin:'1px 0' }}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:2 }}>
+                <ActionBtn label="ROB" color="#059669" aKey="steal"    armed={armed} armAction={armAction} small/>
+                <ActionBtn label="TAP" color="#0284c7" aKey="block"    armed={armed} armAction={armAction} small/>
+                <ActionBtn label="PÉR" color="#d97706" aKey="turnover" armed={armed} armAction={armAction} small/>
               </div>
             </div>
 
-            {/* ── Column B: Rival ── */}
-            <div style={{ overflowY:'auto', borderLeft:'1px solid #141a26' }}>
+            {/* ── Col 4: Rival players ── */}
+            <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
-                style={{ width:'100%', padding:'5px 2px', background:'linear-gradient(180deg,#1a0e00,#0a0c10)',
-                  border:'none', borderBottom:'1px solid #141a26', cursor:'pointer', textAlign:'center',
-                  color:'#f97316', fontSize:8, fontWeight:900, lineHeight:1.4 }}>
-                B<br/>🔄
+                style={{ flexShrink:0, padding:'6px 4px', background:'#1a0e00',
+                  border:'none', borderBottom:'2px solid #f9731644', cursor:'pointer',
+                  color:'#f97316', fontSize:8, fontWeight:900, textAlign:'center', lineHeight:1.5 }}>
+                RIV<br/><span style={{ fontSize:7, opacity:0.65 }}>🔄 SUB</span>
               </button>
               {rivalVisible.map(n => (
                 <PlayerTile key={n}
@@ -891,16 +915,16 @@ export default function LivePage() {
           </div>
 
           {/* Bottom bar */}
-          <div style={{ display:'flex', gap:6, padding:'5px 8px', backgroundColor:'#0d1018',
+          <div style={{ display:'flex', gap:6, padding:'6px 8px', backgroundColor:'#0d1018',
             borderTop:'1px solid #141a26', flexShrink:0 }}>
             <button onClick={handleUndo}
-              style={{ flex:1, padding:'7px', backgroundColor:'transparent', border:'1px solid #1f2937',
+              style={{ flex:1, padding:'8px', backgroundColor:'transparent', border:'1px solid #1f2937',
                 color:'#ef4444', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>
               ↩ Deshacer
             </button>
             {!isFinished && (
               <button onClick={handleFinish}
-                style={{ flex:1, padding:'7px', backgroundColor:'#1c0505', border:'none',
+                style={{ flex:1, padding:'8px', backgroundColor:'#200808', border:'1px solid #3f0e0e',
                   color:'#fca5a5', borderRadius:8, fontSize:10, fontWeight:800, cursor:'pointer' }}>
                 🏁 Finalizar
               </button>

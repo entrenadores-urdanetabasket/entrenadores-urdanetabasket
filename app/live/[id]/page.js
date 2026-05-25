@@ -42,6 +42,28 @@ function computeBoxScore(evs, gamePlayers, rivalJerseys) {
   return { our, riv }
 }
 
+// ─── PLAYER FOUL STATUS ───────────────────────────────────────────────────────
+function getPlayerFoulCounts(evs, pid) {
+  const pe = evs.filter(e => e.team === 'us' && e.player_id === pid)
+  return {
+    personal:   pe.filter(e => e.event_type === 'foul_personal').length,
+    technical:  pe.filter(e => e.event_type === 'foul_technical').length,
+    unsporting: pe.filter(e => e.event_type === 'foul_unsporting').length,
+    disq:       pe.filter(e => e.event_type === 'foul_disqualifying').length,
+  }
+}
+function calcPlayerStatus(counts) {
+  const disqualified = counts.disq >= 1
+    || counts.unsporting >= 2
+    || counts.technical >= 2
+    || (counts.unsporting >= 1 && counts.technical >= 1)
+  const eliminated = !disqualified && (counts.personal + counts.unsporting + counts.technical) >= 5
+  return { disqualified, eliminated, out: disqualified || eliminated }
+}
+function playerStatusFromEvents(evs, pid) {
+  return calcPlayerStatus(getPlayerFoulCounts(evs, pid))
+}
+
 const Q_LABEL = q => ['P1','P2','P3','P4','PT'][(q||1)-1] || `P${q}`
 
 const EV_LABEL = {
@@ -93,7 +115,7 @@ function CourtSVG({ onShot, shots = [] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%"
-      style={{ display:'block', borderRadius:12, cursor:onShot?'crosshair':'default', touchAction:'none', userSelect:'none' }}
+      style={{ display:'block', borderRadius:12, cursor:onShot?'crosshair':'default', touchAction:onShot?'none':'pan-y', userSelect:'none' }}
       onClick={handleClick}>
       <defs>
         <linearGradient id="wood2" x1="0" y1="0" x2="1" y2="0">
@@ -174,44 +196,55 @@ function TeamBadge({ name = '', color = '#888', size = 38 }) {
   )
 }
 
-function PlayerTile({ number, name, fouls = 0, active, color = '#22c55e', onClick }) {
+function PlayerTile({ number, name, fouls = 0, active, color = '#22c55e', onClick, status }) {
   const f = Math.min(fouls, 5)
   const foulColor = f >= 5 ? '#ef4444' : f >= 4 ? '#f59e0b' : '#ef4444'
+  const isOut  = status === 'eliminated' || status === 'disqualified'
+  const isDesc = status === 'disqualified'
+  const cardBg = isOut ? '#1a0505' : (active ? color + '22' : '#131d2f')
+  const cardBorder = isOut ? '#5a0a0a' : (active ? color + '99' : '#1e2d42')
+  const numColor = isOut ? '#ef444499' : (active ? color : '#dde5f0')
+  const accentColor = isOut ? '#ef4444' : color
   return (
-    <button onClick={onClick} className="tb" style={{
-      background: 'none', border: 'none', cursor: active ? 'pointer' : 'default',
-      padding: '3px 5px', width: '100%',
+    <button onClick={isOut ? undefined : onClick} className="tb" style={{
+      background: 'none', border: 'none', cursor: isOut ? 'not-allowed' : (active ? 'pointer' : 'default'),
+      padding: '3px 5px', width: '100%', opacity: isOut ? 0.6 : 1,
     }}>
       <div style={{
-        width: '100%', borderRadius: 8,
-        backgroundColor: active ? color + '22' : '#131d2f',
-        border: `1px solid ${active ? color + '99' : '#1e2d42'}`,
-        boxShadow: active ? `0 0 14px ${color}40` : 'none',
+        width: '100%', borderRadius: 8, backgroundColor: cardBg,
+        border: `1px solid ${cardBorder}`,
+        boxShadow: active && !isOut ? `0 0 14px ${color}40` : 'none',
         padding: '8px 5px 6px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
         transition: 'all 0.12s', position: 'relative', overflow: 'hidden',
       }}>
-        {/* Left accent bar */}
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: 3,
-          backgroundColor: color, borderRadius: '8px 0 0 8px',
-          opacity: active ? 1 : 0.5,
+          backgroundColor: accentColor, borderRadius: '8px 0 0 8px',
+          opacity: active && !isOut ? 1 : 0.5,
         }}/>
-        <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: active ? color : '#dde5f0' }}>
+        <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: numColor }}>
           {number}
         </div>
-        <div style={{ display: 'flex', gap: 2 }}>
-          {[1,2,3,4,5].map(i => (
-            <div key={i} style={{
-              width: 5, height: 5, borderRadius: 2,
-              backgroundColor: i <= f ? foulColor : '#253345',
-            }}/>
-          ))}
-        </div>
+        {isOut ? (
+          <div style={{ fontSize: 8, fontWeight: 900, padding: '1px 5px', borderRadius: 4,
+            backgroundColor: '#3a0c0c', color: '#ff6b6b', letterSpacing: 0.5 }}>
+            {isDesc ? 'DESC' : 'ELIM'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 2 }}>
+            {[1,2,3,4,5].map(i => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: 2,
+                backgroundColor: i <= f ? foulColor : '#253345',
+              }}/>
+            ))}
+          </div>
+        )}
         {name && (
           <span style={{
             fontSize: 7, fontWeight: 600,
-            color: active ? '#a8b8cc' : '#4b5e78',
+            color: isOut ? '#5a3030' : (active ? '#a8b8cc' : '#4b5e78'),
             maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{name.split(' ')[0]}</span>
         )}
@@ -490,26 +523,49 @@ export default function LivePage() {
       const isBonus = newCount >= 4
       const firstBonus = newCount === 4
       await saveEv('foul_personal', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us',
-        defaultTL:isBonus?2:null, isBonus, bonusAlert:firstBonus, foulType:'foul_personal', foulTeam:team })
+      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us',
+        defaultTL:isBonus?2:null, isBonus, bonusAlert:firstBonus, foulType:'foul_personal', foulTeam:team }
+      if (team === 'us') {
+        const c = getPlayerFoulCounts(events, ref); c.personal++
+        const st = calcPlayerStatus(c)
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+      }
+      setModal(ftModal)
       return
     }
     if (a === 'unsporting') {
       setArmed(null)
       await saveEv('foul_unsporting', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_unsporting', foulTeam:team })
+      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_unsporting', foulTeam:team }
+      if (team === 'us') {
+        const c = getPlayerFoulCounts(events, ref); c.unsporting++
+        const st = calcPlayerStatus(c)
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+      }
+      setModal(ftModal)
       return
     }
     if (a === 'technical_player') {
       setArmed(null)
       await saveEv('foul_technical', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:1, foulType:'foul_technical', foulTeam:team })
+      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:1, foulType:'foul_technical', foulTeam:team }
+      if (team === 'us') {
+        const c = getPlayerFoulCounts(events, ref); c.technical++
+        const st = calcPlayerStatus(c)
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+      }
+      setModal(ftModal)
       return
     }
     if (a === 'disq_player') {
       setArmed(null)
       await saveEv('foul_disqualifying', team, ref)
-      setModal({ type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_disqualifying', foulTeam:team })
+      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_disqualifying', foulTeam:team }
+      if (team === 'us') {
+        const gp = gps.find(g=>g.player_id===ref)
+        setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:'disqualified', nextModal:ftModal }); return
+      }
+      setModal(ftModal)
       return
     }
     if (a === 'sub' && team === 'rival') {
@@ -831,14 +887,18 @@ export default function LivePage() {
                   color:'#22c55e', fontSize:11, fontWeight:900, letterSpacing:1 }}>
                 {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'NOS'}
               </button>
-              {courtGps.map(gp => (
-                <PlayerTile key={gp.player_id}
-                  number={gp.players?.number??'?'}
-                  name={gp.players?.full_name??''}
-                  fouls={ourBS[gp.player_id]?.fouls||0}
-                  active={aActive} color="#22c55e"
-                  onClick={() => tapPlayer('us', gp.player_id)}/>
-              ))}
+              {courtGps.map(gp => {
+                const st = playerStatusFromEvents(events, gp.player_id)
+                return (
+                  <PlayerTile key={gp.player_id}
+                    number={gp.players?.number??'?'}
+                    name={gp.players?.full_name??''}
+                    fouls={ourBS[gp.player_id]?.fouls||0}
+                    active={aActive && !st.out} color="#22c55e"
+                    onClick={() => tapPlayer('us', gp.player_id)}
+                    status={st.disqualified?'disqualified':st.eliminated?'eliminated':null}/>
+                )
+              })}
             </div>
 
             {/* ── Col B: Rival players ── */}
@@ -1158,7 +1218,7 @@ export default function LivePage() {
                       )
                     })}
                   </div>
-                  <button onClick={() => setModal(null)} style={{ marginTop:12, width:'100%', padding:'10px', backgroundColor:'#22c55e', color:'#fff', border:'none', borderRadius:9, fontSize:12, fontWeight:800, cursor:'pointer' }}>✓ Finalizar cambios</button>
+                  <button onClick={() => setModal(modal.nextModal || null)} style={{ marginTop:12, width:'100%', padding:'10px', backgroundColor:'#22c55e', color:'#fff', border:'none', borderRadius:9, fontSize:12, fontWeight:800, cursor:'pointer' }}>✓ Finalizar cambios</button>
                 </>
               )
             } else {
@@ -1392,9 +1452,8 @@ export default function LivePage() {
                   ? courtGps.map(gp => ({ k:gp.player_id, label:`#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}`, ref:gp.player_id }))
                   : rivalVisible.map(n => ({ k:n, label:`#${n}`, ref:n }))
                 ).map(item => (
-                  <button key={item.k} onClick={async () => {
-                    const ev = await saveEv(modal.shotType==='2pt'?'2pt_miss':'3pt_miss', modal.otherTeam, item.ref)
-                    setModal({ type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null })
+                  <button key={item.k} onClick={() => {
+                    setModal({ type:'shot', action:modal.shotType, team:modal.otherTeam, ref:item.ref, made:false })
                   }} style={{ padding:'7px 9px', borderRadius:8, border:'none', cursor:'pointer',
                     backgroundColor:modal.otherTeam==='us'?'#16a34a':'#d97706', color:'#fff', fontSize:11, fontWeight:800 }}>
                     {item.label}
@@ -1455,6 +1514,38 @@ export default function LivePage() {
             ))}
           </div>
           <button onClick={() => setModal(null)} style={{ width:'100%', padding:'9px', backgroundColor:'#1a2030', color:'#6b7280', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>Sin jugador específico</button>
+        </Overlay>
+      )}
+
+      {/* Jugador eliminado / descalificado */}
+      {modal?.type==='player_out' && (
+        <Overlay>
+          <div style={{ textAlign:'center', marginBottom:16 }}>
+            <div style={{ fontSize:36, lineHeight:1, marginBottom:8 }}>
+              {modal.status==='disqualified' ? '🔴' : '⛔'}
+            </div>
+            <div style={{ fontSize:16, fontWeight:900, color:'#ef4444', marginBottom:4 }}>
+              {modal.status==='disqualified' ? 'JUGADOR DESCALIFICADO' : 'JUGADOR ELIMINADO'}
+            </div>
+            <div style={{ fontSize:13, color:'#9ca3af' }}>
+              #{modal.playerNum} {modal.playerName?.split(' ')[0]}
+            </div>
+          </div>
+          <div style={{ padding:'10px 14px', backgroundColor:'#1a0808', borderRadius:10, marginBottom:16,
+            border:'1px solid #3a1010', fontSize:11, color:'#d1d5db', lineHeight:1.6 }}>
+            {modal.status==='disqualified'
+              ? '🚫 Debe abandonar la pista inmediatamente y no puede volver a jugar en este partido.'
+              : '⛔ Ha acumulado 5 faltas. Debe abandonar la pista y debe ser sustituido (salvo que el equipo tenga ≤4 jugadores disponibles).'}
+          </div>
+          <button onClick={() => {
+            setModal({ type:'sub', team:'us', currentCourt:[...onCourt], nextModal:modal.nextModal })
+          }} style={{ ...btnStyle('#dc2626', 13), marginBottom:8 }}>
+            🔄 Hacer sustitución ahora
+          </button>
+          <button onClick={() => setModal(modal.nextModal)}
+            style={btnStyle('#1f2937', 12)}>
+            Continuar sin sustituir
+          </button>
         </Overlay>
       )}
 

@@ -586,6 +586,24 @@ export default function LivePage() {
     setModal(null); setArmed(null)
   }
 
+  async function deleteEvent(ev) {
+    await supabase.from('game_events').delete().eq('id', ev.id)
+    const { data } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
+    const updated = data || []
+    setEvents(updated)
+    const sc = computeScores(updated)
+    await supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival }).eq('id', id)
+    setGame(prev => prev ? { ...prev, our_score:sc.us, rival_score:sc.rival } : prev)
+    setModal(null)
+  }
+
+  async function changeEventPlayer(ev, newPlayerId) {
+    await supabase.from('game_events').update({ player_id: newPlayerId }).eq('id', ev.id)
+    const { data } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
+    if (data) setEvents(data)
+    setModal(null)
+  }
+
   async function handleFinish() {
     if (!window.confirm('¿Finalizar el partido?')) return
     const sc = computeScores(events)
@@ -803,7 +821,7 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'90px 66px 1fr 138px', flex:1, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'110px 78px 56px 1fr', flex:1, overflow:'hidden' }}>
 
             {/* ── Col A: Our players ── */}
             <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
@@ -840,54 +858,44 @@ export default function LivePage() {
               ))}
             </div>
 
-            {/* ── Col C: Event log (compact) ── */}
-            <div style={{ overflowY:'auto', display:'flex', flexDirection:'column' }}>
-              <div style={{ padding:'4px 6px', borderBottom:'1px solid #141a26', flexShrink:0,
-                display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span style={{ fontSize:7, fontWeight:700, color:'#2d4060', letterSpacing:1 }}>LOG</span>
-                <span style={{ fontSize:7, color:'#1e2d42' }}>{events.length}</span>
+            {/* ── Col C: Log compacto (tap = editar) ── */}
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14' }}>
+              <div style={{ padding:'4px 2px', borderBottom:'1px solid #141a26', flexShrink:0, textAlign:'center' }}>
+                <span style={{ fontSize:6, fontWeight:700, color:'#2d4060', letterSpacing:0.8 }}>LOG</span>
               </div>
               {events.length === 0
-                ? <div style={{ color:'#1e2d42', fontSize:9, textAlign:'center', padding:'16px 4px' }}>—</div>
+                ? <div style={{ color:'#1e2d42', fontSize:9, textAlign:'center', padding:'12px 2px' }}>—</div>
                 : [...events].reverse().map((ev, i) => {
                     const isOur = ev.team === 'us'
                     const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
                     const pNum = isOur
-                      ? (gp?.players?.number != null ? gp.players.number : '—')
-                      : (ev.rival_jersey != null ? ev.rival_jersey : '—')
+                      ? (gp?.players?.number != null ? gp.players.number : '?')
+                      : (ev.rival_jersey != null ? ev.rival_jersey : '?')
                     const teamColor = isOur ? '#22c55e' : '#f97316'
                     const label = EV_LABEL[ev.event_type] || ev.event_type
-                    if (ev.event_type === 'substitution') {
-                      const inGp  = gps.find(g => g.player_id === ev.player_id)
-                      const outGp = gps.find(g => g.player_id === ev.linked_event_id)
-                      return (
-                        <div key={ev.id||i} style={{ padding:'3px 5px', borderBottom:'1px solid #0d1520',
-                          backgroundColor: i===0 ? '#0f1a2a' : 'transparent' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:3 }}>
-                            <span style={{ fontSize:7, fontWeight:900, color:teamColor, width:7 }}>{isOur?'A':'B'}</span>
-                            <span style={{ fontSize:8, color:'#8899aa', flex:1 }}>↑{inGp?.players?.number??'?'} ↓{outGp?.players?.number??'?'}</span>
-                            <span style={{ fontSize:7, color:'#2d3e55' }}>{Q_LABEL(ev.quarter)}</span>
-                          </div>
-                        </div>
-                      )
-                    }
                     return (
-                      <div key={ev.id||i} style={{ padding:'3px 5px', borderBottom:'1px solid #0d1520',
-                        backgroundColor: i===0 ? '#0f1a2a' : 'transparent',
-                        borderLeft: `2px solid ${teamColor}44` }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:3 }}>
-                          <span style={{ fontSize:9, fontWeight:900, color:teamColor, minWidth:16 }}>#{pNum}</span>
-                          <span style={{ fontSize:8, fontWeight:700, color:'#a8bccf', flex:1,
-                            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
-                          <span style={{ fontSize:7, color:'#2d3e55', flexShrink:0 }}>{Q_LABEL(ev.quarter)}</span>
-                        </div>
-                      </div>
+                      <button key={ev.id||i}
+                        onClick={() => setModal({ type:'edit_event', ev })}
+                        style={{ background:'none', border:'none', cursor:'pointer', width:'100%',
+                          padding:'5px 2px', borderBottom:`1px solid #0d1520`,
+                          backgroundColor: i===0 ? '#101c2e' : 'transparent',
+                          borderLeft: `2px solid ${teamColor}55`,
+                          textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
+                        <span style={{ fontSize:12, fontWeight:900, color:teamColor, lineHeight:1 }}>
+                          {ev.event_type==='substitution' ? '🔄' : `#${pNum}`}
+                        </span>
+                        <span style={{ fontSize:6.5, fontWeight:700, color:'#7a9ab8', lineHeight:1.2,
+                          maxWidth:52, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {label}
+                        </span>
+                        <span style={{ fontSize:6, color:'#2d3e55', lineHeight:1 }}>{Q_LABEL(ev.quarter)}</span>
+                      </button>
                     )
                   })}
             </div>
 
             {/* ── Col D: Action buttons ── */}
-            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', padding:'5px 6px', gap:4 }}>
+            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', alignItems:'stretch', padding:'5px 6px', gap:4 }}>
               <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"              armed={armed} armAction={armAction}/>
               <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"             armed={armed} armAction={armAction}/>
               <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"             armed={armed} armAction={armAction}/>
@@ -1449,6 +1457,63 @@ export default function LivePage() {
           <button onClick={() => setModal(null)} style={{ width:'100%', padding:'9px', backgroundColor:'#1a2030', color:'#6b7280', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>Sin jugador específico</button>
         </Overlay>
       )}
+
+      {/* Editar / eliminar acción del log */}
+      {modal?.type==='edit_event' && (() => {
+        const ev = modal.ev
+        const isOur = ev.team === 'us'
+        const teamColor = isOur ? '#22c55e' : '#f97316'
+        const teamName  = isOur ? ourName : rivalName
+        const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
+        const pLabel = isOur
+          ? (gp ? `#${gp.players?.number} ${gp.players?.full_name?.split(' ')[0]||''}` : '—')
+          : (ev.rival_jersey != null ? `#${ev.rival_jersey}` : '—')
+        return (
+          <Overlay onClose={() => setModal(null)}>
+            <div style={{ fontSize:13, fontWeight:900, color:'#e5e7eb', marginBottom:12, textAlign:'center' }}>
+              ✏️ Editar acción
+            </div>
+            {/* Resumen de la acción */}
+            <div style={{ padding:'10px 12px', backgroundColor:'#0d1018', borderRadius:10, marginBottom:16, textAlign:'center',
+              borderLeft:`3px solid ${teamColor}` }}>
+              <div style={{ fontSize:10, color:teamColor, fontWeight:700, marginBottom:4 }}>{teamName} · {Q_LABEL(ev.quarter)}</div>
+              <div style={{ fontSize:14, fontWeight:900, color:'#f0f0f0', marginBottom:2 }}>
+                {EV_LABEL[ev.event_type] || ev.event_type}
+              </div>
+              <div style={{ fontSize:11, color:'#6b7280' }}>{pLabel}</div>
+            </div>
+
+            {/* Cambiar jugador (solo nuestro equipo, si tiene player_id) */}
+            {isOur && ev.player_id && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:10, color:'#6b7280', fontWeight:700, marginBottom:8 }}>Cambiar jugador:</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {courtGps.map(cgp => (
+                    <button key={cgp.player_id}
+                      onClick={() => changeEventPlayer(ev, cgp.player_id)}
+                      style={{ padding:'7px 10px', borderRadius:7,
+                        border:`2px solid ${cgp.player_id===ev.player_id?'#22c55e':'#2d3748'}`,
+                        backgroundColor: cgp.player_id===ev.player_id ? '#22c55e22' : '#1a2438',
+                        color: cgp.player_id===ev.player_id ? '#22c55e' : '#c9d1d9',
+                        fontSize:12, fontWeight:900, cursor:'pointer' }}>
+                      #{cgp.players?.number??'?'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Eliminar */}
+            <button onClick={() => deleteEvent(ev)}
+              style={{ ...btnStyle('#dc2626', 13), marginBottom:8 }}>
+              🗑 Eliminar esta acción
+            </button>
+            <button onClick={() => setModal(null)} style={btnStyle('#1f2937', 12)}>
+              Cancelar
+            </button>
+          </Overlay>
+        )
+      })()}
 
       {/* ══ PRINTABLE ═════════════════════════════════════════════════════════ */}
       <div className="po">

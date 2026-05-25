@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
 export default function EntrenamientosPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
 
   const [teams, setTeams] = useState([])
@@ -38,7 +38,11 @@ export default function EntrenamientosPage() {
   const [sharedLoading, setSharedLoading] = useState(false)
   const [sharingId, setSharingId] = useState(null) // sesión que se está compartiendo/descompartiendo
 
-  useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
+  useEffect(() => {
+    if (!user || !profile) return
+    if (!isDirector && !activeTeam) return
+    loadTeams()
+  }, [user, profile, activeTeam])
 
   async function loadTeams() {
     setLoading(true)
@@ -48,11 +52,9 @@ export default function EntrenamientosPage() {
       if (data?.length > 0) await loadSessions(data[0])
       else setLoading(false)
     } else {
-      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
-      const ids = (tc || []).map(r => r.team_id)
-      const { data } = ids.length > 0 ? await supabase.from('teams').select('*').in('id', ids) : { data: [] }
-      if (data?.length > 0) { setTeams(data); await loadSessions(data[0]) }
-      else setLoading(false)
+      if (!activeTeam) { setLoading(false); return }
+      setTeams(myTeams)
+      await loadSessions(activeTeam)
     }
   }
 

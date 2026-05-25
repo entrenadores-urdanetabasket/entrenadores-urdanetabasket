@@ -20,7 +20,7 @@ const TYPE_LABEL = {
 }
 
 export default function EstadisticasPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, activeTeam } = useAuth()
   const router = useRouter()
 
   const [games, setGames]         = useState([])
@@ -29,34 +29,20 @@ export default function EstadisticasPage() {
   const [teamName, setTeamName]   = useState('')
   const [deleting, setDeleting]   = useState(null) // game id being deleted
 
-  useEffect(() => { if (user) loadGames() }, [user])
+  useEffect(() => {
+    if (user && activeTeam) loadGames()
+    else if (user && activeTeam === null && profile?.role !== 'coach') setLoading(false)
+  }, [user, activeTeam])
 
   async function loadGames() {
+    if (!activeTeam) { setLoading(false); return }
     setLoading(true)
-    // Los entrenadores se asignan via tabla team_coaches
-    const { data: tc } = await supabase
-      .from('team_coaches')
-      .select('team_id')
-      .eq('coach_id', user.id)
-
-    const teamIds = (tc || []).map(r => r.team_id)
-    if (teamIds.length === 0) { setLoading(false); return }
-
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('id, name, category')
-      .in('id', teamIds)
-
-    if (!teams || teams.length === 0) { setLoading(false); return }
-    const teamId = teams[0].id
-    setTeamName(teams[0].name)
-
+    setTeamName(activeTeam.name)
     const { data } = await supabase
       .from('games')
       .select('*')
-      .eq('team_id', teamId)
+      .eq('team_id', activeTeam.id)
       .order('date', { ascending: false })
-
     setGames(data || [])
     setLoading(false)
   }

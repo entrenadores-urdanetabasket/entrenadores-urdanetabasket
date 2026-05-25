@@ -12,7 +12,7 @@ const TYPES = {
 }
 
 export default function IncidenciasPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
 
   const [teams, setTeams] = useState([])
@@ -27,7 +27,11 @@ export default function IncidenciasPage() {
   const [form, setForm] = useState({ type: 'lesion', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
+  useEffect(() => {
+    if (!user || !profile) return
+    if (!isDirector && !activeTeam) return
+    loadTeams()
+  }, [user, profile, activeTeam])
 
   async function loadTeams() {
     setLoading(true)
@@ -37,11 +41,9 @@ export default function IncidenciasPage() {
       if (data?.length > 0) await loadTeamData(data[0])
       else setLoading(false)
     } else {
-      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
-      const teamIds = (tc || []).map(r => r.team_id)
-      const { data } = teamIds.length > 0 ? await supabase.from('teams').select('*').in('id', teamIds) : { data: [] }
-      if (data?.length > 0) { setTeams(data); await loadTeamData(data[0]) }
-      else setLoading(false)
+      if (!activeTeam) { setLoading(false); return }
+      setTeams(myTeams)
+      await loadTeamData(activeTeam)
     }
   }
 

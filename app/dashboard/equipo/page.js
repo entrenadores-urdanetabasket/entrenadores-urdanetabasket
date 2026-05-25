@@ -7,7 +7,7 @@ import Link from 'next/link'
 const POSITIONS = ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot']
 
 export default function EquipoPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
 
   const [teams, setTeams] = useState([])
@@ -21,8 +21,10 @@ export default function EquipoPage() {
   const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
-    if (user && profile) loadData()
-  }, [user, profile])
+    if (!user || !profile) return
+    if (!isDirector && !activeTeam) return
+    loadData()
+  }, [user, profile, activeTeam])
 
   async function loadData() {
     setLoading(true)
@@ -32,13 +34,10 @@ export default function EquipoPage() {
       if (t?.length > 0) loadPlayers(selectedTeam?.id || t[0].id, t)
       else setLoading(false)
     } else {
-      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
-      const teamIds = (tc || []).map(r => r.team_id)
-      const { data: t } = teamIds.length > 0 ? await supabase.from('teams').select('*').in('id', teamIds) : { data: [] }
-      if (!t || t.length === 0) { setLoading(false); return }
-      setTeams(t)
-      setSelectedTeam(t[0])
-      loadPlayers(t[0].id, t)
+      if (!activeTeam) { setLoading(false); return }
+      setTeams(myTeams)
+      setSelectedTeam(activeTeam)
+      loadPlayers(activeTeam.id, myTeams)
     }
   }
 

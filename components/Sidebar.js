@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 
-const navItems = [
+const coachItems = [
   { href: '/dashboard', label: 'Inicio', emoji: '🏠' },
   { href: '/dashboard/equipo', label: 'Mi Equipo', emoji: '👥' },
   { href: '/dashboard/asistencia', label: 'Asistencia', emoji: '✅' },
@@ -15,20 +15,26 @@ const navItems = [
   { href: '/dashboard/incidencias', label: 'Incidencias', emoji: '⚠️' },
 ]
 
+const directorItems = [
+  { href: '/dashboard', label: 'Inicio', emoji: '🏠' },
+  { href: '/dashboard/equipo', label: 'Equipos', emoji: '👥' },
+  { href: '/dashboard/asistencia', label: 'Asistencia', emoji: '✅' },
+  { href: '/dashboard/entrenamientos', label: 'Entrenamientos', emoji: '📝' },
+  { href: '/dashboard/incidencias', label: 'Incidencias', emoji: '⚠️' },
+  { href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' },
+]
+
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
-  const { profile, supabase } = useAuth()
+  const { profile, supabase, myTeams, activeTeam, setActiveTeam } = useAuth()
 
   async function handleLogout() {
     await supabase.auth.signOut()
     window.location.href = '/login'
   }
 
-  const items = profile?.role === 'director'
-    ? navItems.map(i => i.href === '/dashboard/equipo' ? { ...i, label: 'Equipos' } : i)
-        .concat({ href: '/dashboard/director', label: 'Panel Director', emoji: '🛡️' })
-    : navItems
+  const items = profile?.role === 'director' ? directorItems : coachItems
 
   const sidebar = (
     <div style={{
@@ -48,10 +54,43 @@ export default function Sidebar() {
           </div>
           <div>
             <div style={{ fontWeight: 800, fontSize: 13, color: '#111827', lineHeight: 1.3 }}>C.D. Urdaneta</div>
-            <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600 }}>Entrenadores</div>
+            <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600 }}>{profile?.role === 'director' ? 'Director' : 'Entrenadores'}</div>
           </div>
         </div>
       </div>
+
+      {/* Selector de equipo activo — solo entrenadores con 2+ equipos */}
+      {profile?.role === 'coach' && myTeams.length > 1 && (
+        <div style={{ padding: '10px 10px 12px', borderBottom: '1px solid #f3f4f6' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6, paddingLeft: 2 }}>
+            Equipo activo
+          </div>
+          {myTeams.map(t => {
+            const isActive = activeTeam?.id === t.id
+            return (
+              <button key={t.id} onClick={() => { setActiveTeam(t); setOpen(false) }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '7px 10px', borderRadius: 8, border: isActive ? '1px solid #d1f0d1' : '1px solid transparent',
+                cursor: 'pointer', backgroundColor: isActive ? '#f0faf0' : 'transparent',
+                color: isActive ? '#1C5C2A' : '#6b7280',
+                fontSize: 12, fontWeight: isActive ? 700 : 500,
+                transition: 'all 0.15s', textAlign: 'left',
+              }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: isActive ? '#52B043' : '#d1d5db',
+                  boxShadow: isActive ? '0 0 0 3px rgba(82,176,67,0.18)' : 'none',
+                  transition: 'all 0.15s',
+                }} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t.name}
+                </span>
+                {isActive && <span style={{ fontSize: 9, fontWeight: 800, color: '#52B043', backgroundColor: '#dcfce7', padding: '1px 5px', borderRadius: 4 }}>ACTIVO</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>

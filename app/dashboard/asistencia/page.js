@@ -102,7 +102,7 @@ function MiniCalendar({ selectedDate, markedDays, onSelectDate, onMonthChange })
    COMPONENTE PRINCIPAL
 ══════════════════════════════════════════════════════════════ */
 export default function AsistenciaPage() {
-  const { user, profile, supabase } = useAuth()
+  const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
 
   const [teams,        setTeams]        = useState([])
@@ -123,21 +123,26 @@ export default function AsistenciaPage() {
   const [saved,        setSaved]        = useState(false)
   const [deletingDay,  setDeletingDay]  = useState(null)
 
-  useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
+  // Director lands on Historial (they can't mark attendance, only observe)
+  useEffect(() => { if (isDirector) setTab('historial') }, [isDirector])
+
+  useEffect(() => {
+    if (!user || !profile) return
+    if (!isDirector && !activeTeam) return
+    loadTeams()
+  }, [user, profile, activeTeam])
 
   async function loadTeams() {
     setLoading(true)
     if (isDirector) {
       const { data } = await supabase.from('teams').select('*').order('name')
       setTeams(data || [])
-      if (data?.length > 0) await loadTeamData(data[0], 'lista')
+      if (data?.length > 0) await loadTeamData(data[0], 'historial')
       else setLoading(false)
     } else {
-      const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
-      const teamIds = (tc || []).map(r => r.team_id)
-      const { data } = teamIds.length > 0 ? await supabase.from('teams').select('*').in('id', teamIds) : { data: [] }
-      if (data && data.length > 0) { setTeams(data); await loadTeamData(data[0], 'lista') }
-      else setLoading(false)
+      if (!activeTeam) { setLoading(false); return }
+      setTeams(myTeams)
+      await loadTeamData(activeTeam, 'lista')
     }
   }
 
@@ -328,13 +333,13 @@ export default function AsistenciaPage() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => handleTabChange('lista')}        style={tabStyle('lista')}>📋 Pasar lista</button>
+        {!isDirector && <button onClick={() => handleTabChange('lista')}        style={tabStyle('lista')}>📋 Pasar lista</button>}
         <button onClick={() => handleTabChange('historial')}    style={tabStyle('historial')}>📅 Historial</button>
         <button onClick={() => handleTabChange('estadisticas')} style={tabStyle('estadisticas')}>📊 Estadísticas</button>
       </div>
 
-      {/* ── PASAR LISTA ─────────────────────────────────── */}
-      {tab === 'lista' && (
+      {/* ── PASAR LISTA — solo entrenadores ──────────────── */}
+      {tab === 'lista' && !isDirector && (
         <div>
           {/* Calendario */}
           <MiniCalendar

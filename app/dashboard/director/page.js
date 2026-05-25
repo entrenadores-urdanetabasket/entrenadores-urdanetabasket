@@ -3,30 +3,102 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
+const INCIDENT_TYPES = {
+  disciplinary: { label: 'Disciplinaria', color: '#ef4444', bg: '#fef2f2' },
+  medical:      { label: 'Médica',         color: '#f59e0b', bg: '#fffbeb' },
+  administrative:{ label: 'Administrativa', color: '#3b82f6', bg: '#eff6ff' },
+  other:        { label: 'Otra',            color: '#6b7280', bg: '#f3f4f6' },
+}
+
 export default function DirectorPage() {
   const { profile, supabase } = useAuth()
   const router = useRouter()
-  const [teams, setTeams] = useState([])
-  const [coaches, setCoaches] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
+
+  const [tab, setTab] = useState('resumen')
+
+  // ── Resumen ──────────────────────────────────────────
+  const [overview, setOverview]       = useState(null)
+  const [loadingOverview, setLoadingOverview] = useState(true)
+
+  // ── Equipos ──────────────────────────────────────────
+  const [teams, setTeams]         = useState([])
+  const [coaches, setCoaches]     = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [showForm, setShowForm]   = useState(false)
+  const [editing, setEditing]     = useState(null)
+  const [form, setForm]           = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
   const [teamCoaches, setTeamCoaches] = useState([])
   const [addingCoach, setAddingCoach] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(null)
+  const [saving, setSaving]       = useState(false)
+  const [deleting, setDeleting]   = useState(null)
 
   useEffect(() => {
     if (profile && profile.role !== 'director') router.replace('/dashboard')
-    else if (profile) loadData()
+    else if (profile) {
+      loadTeams()
+      loadOverview()
+    }
   }, [profile])
 
-  async function loadData() {
+  // ── Overview data ────────────────────────────────────
+  async function loadOverview() {
+    setLoadingOverview(true)
+
+    const [{ data: teamList }, { data: coachList }, { data: playerList }, { data: incidentList }] = await Promise.all([
+      supabase.from('teams').select('id, name, category, season, gender'),
+      supabase.from('profiles').select('id, full_name').eq('role', 'coach'),
+      supabase.from('players').select('id, team_id').eq('active', true),
+      supabase.from('incidents')
+        .select('id, type, description, date, resolved, teams(name), players(full_name), profiles(full_name)')
+        .order('date', { ascending: false })
+        .limit(8),
+    ])
+
+    // Attendance per team for the last 30 days
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const fromDate = thirtyDaysAgo.toISOString().slice(0, 10)
+
+    const teamIds = (teamList || []).map(t => t.id)
+    let attendanceSummary = []
+    if (teamIds.length > 0) {
+      const { data: attData } = await supabase
+        .from('attendance')
+        .select('team_id, status')
+        .in('team_id', teamIds)
+        .gte('date', fromDate)
+
+      // Group by team
+      const byTeam = {}
+      ;(attData || []).forEach(a => {
+        if (!byTeam[a.team_id]) byTeam[a.team_id] = { present: 0, total: 0 }
+        byTeam[a.team_id].total++
+        if (a.status === 'present' || a.status === 'late') byTeam[a.team_id].present++
+      })
+
+      attendanceSummary = (teamList || [])
+        .map(t => ({ ...t, att: byTeam[t.id] || null }))
+        .filter(t => t.att && t.att.total > 0)
+        .sort((a, b) => (b.att.present / b.att.total) - (a.att.present / a.att.total))
+    }
+
+    setOverview({
+      teamsCount: (teamList || []).length,
+      coachesCount: (coachList || []).length,
+      playersCount: (playerList || []).length,
+      incidents: incidentList || [],
+      attendanceSummary,
+    })
+    setLoadingOverview(false)
+  }
+
+  // ── Teams data ───────────────────────────────────────
+  async function loadTeams() {
     setLoading(true)
     const [{ data: t }, { data: c }] = await Promise.all([
       supabase.from('teams').select('*').order('name'),
@@ -37,9 +109,7 @@ export default function DirectorPage() {
 
     if (teamList.length > 0) {
       const { data: tc } = await supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)')
-      teamList.forEach(team => {
-        team.coaches = (tc || []).filter(r => r.team_id === team.id)
-      })
+      teamList.forEach(team => { team.coaches = (tc || []).filter(r => r.team_id === team.id) })
     }
 
     setTeams(teamList)
@@ -66,33 +136,31 @@ export default function DirectorPage() {
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
-    let teamId = editing
     if (editing) {
       await supabase.from('teams').update({ name: form.name, category: form.category, season: form.season, gender: form.gender }).eq('id', editing)
     } else {
-      const { data } = await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender }).select().single()
-      teamId = data.id
+      await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender }).select().single()
     }
     setSaving(false)
     setShowForm(false)
-    loadData()
+    loadTeams()
+    loadOverview()
   }
 
   async function handleAddCoach() {
     if (!addingCoach || !editing) return
-    const already = teamCoaches.find(tc => tc.coach_id === addingCoach)
-    if (already) return
+    if (teamCoaches.find(tc => tc.coach_id === addingCoach)) return
     await supabase.from('team_coaches').insert({ team_id: editing, coach_id: addingCoach })
     const coach = coaches.find(c => c.id === addingCoach)
     setTeamCoaches(prev => [...prev, { team_id: editing, coach_id: addingCoach, profiles: { full_name: coach?.full_name } }])
     setAddingCoach('')
-    loadData()
+    loadTeams()
   }
 
   async function handleRemoveCoach(coachId) {
     await supabase.from('team_coaches').delete().eq('team_id', editing).eq('coach_id', coachId)
     setTeamCoaches(prev => prev.filter(tc => tc.coach_id !== coachId))
-    loadData()
+    loadTeams()
   }
 
   async function handleDelete(id) {
@@ -100,80 +168,208 @@ export default function DirectorPage() {
     setDeleting(id)
     await supabase.from('teams').delete().eq('id', id)
     setDeleting(null)
-    loadData()
+    loadTeams()
+    loadOverview()
   }
-
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
 
   const assignedCoachIds = new Set(teamCoaches.map(tc => tc.coach_id))
   const availableCoaches = coaches.filter(c => !assignedCoachIds.has(c.id))
 
+  // ── RENDER ───────────────────────────────────────────
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Panel Director</h1>
-          <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>{teams.length} equipos · {coaches.length} entrenadores</p>
+          <h1 style={{ color: '#111827', fontSize: 22, fontWeight: 900, margin: '0 0 3px' }}>Panel Director</h1>
+          <p style={{ color: '#9ca3af', fontSize: 13, margin: 0 }}>
+            {overview ? `${overview.teamsCount} equipos · ${overview.coachesCount} entrenadores · ${overview.playersCount} jugadores` : 'Cargando...'}
+          </p>
         </div>
-        <button onClick={openNew} style={{
-          padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-          background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-          fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-        }}>+ Nuevo equipo</button>
+        {tab === 'equipos' && (
+          <button onClick={openNew} style={{
+            padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
+            fontSize: 13, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
+          }}>+ Nuevo equipo</button>
+        )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {teams.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏀</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>No hay equipos todavía</div>
-          </div>
-        )}
-        {teams.map(team => (
-          <div key={team.id} style={{
-            backgroundColor: '#fff', borderRadius: 14, padding: '16px 20px',
-            border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                  background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18
-                }}>🏀</div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{team.name}</div>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                    {team.category} · {team.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {team.season}
-                  </div>
-                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {team.coaches?.length > 0
-                      ? team.coaches.map(tc => (
-                        <span key={tc.coach_id} style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '3px 8px', borderRadius: 6 }}>
-                          👤 {tc.profiles?.full_name}
-                        </span>
-                      ))
-                      : <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>⚠️ Sin entrenadores asignados</span>
-                    }
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                <button onClick={() => openEdit(team)} style={{
-                  padding: '7px 14px', borderRadius: 8, border: '1px solid #e5e7eb',
-                  backgroundColor: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-                }}>Editar</button>
-                <button onClick={() => handleDelete(team.id)} disabled={deleting === team.id} style={{
-                  padding: '7px 14px', borderRadius: 8, border: '1px solid #fecaca',
-                  backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 600,
-                  cursor: deleting === team.id ? 'not-allowed' : 'pointer'
-                }}>Eliminar</button>
-              </div>
-            </div>
-          </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{
+            padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            fontSize: 13, fontWeight: 700,
+            backgroundColor: tab === t.key ? '#1C5C2A' : '#f3f4f6',
+            color: tab === t.key ? '#fff' : '#6b7280',
+            transition: 'all 0.15s',
+          }}>{t.label}</button>
         ))}
       </div>
 
+      {/* ── TAB: RESUMEN ── */}
+      {tab === 'resumen' && (
+        loadingOverview ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Stats cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {[
+                { label: 'Equipos', value: overview.teamsCount, emoji: '🏆', color: '#1C5C2A', bg: '#f0fdf4' },
+                { label: 'Entrenadores', value: overview.coachesCount, emoji: '👤', color: '#2563eb', bg: '#eff6ff' },
+                { label: 'Jugadores activos', value: overview.playersCount, emoji: '🏀', color: '#7c3aed', bg: '#f5f3ff' },
+              ].map(card => (
+                <div key={card.label} style={{
+                  backgroundColor: card.bg, borderRadius: 14, padding: '16px 18px',
+                  border: `1px solid ${card.bg}`,
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>{card.emoji}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: card.color, lineHeight: 1 }}>{card.value}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, marginTop: 4 }}>{card.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Asistencia por equipo */}
+            {overview.attendanceSummary.length > 0 && (
+              <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6', overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#111827' }}>✅ Asistencia últimos 30 días</div>
+                  <Link href="/dashboard/asistencia" style={{ fontSize: 12, color: '#52B043', fontWeight: 600, textDecoration: 'none' }}>Ver todo →</Link>
+                </div>
+                <div style={{ padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {overview.attendanceSummary.slice(0, 6).map(t => {
+                    const pct = t.att ? Math.round((t.att.present / t.att.total) * 100) : 0
+                    const barColor = pct >= 80 ? '#52B043' : pct >= 60 ? '#f59e0b' : '#ef4444'
+                    return (
+                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 120, fontSize: 12, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {t.name}
+                        </div>
+                        <div style={{ flex: 1, height: 8, backgroundColor: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ width: `${pct}%`, height: '100%', backgroundColor: barColor, borderRadius: 4, transition: 'width 0.3s' }} />
+                        </div>
+                        <div style={{ width: 36, textAlign: 'right', fontSize: 12, fontWeight: 700, color: barColor, flexShrink: 0 }}>{pct}%</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Incidencias recientes */}
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #f3f4f6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#111827' }}>⚠️ Incidencias recientes</div>
+                <Link href="/dashboard/incidencias" style={{ fontSize: 12, color: '#52B043', fontWeight: 600, textDecoration: 'none' }}>Ver todo →</Link>
+              </div>
+              {overview.incidents.length === 0 ? (
+                <div style={{ padding: '24px 18px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
+                  No hay incidencias registradas
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {overview.incidents.map((inc, i) => {
+                    const it = INCIDENT_TYPES[inc.type] || INCIDENT_TYPES.other
+                    const dateStr = inc.date
+                      ? new Date(inc.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+                      : '—'
+                    return (
+                      <div key={inc.id} style={{
+                        padding: '12px 18px',
+                        borderBottom: i < overview.incidents.length - 1 ? '1px solid #f9fafb' : 'none',
+                        display: 'flex', alignItems: 'flex-start', gap: 12,
+                      }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, flexShrink: 0, marginTop: 1,
+                          backgroundColor: it.bg, color: it.color
+                        }}>{it.label}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: '#374151', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {inc.description}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                            {inc.teams?.name}{inc.players?.full_name ? ` · ${inc.players.full_name}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>{dateStr}</span>
+                          {inc.resolved && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', backgroundColor: '#f0fdf4', padding: '1px 6px', borderRadius: 4 }}>✓ Resuelta</span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ── TAB: EQUIPOS ── */}
+      {tab === 'equipos' && (
+        loading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {teams.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🏀</div>
+                <div style={{ fontSize: 15, fontWeight: 600 }}>No hay equipos todavía</div>
+              </div>
+            )}
+            {teams.map(team => (
+              <div key={team.id} style={{
+                backgroundColor: '#fff', borderRadius: 14, padding: '16px 20px',
+                border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                      background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18
+                    }}>🏀</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{team.name}</div>
+                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                        {team.category} · {team.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {team.season}
+                      </div>
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {team.coaches?.length > 0
+                          ? team.coaches.map(tc => (
+                            <span key={tc.coach_id} style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '3px 8px', borderRadius: 6 }}>
+                              👤 {tc.profiles?.full_name}
+                            </span>
+                          ))
+                          : <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>⚠️ Sin entrenadores asignados</span>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button onClick={() => openEdit(team)} style={{
+                      padding: '7px 14px', borderRadius: 8, border: '1px solid #e5e7eb',
+                      backgroundColor: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                    }}>Editar</button>
+                    <button onClick={() => handleDelete(team.id)} disabled={deleting === team.id} style={{
+                      padding: '7px 14px', borderRadius: 8, border: '1px solid #fecaca',
+                      backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 600,
+                      cursor: deleting === team.id ? 'not-allowed' : 'pointer'
+                    }}>{deleting === team.id ? '...' : 'Eliminar'}</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Modal editar / crear equipo */}
       {showForm && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
           <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', margin: 'auto' }}>
@@ -221,7 +417,6 @@ export default function DirectorPage() {
                 </div>
               )}
 
-              {/* Gestión de entrenadores — solo al editar */}
               {editing && (
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Entrenadores asignados</label>
@@ -254,7 +449,7 @@ export default function DirectorPage() {
                     </div>
                   ) : (
                     <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 12px', borderRadius: 8, backgroundColor: '#f9fafb' }}>
-                      Todos los entrenadores registrados ya están asignados a este equipo
+                      Todos los entrenadores ya están asignados a este equipo
                     </div>
                   )}
                 </div>

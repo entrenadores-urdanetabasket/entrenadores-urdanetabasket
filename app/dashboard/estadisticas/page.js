@@ -23,10 +23,11 @@ export default function EstadisticasPage() {
   const { user, profile, supabase } = useAuth()
   const router = useRouter()
 
-  const [games, setGames]       = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [filter, setFilter]     = useState('all') // 'all' | 'live' | 'finished' | 'pending'
-  const [teamName, setTeamName] = useState('')
+  const [games, setGames]         = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [filter, setFilter]       = useState('all')
+  const [teamName, setTeamName]   = useState('')
+  const [deleting, setDeleting]   = useState(null) // game id being deleted
 
   useEffect(() => { if (user) loadGames() }, [user])
 
@@ -58,6 +59,19 @@ export default function EstadisticasPage() {
 
     setGames(data || [])
     setLoading(false)
+  }
+
+  async function deleteGame(gameId, e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm('¿Eliminar este partido? Se borrarán también todos sus eventos y estadísticas. Esta acción no se puede deshacer.')) return
+    setDeleting(gameId)
+    // Borrar en orden: eventos → jugadores del partido → partido
+    await supabase.from('game_events').delete().eq('game_id', gameId)
+    await supabase.from('game_players').delete().eq('game_id', gameId)
+    await supabase.from('games').delete().eq('id', gameId)
+    setGames(prev => prev.filter(g => g.id !== gameId))
+    setDeleting(null)
   }
 
   const filtered = filter === 'all' ? games : games.filter(g => g.status === filter)
@@ -149,7 +163,7 @@ export default function EstadisticasPage() {
                 <div style={{
                   backgroundColor: '#fff', borderRadius: 14, border: `1px solid ${isLive ? '#fca5a5' : '#f3f4f6'}`,
                   padding: '14px 18px', boxShadow: isLive ? '0 2px 12px rgba(239,68,68,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',
-                  transition: 'box-shadow 0.15s',
+                  transition: 'box-shadow 0.15s', position: 'relative',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -171,16 +185,34 @@ export default function EstadisticasPage() {
                         {dateStr}{game.location ? ` · ${game.location}` : ''}
                       </div>
                     </div>
-                    {game.status !== 'pending' && (
-                      <div style={{ textAlign: 'center', flexShrink: 0, marginLeft: 16 }}>
-                        <div style={{ fontSize: 24, fontWeight: 900, color: '#111827', letterSpacing: -1 }}>
-                          {game.our_score ?? 0} – {game.rival_score ?? 0}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
+                      {game.status !== 'pending' && (
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 24, fontWeight: 900, color: '#111827', letterSpacing: -1 }}>
+                            {game.our_score ?? 0} – {game.rival_score ?? 0}
+                          </div>
+                          {isLive && (
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textAlign: 'center' }}>EN VIVO</div>
+                          )}
                         </div>
-                        {isLive && (
-                          <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textAlign: 'center' }}>EN VIVO</div>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      {/* Botón eliminar */}
+                      <button
+                        onClick={(e) => deleteGame(game.id, e)}
+                        disabled={deleting === game.id}
+                        style={{
+                          width: 32, height: 32, borderRadius: 8, border: '1px solid #fee2e2',
+                          backgroundColor: deleting === game.id ? '#f3f4f6' : '#fff',
+                          color: deleting === game.id ? '#d1d5db' : '#ef4444',
+                          cursor: deleting === game.id ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 15, flexShrink: 0, transition: 'background 0.1s',
+                        }}
+                        title="Eliminar partido"
+                      >
+                        {deleting === game.id ? '…' : '🗑'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </Link>

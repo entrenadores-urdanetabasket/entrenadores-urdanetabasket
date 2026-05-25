@@ -121,6 +121,7 @@ export default function AsistenciaPage() {
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
+  const [deletingDay,  setDeletingDay]  = useState(null)
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
 
@@ -264,6 +265,16 @@ export default function AsistenciaPage() {
     setMarkedDays(prev => ({ ...prev, [date]: sessionType }))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+  }
+
+  async function deleteAttendanceDay(dayDate, e) {
+    e.stopPropagation()
+    if (!window.confirm(`¿Eliminar el registro de asistencia del ${new Date(dayDate+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}? Esta acción no se puede deshacer.`)) return
+    setDeletingDay(dayDate)
+    await supabase.from('attendance').delete().eq('team_id', selectedTeam.id).eq('date', dayDate)
+    setHistory(prev => prev.filter(h => h.date !== dayDate))
+    setMarkedDays(prev => { const next = { ...prev }; delete next[dayDate]; return next })
+    setDeletingDay(null)
   }
 
   const cycleStatus = (id) => {
@@ -456,6 +467,21 @@ export default function AsistenciaPage() {
                           {attended}/{total} · {pct}%
                         </span>
                         <span style={{ color:'#9ca3af', fontSize:12 }}>{isOpen ? '▲' : '▼'}</span>
+                        <button
+                          onClick={(e) => deleteAttendanceDay(date, e)}
+                          disabled={deletingDay === date}
+                          style={{
+                            width: 28, height: 28, borderRadius: 7, border: '1px solid #fee2e2',
+                            backgroundColor: deletingDay === date ? '#f3f4f6' : '#fff',
+                            color: deletingDay === date ? '#d1d5db' : '#ef4444',
+                            cursor: deletingDay === date ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 13, flexShrink: 0,
+                          }}
+                          title="Eliminar este registro"
+                        >
+                          {deletingDay === date ? '…' : '🗑'}
+                        </button>
                       </div>
                     </div>
                     <div style={{ height:6, backgroundColor:'#f3f4f6', borderRadius:3, overflow:'hidden', marginBottom:8 }}>

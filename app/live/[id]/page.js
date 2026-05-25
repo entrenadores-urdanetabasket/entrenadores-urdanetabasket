@@ -821,7 +821,7 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'110px 78px 56px 1fr', flex:1, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'108px 76px 1fr 148px', flex:1, overflow:'hidden' }}>
 
             {/* ── Col A: Our players ── */}
             <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>

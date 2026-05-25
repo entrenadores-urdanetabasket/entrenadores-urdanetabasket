@@ -593,17 +593,21 @@ export default function LivePage() {
       const qBefore = events.filter(e => e.team===team && e.event_type.startsWith('foul')
         && (team==='us'?e.player_id!=null:e.rival_jersey!=null) && Number(e.quarter)===quarter).length
       const newCount = qBefore + 1
-      const isBonus = newCount >= 4
-      const firstBonus = newCount === 4
+      const isBonus    = newCount >= 5  // 2 TL automáticos a partir de la 5ª falta
+      const firstBonus = newCount === 4 // aviso banner en la 4ª falta
       await saveEv('foul_personal', team, ref)
       const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us',
         defaultTL:isBonus?2:null, isBonus, bonusAlert:firstBonus, foulType:'foul_personal', foulTeam:team }
+      // Si estamos en bonus, preguntar si es falta en ataque (sin TL) o defensa (2 TL)
+      const nextModal = isBonus
+        ? { type:'ask_foul_type', ftModal }
+        : ftModal
       if (team === 'us') {
         const c = getPlayerFoulCounts(events, ref); c.personal++
         const st = calcPlayerStatus(c)
-        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal }); return }
       }
-      setModal(ftModal)
+      setModal(nextModal)
       return
     }
     if (a === 'unsporting') {
@@ -677,6 +681,30 @@ export default function LivePage() {
     else setModal(null)
   }
 
+  async function confirmOurLineup(newCourt, initialCourt) {
+    const outPlayers = initialCourt.filter(p => !newCourt.includes(p))
+    const inPlayers  = newCourt.filter(p => !initialCourt.includes(p))
+    const maxPairs   = Math.max(outPlayers.length, inPlayers.length)
+    const inserts    = []
+    for (let i = 0; i < maxPairs; i++) {
+      const inP  = inPlayers[i]  ?? null
+      const outP = outPlayers[i] ?? null
+      if (inP) {
+        inserts.push({
+          game_id:id, team:'us', event_type:'substitution', quarter,
+          points:0, player_id:inP, linked_event_id:outP, shot_x:null, shot_y:null,
+        })
+      }
+    }
+    if (inserts.length) {
+      await supabase.from('game_events').insert(inserts)
+      const newEvs = inserts.map((ins, i) => ({ id:'sub_'+Date.now()+i, team:'us', event_type:'substitution', quarter, player_id:ins.player_id, linked_event_id:ins.linked_event_id }))
+      setEvents(prev => [...prev, ...newEvs])
+    }
+    setOnCourt(newCourt)
+    setModal(null)
+  }
+
   async function confirmSub(inPlayer) {
     const { outPlayer, team:subTeam, currentCourt } = modal
     if (subTeam === 'us') {
@@ -746,7 +774,7 @@ export default function LivePage() {
     if (key === 'technical') { setModal({ type:'foul_target', foulType:'technical', team:'us' }); setArmed(null); return }
     if (key === 'disqualifying') { setModal({ type:'foul_target', foulType:'disqualifying', team:'us' }); setArmed(null); return }
     if (key === 'timeout') { setModal({ type:'timeout_team' }); setArmed(null); return }
-    if (key === 'sub') { setModal({ type:'sub', team:'us', currentCourt:[...onCourt] }); setArmed(null); return }
+    if (key === 'sub') { setModal({ type:'sub_team_select' }); setArmed(null); return }
     setArmed(prev => prev===key ? null : key)
     if (modal?.type==='ask_assist' || modal?.type==='ask_rebound') setModal(null)
   }
@@ -954,11 +982,11 @@ export default function LivePage() {
 
             {/* ── Col A: Our players ── */}
             <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
-              <button onClick={() => { setModal({ type:'sub', team:'us', currentCourt:[...onCourt] }); setArmed(null) }}
+              <button onClick={() => { setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
                   color:'#22c55e', fontSize:11, fontWeight:900, letterSpacing:1 }}>
-                {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'NOS'}
+                {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'URD'}
               </button>
               {courtGps.map(gp => {
                 const st = playerStatusFromEvents(events, gp.player_id)
@@ -1489,6 +1517,100 @@ export default function LivePage() {
               ⚖️ Compensar — ambas faltas se anulan (sin TL)
             </button>
           )}
+        </Overlay>
+      )}
+
+      {/* ── Seleccionar equipo para sustitución ─────────────────────────── */}
+      {modal?.type==='sub_team_select' && (
+        <Overlay onClose={() => setModal(null)}>
+          <div style={{ color:'#fff', fontSize:15, fontWeight:900, marginBottom:16, textAlign:'center' }}>🔄 Sustitución — ¿Qué equipo?</div>
+          <button onClick={() => setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] })}
+            style={{ ...btnStyle('#16a34a'), marginBottom:10 }}>
+            🟢 {ourName}
+          </button>
+          <button onClick={() => setModal({ type:'rival_lineup' })}
+            style={btnStyle('#d97706')}>
+            🟡 {rivalName}
+          </button>
+        </Overlay>
+      )}
+
+      {/* ── Alineación local (multi-tap para cambios múltiples) ──────────── */}
+      {modal?.type==='our_lineup' && (() => {
+        const court = modal.court || onCourt
+        return (
+          <Overlay onClose={() => setModal(null)}>
+            <div style={{ color:'#22c55e', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🔄 5 en pista — {ourName}</div>
+            <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Toca para activar/desactivar · máx. 5</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+              {gps.map(gp => {
+                const pid   = gp.player_id
+                const isOn  = court.includes(pid)
+                const st    = playerStatusFromEvents(events, pid)
+                return (
+                  <button key={pid} disabled={st.out} onClick={() => {
+                    if (st.out) return
+                    if (isOn) {
+                      if (court.length > 1) setModal({ ...modal, court: court.filter(p => p !== pid) })
+                    } else {
+                      if (court.length < 5) setModal({ ...modal, court: [...court, pid] })
+                    }
+                  }} style={{
+                    display:'flex', alignItems:'center', gap:10,
+                    padding:'9px 12px', borderRadius:9, border:`2px solid ${isOn?'#22c55e':'#374151'}`,
+                    backgroundColor: st.out ? '#1a0505' : isOn ? '#14532d' : '#1a2030',
+                    cursor: st.out ? 'not-allowed' : 'pointer', opacity: st.out ? 0.5 : 1,
+                  }}>
+                    <span style={{ width:32, height:32, borderRadius:8, flexShrink:0,
+                      backgroundColor: isOn ? '#16a34a' : '#374151',
+                      display:'inline-flex', alignItems:'center', justifyContent:'center',
+                      fontSize:14, fontWeight:900, color:'#fff' }}>
+                      {gp.players?.number ?? '?'}
+                    </span>
+                    <span style={{ flex:1, textAlign:'left', fontSize:12, fontWeight:700,
+                      color: st.out ? '#5a3030' : isOn ? '#d1fae5' : '#9ca3af' }}>
+                      {gp.players?.full_name || '—'}
+                    </span>
+                    <span style={{ fontSize:11, fontWeight:800,
+                      color: isOn ? '#22c55e' : '#374151' }}>
+                      {st.out ? (st.disqualified ? 'DESC' : 'ELIM') : isOn ? '✓ Pista' : 'Banco'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ color:court.length===5?'#22c55e':'#f59e0b', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
+              {court.length}/5 en pista
+            </div>
+            <button onClick={() => confirmOurLineup(modal.court, modal.initialCourt)}
+              style={{ ...btnStyle('#16a34a'), marginBottom:8 }}>
+              ✓ Confirmar cambios
+            </button>
+            <button onClick={() => setModal(null)}
+              style={btnStyle('#1f2937',12)}>
+              Cancelar
+            </button>
+          </Overlay>
+        )
+      })()}
+
+      {/* ── Falta en ataque vs defensa (solo en bonus, 5ª+ falta) ─────────── */}
+      {modal?.type==='ask_foul_type' && (
+        <Overlay onClose={() => setModal(null)}>
+          <div style={{ color:'#f59e0b', fontSize:14, fontWeight:900, marginBottom:4, textAlign:'center' }}>
+            ⚡ Bonus activo — ¿Tipo de falta?
+          </div>
+          <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:16 }}>
+            La falta en ataque no genera tiros libres
+          </div>
+          <button onClick={() => setModal(modal.ftModal)}
+            style={{ ...btnStyle('#dc2626',13), marginBottom:10 }}>
+            🛡 Falta defensiva → 2 Tiros Libres
+          </button>
+          <button onClick={() => setModal(null)}
+            style={btnStyle('#374151',13)}>
+            ⚔️ Falta en ataque → Sin tiros libres
+          </button>
         </Overlay>
       )}
 

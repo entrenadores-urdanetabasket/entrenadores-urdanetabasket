@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 
-export default function ConvocatoriaDetailPage({ params }) {
+export default function ConvocatoriaDetailPage() {
   const { user, profile, supabase } = useAuth()
   const router = useRouter()
+  const { id } = useParams()
   const isDirector = profile?.role === 'director'
 
   const [conv, setConv] = useState(null)
@@ -16,16 +17,16 @@ export default function ConvocatoriaDetailPage({ params }) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (!user || !params?.id) return
+    if (!user || !id) return
     loadConvocatoria()
-  }, [user, params])
+  }, [user, id])
 
   async function loadConvocatoria() {
     try {
       const { data: c } = await supabase
         .from('convocatorias')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (!c) { router.replace('/dashboard/convocatorias'); return }
@@ -39,7 +40,7 @@ export default function ConvocatoriaDetailPage({ params }) {
       const { data: cp } = await supabase
         .from('convocatoria_players')
         .select('player_id, players(id, full_name, number, position)')
-        .eq('convocatoria_id', params.id)
+        .eq('convocatoria_id', id)
 
       const list = (cp || []).map(r => r.players).filter(Boolean)
       list.sort((a, b) => (a.number ?? 99) - (b.number ?? 99))
@@ -84,7 +85,7 @@ export default function ConvocatoriaDetailPage({ params }) {
 
   async function handleDelete() {
     if (!confirm('¿Eliminar esta convocatoria? Esta acción no se puede deshacer.')) return
-    await supabase.from('convocatorias').delete().eq('id', params.id)
+    await supabase.from('convocatorias').delete().eq('id', id)
     router.replace('/dashboard/convocatorias')
   }
 

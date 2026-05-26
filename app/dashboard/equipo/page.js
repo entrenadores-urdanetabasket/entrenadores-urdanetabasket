@@ -29,9 +29,15 @@ export default function EquipoPage() {
   async function loadData() {
     setLoading(true)
     if (isDirector) {
-      const { data: t } = await supabase.from('teams').select('*, profiles(full_name)').order('name')
-      setTeams(t || [])
-      if (t?.length > 0) loadPlayers(selectedTeam?.id || t[0].id, t)
+      const { data: t } = await supabase.from('teams').select('*').order('name')
+      const teamList = t || []
+      // Cargar entrenadores vía team_coaches
+      if (teamList.length > 0) {
+        const { data: tc } = await supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)')
+        teamList.forEach(team => { team.coaches = (tc || []).filter(r => r.team_id === team.id) })
+      }
+      setTeams(teamList)
+      if (teamList.length > 0) loadPlayers(selectedTeam?.id || teamList[0].id, teamList)
       else setLoading(false)
     } else {
       if (!activeTeam) { setLoading(false); return }
@@ -124,7 +130,7 @@ export default function EquipoPage() {
         )}
       </div>
 
-      {/* Selector de equipos (solo director) */}
+      {/* Selector de equipos */}
       {isDirector && teams.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
           {teams.map(t => (
@@ -153,9 +159,9 @@ export default function EquipoPage() {
               {selectedTeam.category} · {selectedTeam.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {selectedTeam.season}
             </div>
             <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>{selectedTeam.name}</div>
-            {isDirector && selectedTeam.profiles && (
+            {isDirector && selectedTeam.coaches?.length > 0 && (
               <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
-                👤 {selectedTeam.profiles.full_name}
+                👤 {selectedTeam.coaches.map(c => c.profiles?.full_name).filter(Boolean).join(', ')}
               </div>
             )}
           </div>

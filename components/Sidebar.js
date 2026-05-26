@@ -11,6 +11,7 @@ const coachItems = [
   { href: '/dashboard/asistencia', label: 'Asistencia', emoji: '✅' },
   { href: '/dashboard/estadisticas', label: 'Estadísticas', emoji: '📊' },
   { href: '/dashboard/tacticas', label: 'Tácticas', emoji: '🏀' },
+  { href: '/dashboard/convocatorias', label: 'Convocatorias', emoji: '📋' },
   { href: '/dashboard/entrenamientos', label: 'Entrenamientos', emoji: '📝' },
   { href: '/dashboard/incidencias', label: 'Incidencias', emoji: '⚠️' },
 ]

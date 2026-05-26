@@ -56,6 +56,7 @@ export default function DashboardPage() {
     { label: 'Asistencia',     desc: 'Control de presencia',   href: '/dashboard/asistencia',     emoji: '✅', color: '#52B043' },
     { label: 'Estadísticas',   desc: 'Análisis de partidos',   href: '/dashboard/estadisticas',   emoji: '📊', color: '#8b5cf6' },
     { label: 'Tácticas',       desc: 'Editor de jugadas',      href: '/dashboard/tacticas',       emoji: '🏀', color: '#f59e0b' },
+    { label: 'Convocatorias',  desc: 'Lista de citados',       href: '/dashboard/convocatorias',  emoji: '📋', color: '#0ea5e9' },
     { label: 'Entrenamientos', desc: 'Planificar sesiones',    href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
     { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    emoji: '⚠️', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
   ]

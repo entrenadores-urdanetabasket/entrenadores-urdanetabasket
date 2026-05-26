@@ -19,6 +19,7 @@ export default function EquipoPage() {
   const [form, setForm] = useState({ full_name: '', number: '', position: 'Base', birth_date: '' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!user || !profile) return
@@ -28,31 +29,49 @@ export default function EquipoPage() {
 
   async function loadData() {
     setLoading(true)
-    if (isDirector) {
-      const { data: t } = await supabase.from('teams').select('*').order('name')
-      const teamList = t || []
-      // Cargar entrenadores vía team_coaches
-      if (teamList.length > 0) {
-        const { data: tc } = await supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)')
-        teamList.forEach(team => { team.coaches = (tc || []).filter(r => r.team_id === team.id) })
+    setError(null)
+    try {
+      if (isDirector) {
+        const { data: t, error: tErr } = await supabase.from('teams').select('*').order('name')
+        if (tErr) { console.error('teams query error:', tErr); setError(tErr.message); return }
+        const teamList = t || []
+        // Cargar entrenadores vía team_coaches
+        if (teamList.length > 0) {
+          const { data: tc } = await supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)')
+          teamList.forEach(team => { team.coaches = (tc || []).filter(r => r.team_id === team.id) })
+        }
+        setTeams(teamList)
+        if (teamList.length > 0) {
+          await loadPlayers(selectedTeam?.id || teamList[0].id, teamList)
+        } else {
+          setLoading(false)
+        }
+      } else {
+        if (!activeTeam) { setLoading(false); return }
+        setTeams(myTeams)
+        setSelectedTeam(activeTeam)
+        await loadPlayers(activeTeam.id, myTeams)
       }
-      setTeams(teamList)
-      if (teamList.length > 0) loadPlayers(selectedTeam?.id || teamList[0].id, teamList)
-      else setLoading(false)
-    } else {
-      if (!activeTeam) { setLoading(false); return }
-      setTeams(myTeams)
-      setSelectedTeam(activeTeam)
-      loadPlayers(activeTeam.id, myTeams)
+    } catch (err) {
+      console.error('loadData error:', err)
+      setError(err.message)
+      setLoading(false)
     }
   }
 
   async function loadPlayers(teamId, teamList) {
-    const team = teamList.find(t => t.id === teamId)
-    setSelectedTeam(team)
-    const { data: p } = await supabase.from('players').select('*').eq('team_id', teamId).eq('active', true).order('number')
-    setPlayers(p || [])
-    setLoading(false)
+    try {
+      const team = teamList.find(t => t.id === teamId)
+      setSelectedTeam(team)
+      const { data: p, error: pErr } = await supabase.from('players').select('*').eq('team_id', teamId).eq('active', true).order('number')
+      if (pErr) console.error('players query error:', pErr)
+      setPlayers(p || [])
+    } catch (err) {
+      console.error('loadPlayers error:', err)
+      setPlayers([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   function openNew() {
@@ -101,6 +120,12 @@ export default function EquipoPage() {
 
   if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
 
+  if (error) return (
+    <div style={{ padding: 24, background: '#fef2f2', borderRadius: 12, color: '#ef4444', fontSize: 13 }}>
+      Error al cargar equipos: {error}
+    </div>
+  )
+
   if (!isDirector && teams.length === 0) return (
     <div style={{ textAlign: 'center', padding: '64px 0' }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>🏀</div>
@@ -129,6 +154,15 @@ export default function EquipoPage() {
           }}>+ Jugador</button>
         )}
       </div>
+
+      {/* Estado vacío para director */}
+      {isDirector && teams.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🏀</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>No hay equipos creados</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>Ve al Panel Director para crear equipos</div>
+        </div>
+      )}
 
       {/* Selector de equipos */}
       {isDirector && teams.length > 0 && (

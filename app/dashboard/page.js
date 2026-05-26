@@ -5,39 +5,70 @@ import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
 
 export default function DashboardPage() {
-  const { user, profile, supabase } = useAuth()
-  const [team, setTeam] = useState(null)
-  const [stats, setStats] = useState({ players: 0, attendance: 0, incidents: 0 })
+  const { user, profile, supabase, activeTeam } = useAuth()
+  const isDirector = profile?.role === 'director'
+
+  const [team, setTeam]   = useState(null)
+  const [stats, setStats] = useState({ players: 0, incidents: 0 })
+
+  // Director stats
+  const [dirStats, setDirStats] = useState({ teams: 0, coaches: 0, players: 0, incidents: 0 })
 
   useEffect(() => {
-    if (user) loadData()
-  }, [user])
+    if (!user || !profile) return
+    if (isDirector) loadDirectorData()
+    else if (activeTeam) loadCoachData(activeTeam)
+  }, [user, profile, activeTeam])
 
-  async function loadData() {
-    const { data: t } = await supabase.from('teams').select('*, players(count)').eq('coach_id', user.id).single()
-    if (!t) return
+  async function loadCoachData(t) {
     setTeam(t)
-    const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-    const [{ count: att }, { count: inc }] = await Promise.all([
-      supabase.from('attendance').select('*', { count: 'exact', head: true }).eq('team_id', t.id).gte('date', firstOfMonth),
-      supabase.from('incidents').select('*', { count: 'exact', head: true }).eq('team_id', t.id).eq('resolved', false)
-    ])
-    setStats({ players: t.players?.[0]?.count || 0, attendance: att || 0, incidents: inc || 0 })
+    const { count: playerCount } = await supabase
+      .from('players').select('*', { count: 'exact', head: true })
+      .eq('team_id', t.id).eq('active', true)
+    const { count: inc } = await supabase
+      .from('incidents').select('*', { count: 'exact', head: true })
+      .eq('team_id', t.id).eq('resolved', false)
+    setStats({ players: playerCount || 0, incidents: inc || 0 })
   }
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches'
-  const firstName = profile?.full_name?.split(' ')[0] || 'Entrenador'
-  const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  async function loadDirectorData() {
+    const [{ data: teams }, { data: coaches }, { data: players }, { count: inc }] = await Promise.all([
+      supabase.from('teams').select('id'),
+      supabase.from('profiles').select('id').eq('role', 'coach'),
+      supabase.from('players').select('id').eq('active', true),
+      supabase.from('incidents').select('*', { count: 'exact', head: true }).eq('resolved', false),
+    ])
+    setDirStats({
+      teams:   (teams   || []).length,
+      coaches: (coaches || []).length,
+      players: (players || []).length,
+      incidents: inc || 0,
+    })
+  }
 
-  const modules = [
-    { label: 'Mi Equipo', desc: 'Jugadores y plantilla', href: '/dashboard/equipo', emoji: '👥', color: '#3b82f6' },
-    { label: 'Asistencia', desc: 'Control de presencia', href: '/dashboard/asistencia', emoji: '✅', color: '#52B043' },
-    { label: 'Estadísticas', desc: 'Análisis de partidos', href: '/dashboard/estadisticas', emoji: '📊', color: '#8b5cf6' },
-    { label: 'Tácticas', desc: 'Editor de jugadas', href: '/dashboard/tacticas', emoji: '🏀', color: '#f59e0b' },
-    { label: 'Entrenamientos', desc: 'Planificar sesiones', href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
-    { label: 'Incidencias', desc: 'Registro de eventos', href: '/dashboard/incidencias', emoji: '⚠️', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
+  const hour      = new Date().getHours()
+  const greeting  = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches'
+  const firstName = profile?.full_name?.split(' ')[0] || (isDirector ? 'Director' : 'Entrenador')
+  const today     = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  const coachModules = [
+    { label: 'Mi Equipo',      desc: 'Jugadores y plantilla',  href: '/dashboard/equipo',         emoji: '👥', color: '#3b82f6' },
+    { label: 'Asistencia',     desc: 'Control de presencia',   href: '/dashboard/asistencia',     emoji: '✅', color: '#52B043' },
+    { label: 'Estadísticas',   desc: 'Análisis de partidos',   href: '/dashboard/estadisticas',   emoji: '📊', color: '#8b5cf6' },
+    { label: 'Tácticas',       desc: 'Editor de jugadas',      href: '/dashboard/tacticas',       emoji: '🏀', color: '#f59e0b' },
+    { label: 'Entrenamientos', desc: 'Planificar sesiones',    href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
+    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    emoji: '⚠️', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
   ]
+
+  const directorModules = [
+    { label: 'Equipos',        desc: 'Ver plantillas del club', href: '/dashboard/equipo',         emoji: '👥', color: '#3b82f6' },
+    { label: 'Asistencia',     desc: 'Control de todos los equipos', href: '/dashboard/asistencia', emoji: '✅', color: '#52B043' },
+    { label: 'Entrenamientos', desc: 'Sesiones publicadas',    href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
+    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    emoji: '⚠️', color: dirStats.incidents > 0 ? '#ef4444' : '#6b7280' },
+    { label: 'Panel Director', desc: 'Gestión del club',       href: '/dashboard/director',       emoji: '🛡️', color: '#1C5C2A' },
+  ]
+
+  const modules = isDirector ? directorModules : coachModules
 
   return (
     <div>
@@ -49,8 +80,8 @@ export default function DashboardPage() {
         </h1>
       </div>
 
-      {/* Banner perfil incompleto */}
-      {profile && !profile.profile_completed && (
+      {/* Banner perfil incompleto — solo coaches */}
+      {!isDirector && profile && !profile.profile_completed && (
         <Link href="/dashboard/perfil" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 18px', borderRadius: 12, marginBottom: 20,
@@ -67,45 +98,82 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {/* Banner equipo */}
-      <div style={{
-        borderRadius: 16, marginBottom: 28, overflow: 'hidden',
-        background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
-        boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
-      }}>
-        <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
-              {team ? 'Tu equipo' : 'Sin equipo asignado'}
-            </p>
-            <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
-              {team ? team.name : 'Pendiente de asignación'}
-            </h2>
-            {team && (
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
-                {team.category} · {team.season} · {stats.players} jugadores
+      {/* ── BANNER DIRECTOR ── */}
+      {isDirector && (
+        <div style={{
+          borderRadius: 16, marginBottom: 28, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
+          boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
+        }}>
+          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                Club Deportivo Urdaneta
               </p>
-            )}
+              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+                Vista general del club
+              </h2>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
+                Temporada 2025-2026
+              </p>
+            </div>
+            <div style={{ fontSize: 52, opacity: 0.5 }}>🛡️</div>
           </div>
-          <div style={{ fontSize: 52, opacity: 0.5 }}>🏀</div>
-        </div>
-
-        {/* Stats rápidas */}
-        {team && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
             {[
-              { label: 'Jugadores', value: stats.players },
-              { label: 'Asistencias/mes', value: stats.attendance },
-              { label: 'Incidencias', value: stats.incidents },
+              { label: 'Equipos',      value: dirStats.teams },
+              { label: 'Entrenadores', value: dirStats.coaches },
+              { label: 'Jugadores',    value: dirStats.players },
+              { label: 'Incidencias',  value: dirStats.incidents },
             ].map(({ label, value }) => (
-              <div key={label} style={{ padding: '14px 20px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+              <div key={label} style={{ padding: '14px 8px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{value}</div>
                 <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── BANNER COACH ── */}
+      {!isDirector && (
+        <div style={{
+          borderRadius: 16, marginBottom: 28, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
+          boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
+        }}>
+          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                {team ? 'Tu equipo' : 'Sin equipo asignado'}
+              </p>
+              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+                {team ? team.name : 'Pendiente de asignación'}
+              </h2>
+              {team && (
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
+                  {team.category} · {team.season} · {stats.players} jugadores
+                </p>
+              )}
+            </div>
+            <div style={{ fontSize: 52, opacity: 0.5 }}>🏀</div>
+          </div>
+
+          {team && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+              {[
+                { label: 'Jugadores',   value: stats.players },
+                { label: 'Incidencias', value: stats.incidents },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ padding: '14px 20px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{value}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Módulos */}
       <div style={{ marginBottom: 8 }}>

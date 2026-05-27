@@ -39,9 +39,12 @@ export default function DirectorPage() {
 
   // Formulario
   // ── Entrenadores ───────────────────────────────────────────
-  const [coachProfiles, setCoachProfiles] = useState([])
-  const [resetSent, setResetSent]         = useState(new Set())
-  const [sendingReset, setSendingReset]   = useState(null)
+  const [coachProfiles, setCoachProfiles]       = useState([])
+  const [settingPasswordFor, setSettingPasswordFor] = useState(null) // { id, name }
+  const [newPasswordInput, setNewPasswordInput] = useState('')
+  const [settingPassword, setSettingPassword]   = useState(false)
+  const [passwordSetFor, setPasswordSetFor]     = useState(new Set())
+  const [passwordError, setPasswordError]       = useState('')
 
   const [showForm, setShowForm]       = useState(false)
   const [editing, setEditing]         = useState(null)
@@ -139,15 +142,30 @@ export default function DirectorPage() {
     } catch (err) { console.error('loadCoachProfiles error:', err) }
   }
 
-  async function sendPasswordReset(email, coachId) {
-    setSendingReset(coachId)
+  async function handleSetPassword() {
+    setPasswordError('')
+    if (newPasswordInput.length < 6) { setPasswordError('Mínimo 6 caracteres'); return }
+    setSettingPassword(true)
     try {
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://entrenadores-urdanetabasket.vercel.app/reset-password'
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/set-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ coachId: settingPasswordFor.id, password: newPasswordInput })
       })
-      setResetSent(prev => new Set([...prev, coachId]))
-    } catch (err) { console.error(err) }
-    finally { setSendingReset(null) }
+      const json = await res.json()
+      if (!res.ok) { setPasswordError(json.error || 'Error al cambiar contraseña'); return }
+      setPasswordSetFor(prev => new Set([...prev, settingPasswordFor.id]))
+      setSettingPasswordFor(null)
+      setNewPasswordInput('')
+    } catch (err) {
+      setPasswordError('Error de conexión')
+    } finally {
+      setSettingPassword(false)
+    }
   }
 
   // ── EQUIPOS ──────────────────────────────────────────────
@@ -508,22 +526,61 @@ export default function DirectorPage() {
                 </div>
               </div>
               <button
-                onClick={() => sendPasswordReset(coach.email, coach.id)}
-                disabled={sendingReset === coach.id || resetSent.has(coach.id)}
+                onClick={() => { setSettingPasswordFor({ id: coach.id, name: coach.full_name }); setNewPasswordInput(''); setPasswordError('') }}
                 style={{
                   padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
                   fontSize: 12, fontWeight: 700, flexShrink: 0, transition: 'all 0.2s',
-                  backgroundColor: resetSent.has(coach.id) ? '#f0fdf4' : '#eff6ff',
-                  color: resetSent.has(coach.id) ? '#16a34a' : '#2563eb',
-                  opacity: sendingReset === coach.id ? 0.6 : 1
+                  backgroundColor: passwordSetFor.has(coach.id) ? '#f0fdf4' : '#eff6ff',
+                  color: passwordSetFor.has(coach.id) ? '#16a34a' : '#2563eb',
                 }}>
-                {resetSent.has(coach.id) ? '✓ Email enviado' : sendingReset === coach.id ? 'Enviando...' : '🔑 Resetear contraseña'}
+                {passwordSetFor.has(coach.id) ? '✓ Contraseña cambiada' : '🔑 Cambiar contraseña'}
               </button>
             </div>
           ))}
           <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', marginTop: 8 }}>
             Al pulsar "Resetear contraseña" se envía un email al entrenador con un enlace para crear una nueva contraseña.
           </p>
+        </div>
+      )}
+
+      {/* ── MODAL CONTRASEÑA ── */}
+      {settingPasswordFor && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111827', margin: '0 0 4px' }}>Cambiar contraseña</h2>
+            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>{settingPasswordFor.name}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Nueva contraseña</label>
+                <input
+                  type="text"
+                  value={newPasswordInput}
+                  onChange={e => setNewPasswordInput(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  autoFocus
+                  style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={e => e.target.style.borderColor = '#52B043'}
+                  onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                />
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>El entrenador podrá cambiarla después desde su perfil.</p>
+              </div>
+              {passwordError && (
+                <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: 13 }}>{passwordError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button onClick={() => { setSettingPasswordFor(null); setNewPasswordInput(''); setPasswordError('') }} style={{
+                  flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',
+                  backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                }}>Cancelar</button>
+                <button onClick={handleSetPassword} disabled={settingPassword} style={{
+                  flex: 1, padding: '12px', borderRadius: 10, border: 'none',
+                  background: settingPassword ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
+                  color: settingPassword ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700,
+                  cursor: settingPassword ? 'not-allowed' : 'pointer'
+                }}>{settingPassword ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

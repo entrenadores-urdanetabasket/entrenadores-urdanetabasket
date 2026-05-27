@@ -90,7 +90,6 @@ export default function JugadorPage() {
           <div style={{ color: '#fff', fontSize: 20, fontWeight: 900 }}>{player.full_name}</div>
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 }}>
             {player.position || '—'} · {player.teams?.name} · {player.teams?.season}
-            {player.birth_date && ` · ${new Date(player.birth_date).getFullYear()}`}
           </div>
         </div>
       </div>

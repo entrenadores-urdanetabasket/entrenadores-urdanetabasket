@@ -16,7 +16,7 @@ export default function EquipoPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ full_name: '', number: '', position: 'Base', birth_date: '' })
+  const [form, setForm] = useState({ full_name: '', number: '', position: 'Base' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [error, setError] = useState(null)
@@ -76,13 +76,13 @@ export default function EquipoPage() {
 
   function openNew() {
     setEditing(null)
-    setForm({ full_name: '', number: '', position: 'Base', birth_date: '' })
+    setForm({ full_name: '', number: '', position: 'Base' })
     setShowForm(true)
   }
 
   function openEdit(player) {
     setEditing(player.id)
-    setForm({ full_name: player.full_name, number: player.number ?? '', position: player.position || 'Base', birth_date: player.birth_date || '' })
+    setForm({ full_name: player.full_name, number: player.number ?? '', position: player.position || 'Base' })
     setShowForm(true)
   }
 
@@ -93,7 +93,7 @@ export default function EquipoPage() {
       full_name: form.full_name,
       number: form.number !== '' ? parseInt(form.number) : null,
       position: form.position,
-      birth_date: form.birth_date || null,
+
       team_id: selectedTeam.id
     }
     if (editing) await supabase.from('players').update(payload).eq('id', editing)
@@ -227,7 +227,7 @@ export default function EquipoPage() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{player.full_name}</div>
                 <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                  {player.position || '—'}{player.birth_date && ` · ${new Date(player.birth_date).getFullYear()}`}
+                  {player.position || '—'}
                 </div>
               </div>
             </div>
@@ -280,13 +280,6 @@ export default function EquipoPage() {
                     {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
-              </div>
-              <div>
-                <label style={labelStyle}>Fecha de nacimiento</label>
-                <input type='date' value={form.birth_date} onChange={e => setForm(f => ({ ...f, birth_date: e.target.value }))}
-                  style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button type='button' onClick={() => setShowForm(false)} style={{

@@ -38,6 +38,11 @@ export default function DirectorPage() {
   const [loadingDetail, setLoadingDetail] = useState(null)
 
   // Formulario
+  // ── Entrenadores ───────────────────────────────────────────
+  const [coachProfiles, setCoachProfiles] = useState([])
+  const [resetSent, setResetSent]         = useState(new Set())
+  const [sendingReset, setSendingReset]   = useState(null)
+
   const [showForm, setShowForm]       = useState(false)
   const [editing, setEditing]         = useState(null)
   const [form, setForm]               = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
@@ -51,6 +56,7 @@ export default function DirectorPage() {
     if (profile.role !== 'director') { router.replace('/dashboard'); return }
     loadTeams()
     loadOverview()
+    loadCoachProfiles()
   }, [profile])
 
   // ── RESUMEN ──────────────────────────────────────────────
@@ -108,6 +114,40 @@ export default function DirectorPage() {
     } finally {
       setLoadingOverview(false)
     }
+  }
+
+  // ── ENTRENADORES ─────────────────────────────────────────
+  async function loadCoachProfiles() {
+    try {
+      const { data: c } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, coach_role')
+        .eq('role', 'coach')
+        .order('full_name')
+      const coachList = c || []
+      if (coachList.length > 0) {
+        const { data: tc } = await supabase
+          .from('team_coaches')
+          .select('coach_id, teams(name)')
+        coachList.forEach(coach => {
+          coach.teamNames = (tc || [])
+            .filter(r => r.coach_id === coach.id)
+            .map(r => r.teams?.name).filter(Boolean)
+        })
+      }
+      setCoachProfiles(coachList)
+    } catch (err) { console.error('loadCoachProfiles error:', err) }
+  }
+
+  async function sendPasswordReset(email, coachId) {
+    setSendingReset(coachId)
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://entrenadores-urdanetabasket.vercel.app/reset-password'
+      })
+      setResetSent(prev => new Set([...prev, coachId]))
+    } catch (err) { console.error(err) }
+    finally { setSendingReset(null) }
   }
 
   // ── EQUIPOS ──────────────────────────────────────────────
@@ -245,7 +285,7 @@ export default function DirectorPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }].map(t => (
+        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: 700,
@@ -433,6 +473,58 @@ export default function DirectorPage() {
             })}
           </div>
         )
+      )}
+
+      {/* ── ENTRENADORES ── */}
+      {tab === 'entrenadores' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {coachProfiles.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af', fontSize: 14 }}>
+              No hay entrenadores registrados
+            </div>
+          )}
+          {coachProfiles.map(coach => (
+            <div key={coach.id} style={{
+              backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
+              border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                  background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 18, fontWeight: 900
+                }}>{coach.full_name?.charAt(0)?.toUpperCase() || 'E'}</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{coach.full_name}</div>
+                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{coach.email}</div>
+                  {coach.phone && <div style={{ fontSize: 12, color: '#9ca3af' }}>📞 {coach.phone}</div>}
+                  {coach.teamNames?.length > 0 && (
+                    <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600, marginTop: 3 }}>
+                      👥 {coach.teamNames.join(' · ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => sendPasswordReset(coach.email, coach.id)}
+                disabled={sendingReset === coach.id || resetSent.has(coach.id)}
+                style={{
+                  padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, flexShrink: 0, transition: 'all 0.2s',
+                  backgroundColor: resetSent.has(coach.id) ? '#f0fdf4' : '#eff6ff',
+                  color: resetSent.has(coach.id) ? '#16a34a' : '#2563eb',
+                  opacity: sendingReset === coach.id ? 0.6 : 1
+                }}>
+                {resetSent.has(coach.id) ? '✓ Email enviado' : sendingReset === coach.id ? 'Enviando...' : '🔑 Resetear contraseña'}
+              </button>
+            </div>
+          ))}
+          <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', marginTop: 8 }}>
+            Al pulsar "Resetear contraseña" se envía un email al entrenador con un enlace para crear una nueva contraseña.
+          </p>
+        </div>
       )}
 
       {/* ── MODAL GESTIONAR ── */}

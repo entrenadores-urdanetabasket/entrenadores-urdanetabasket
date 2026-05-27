@@ -12,6 +12,13 @@ export default function PerfilPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
+  // Cambiar contraseña
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [savingPwd, setSavingPwd] = useState(false)
+  const [savedPwd, setSavedPwd] = useState(false)
+  const [errorPwd, setErrorPwd] = useState('')
+
   useEffect(() => {
     if (profile) {
       setFullName(profile.full_name || '')
@@ -33,6 +40,24 @@ export default function PerfilPage() {
 
     if (error) { setError('Error al guardar. Inténtalo de nuevo.'); setSaving(false) }
     else { await refreshProfile(); setSaved(true); setSaving(false); setTimeout(() => setSaved(false), 3000) }
+  }
+
+  async function handlePasswordChange(e) {
+    e.preventDefault()
+    setErrorPwd('')
+    setSavedPwd(false)
+    if (newPassword.length < 6) { setErrorPwd('La contraseña debe tener al menos 6 caracteres'); return }
+    if (newPassword !== confirmPassword) { setErrorPwd('Las contraseñas no coinciden'); return }
+    setSavingPwd(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) { setErrorPwd('Error al cambiar la contraseña: ' + error.message); setSavingPwd(false) }
+    else {
+      setSavedPwd(true)
+      setNewPassword('')
+      setConfirmPassword('')
+      setSavingPwd(false)
+      setTimeout(() => setSavedPwd(false), 3000)
+    }
   }
 
   const inputStyle = {
@@ -130,6 +155,42 @@ export default function PerfilPage() {
               transition: 'all 0.2s'
             }}>
               {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </form>
+        </div>
+
+        {/* Cambiar contraseña */}
+        <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: '0 0 16px' }}>🔒 Cambiar contraseña</h3>
+          <form onSubmit={handlePasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>Nueva contraseña</label>
+              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres" required style={inputStyle}
+                onFocus={e => e.target.style.borderColor = '#52B043'}
+                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+            </div>
+            <div>
+              <label style={labelStyle}>Confirmar nueva contraseña</label>
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Repite la contraseña" required style={inputStyle}
+                onFocus={e => e.target.style.borderColor = '#52B043'}
+                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+            </div>
+            {errorPwd && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: 13 }}>{errorPwd}</div>
+            )}
+            {savedPwd && (
+              <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: 13, fontWeight: 600 }}>
+                ✓ Contraseña actualizada correctamente
+              </div>
+            )}
+            <button type="submit" disabled={savingPwd} style={{
+              padding: '12px', borderRadius: 10, border: 'none', cursor: savingPwd ? 'not-allowed' : 'pointer',
+              background: savingPwd ? '#e5e7eb' : 'linear-gradient(135deg,#374151,#111827)',
+              color: savingPwd ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700, transition: 'all 0.2s'
+            }}>
+              {savingPwd ? 'Guardando...' : 'Cambiar contraseña'}
             </button>
           </form>
         </div>

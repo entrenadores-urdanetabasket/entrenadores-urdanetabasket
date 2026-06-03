@@ -277,67 +277,68 @@ export default function DirectorPage() {
   const assignedCoachIds = new Set(teamCoaches.map(tc => tc.coach_id))
   const availableCoaches = coaches.filter(c => !assignedCoachIds.has(c.id))
 
-  if (!profile) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (!profile) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   // ── RENDER ────────────────────────────────────────────────
   return (
-    <div>
+    <div className="fade-in">
       {/* Cabecera */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ color: '#111827', fontSize: 22, fontWeight: 900, margin: '0 0 3px' }}>Panel Director</h1>
-          <p style={{ color: '#9ca3af', fontSize: 13, margin: 0 }}>
+          <h1 className="page-title">Panel Director</h1>
+          <p className="page-subtitle">
             {overview
               ? `${overview.teamsCount} equipos · ${overview.coachesCount} entrenadores · ${overview.playersCount} jugadores`
               : 'Cargando...'}
           </p>
         </div>
         {tab === 'equipos' && (
-          <button onClick={openNew} style={{
-            padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-            fontSize: 13, fontWeight: 700,
-          }}>+ Nuevo equipo</button>
+          <button onClick={openNew} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo equipo</button>
         )}
       </div>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: 700,
-            backgroundColor: tab === t.key ? '#1C5C2A' : '#f3f4f6',
-            color: tab === t.key ? '#fff' : '#6b7280',
-          }}>{t.label}</button>
-        ))}
+        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }].map(t => {
+          const active = tab === t.key
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+              background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+              color: active ? '#fff' : '#475569',
+              border: active ? 'none' : '1.5px solid #e2e8f0',
+              boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
+            }}>{t.label}</button>
+          )
+        })}
       </div>
 
       {/* ── RESUMEN ── */}
       {tab === 'resumen' && (
         loadingOverview ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
         ) : overview ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
               {[
-                { label: 'Equipos',          value: overview.teamsCount,   emoji: '🏆', color: '#1C5C2A', bg: '#f0fdf4' },
-                { label: 'Entrenadores',     value: overview.coachesCount, emoji: '👤', color: '#2563eb', bg: '#eff6ff' },
-                { label: 'Jugadores activos',value: overview.playersCount, emoji: '🏀', color: '#7c3aed', bg: '#f5f3ff' },
+                { label: 'Equipos',          value: overview.teamsCount,   emoji: '🏆', color: '#1C5C2A', bg: '#f0fdf4', border: '#bbf7d0' },
+                { label: 'Entrenadores',     value: overview.coachesCount, emoji: '👤', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+                { label: 'Jugadores activos',value: overview.playersCount, emoji: '🏀', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
               ].map(card => (
-                <div key={card.label} style={{ backgroundColor: card.bg, borderRadius: 14, padding: '16px 18px' }}>
+                <div key={card.label} style={{ backgroundColor: card.bg, borderRadius: 16, padding: '16px 18px', border: `1px solid ${card.border}` }}>
                   <div style={{ fontSize: 24, marginBottom: 8 }}>{card.emoji}</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: card.color }}>{card.value}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, marginTop: 4 }}>{card.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: card.color, lineHeight: 1 }}>{card.value}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginTop: 6 }}>{card.label}</div>
                 </div>
               ))}
             </div>
 
             {/* Asistencia */}
             {overview.attSummary.length > 0 && (
-              <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6', overflow: 'hidden' }}>
-                <div style={{ padding: '14px 18px', borderBottom: '1px solid #f3f4f6', fontWeight: 800, fontSize: 14, color: '#111827' }}>
+              <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
                   ✅ Asistencia últimos 30 días
                 </div>
                 <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -359,12 +360,12 @@ export default function DirectorPage() {
             )}
 
             {/* Incidencias */}
-            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6', overflow: 'hidden' }}>
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid #f3f4f6', fontWeight: 800, fontSize: 14, color: '#111827' }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
                 ⚠️ Incidencias recientes
               </div>
               {overview.incidents.length === 0 ? (
-                <div style={{ padding: '24px 18px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>No hay incidencias registradas</div>
+                <div style={{ padding: '24px 18px', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>No hay incidencias registradas</div>
               ) : overview.incidents.map((inc, i) => {
                 const it = INCIDENT_COLORS[inc.type] || INCIDENT_COLORS.other
                 const ds = inc.date ? new Date(inc.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'
@@ -387,11 +388,11 @@ export default function DirectorPage() {
       {/* ── EQUIPOS ── */}
       {tab === 'equipos' && (
         loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
         ) : teams.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🏀</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>No hay equipos todavía</div>
+          <div className="empty-state">
+            <div className="empty-state-icon">🏀</div>
+            <div className="empty-state-title">No hay equipos todavía</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -401,53 +402,54 @@ export default function DirectorPage() {
               const isLoading  = loadingDetail === team.id
               return (
                 <div key={team.id} style={{
-                  backgroundColor: '#fff', borderRadius: 14, overflow: 'hidden',
-                  border: `1px solid ${isOpen ? '#d1f0d1' : '#f3f4f6'}`,
-                  boxShadow: isOpen ? '0 2px 12px rgba(82,176,67,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
+                  backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden',
+                  border: `1px solid ${isOpen ? '#bbf7d0' : '#e8edf3'}`,
+                  boxShadow: isOpen ? '0 4px 16px rgba(82,176,67,0.12)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+                  transition: 'all 0.2s'
                 }}>
                   {/* Cabecera clicable */}
                   <div onClick={() => toggleTeamDetail(team.id)} style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18 }}>🏀</div>
+                      <div style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 19, boxShadow: '0 2px 8px rgba(28,92,42,0.25)' }}>🏀</div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>{team.name}</div>
-                        <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 1 }}>{team.category} · {team.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {team.season}</div>
-                        <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a', letterSpacing: -0.2 }}>{team.name}</div>
+                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, fontWeight: 500 }}>{team.category} · {team.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {team.season}</div>
+                        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {team.coaches?.length > 0
                             ? team.coaches.map(tc => (
-                              <span key={tc.coach_id} style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 5 }}>
+                              <span key={tc.coach_id} style={{ fontSize: 11, fontWeight: 700, color: '#15803d', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: 6 }}>
                                 👤 {tc.profiles?.full_name}
                               </span>
                             ))
-                            : <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠️ Sin entrenador asignado</span>
+                            : <span style={{ fontSize: 11, color: '#d97706', fontWeight: 700, backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: 6 }}>⚠️ Sin entrenador asignado</span>
                           }
                         </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <button onClick={e => openEdit(team, e)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Gestionar</button>
-                      <button onClick={e => handleDelete(team.id, e)} disabled={deleting === team.id} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
-                      <span style={{ fontSize: 18, color: '#9ca3af', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+                      <button onClick={e => openEdit(team, e)} style={{ padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Gestionar</button>
+                      <button onClick={e => handleDelete(team.id, e)} disabled={deleting === team.id} style={{ width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
+                      <span style={{ fontSize: 18, color: '#94a3b8', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
                     </div>
                   </div>
 
                   {/* Detalle expandido */}
                   {isOpen && (
-                    <div style={{ borderTop: '1px solid #f3f4f6', padding: '16px 20px', backgroundColor: '#fafafa' }}>
+                    <div style={{ borderTop: '1px solid #eef2f7', padding: '16px 20px', backgroundColor: '#f8fafc' }}>
                       {isLoading ? (
-                        <div style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: 13 }}>Cargando datos...</div>
+                        <div style={{ textAlign: 'center', padding: '16px 0', color: '#94a3b8', fontSize: 13 }}>Cargando datos...</div>
                       ) : detail ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                           {/* Stats rápidas */}
                           <div style={{ display: 'flex', gap: 10 }}>
                             {[
-                              { label: 'Jugadores', value: detail.players.length, color: '#111827' },
-                              { label: 'Asistencia 30d', value: detail.attPct !== null ? `${detail.attPct}%` : '—', color: detail.attPct !== null ? (detail.attPct >= 80 ? '#16a34a' : detail.attPct >= 60 ? '#d97706' : '#ef4444') : '#9ca3af' },
+                              { label: 'Jugadores', value: detail.players.length, color: '#0f172a' },
+                              { label: 'Asistencia 30d', value: detail.attPct !== null ? `${detail.attPct}%` : '—', color: detail.attPct !== null ? (detail.attPct >= 80 ? '#16a34a' : detail.attPct >= 60 ? '#d97706' : '#ef4444') : '#94a3b8' },
                               { label: 'Incid. activas', value: detail.incidents.length, color: detail.incidents.length > 0 ? '#ef4444' : '#16a34a' },
                             ].map(s => (
-                              <div key={s.label} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: '10px 12px', border: '1px solid #f3f4f6', textAlign: 'center' }}>
-                                <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{s.value}</div>
-                                <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600, marginTop: 2 }}>{s.label}</div>
+                              <div key={s.label} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: '12px', border: '1px solid #e8edf3', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                                <div style={{ fontSize: 21, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                                <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, marginTop: 5, textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</div>
                               </div>
                             ))}
                           </div>
@@ -497,29 +499,35 @@ export default function DirectorPage() {
       {tab === 'entrenadores' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {coachProfiles.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af', fontSize: 14 }}>
-              No hay entrenadores registrados
+            <div className="empty-state">
+              <div className="empty-state-icon">👤</div>
+              <div className="empty-state-title">No hay entrenadores registrados</div>
             </div>
           )}
           {coachProfiles.map(coach => (
             <div key={coach.id} style={{
-              backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
-              border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              backgroundColor: '#fff', borderRadius: 16, padding: '16px 18px',
+              border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              transition: 'all 0.2s'
+            }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                 <div style={{
-                  width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                  width: 46, height: 46, borderRadius: 12, flexShrink: 0,
                   background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#fff', fontSize: 18, fontWeight: 900
+                  color: '#fff', fontSize: 18, fontWeight: 900,
+                  boxShadow: '0 2px 8px rgba(28,92,42,0.25)'
                 }}>{coach.full_name?.charAt(0)?.toUpperCase() || 'E'}</div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{coach.full_name}</div>
-                  <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{coach.email}</div>
-                  {coach.phone && <div style={{ fontSize: 12, color: '#9ca3af' }}>📞 {coach.phone}</div>}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', letterSpacing: -0.2 }}>{coach.full_name}</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{coach.email}</div>
+                  {coach.phone && <div style={{ fontSize: 12, color: '#94a3b8' }}>📞 {coach.phone}</div>}
                   {coach.teamNames?.length > 0 && (
-                    <div style={{ fontSize: 11, color: '#52B043', fontWeight: 600, marginTop: 3 }}>
+                    <div style={{ fontSize: 11, color: '#15803d', fontWeight: 700, marginTop: 4 }}>
                       👥 {coach.teamNames.join(' · ')}
                     </div>
                   )}
@@ -545,38 +553,34 @@ export default function DirectorPage() {
 
       {/* ── MODAL CONTRASEÑA ── */}
       {settingPasswordFor && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-            <h2 style={{ fontSize: 17, fontWeight: 800, color: '#111827', margin: '0 0 4px' }}>Cambiar contraseña</h2>
-            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>{settingPasswordFor.name}</p>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', letterSpacing: -0.3 }}>Cambiar contraseña</h2>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>{settingPasswordFor.name}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Nueva contraseña</label>
+                <label className="label-field">Nueva contraseña</label>
                 <input
                   type="text"
                   value={newPasswordInput}
                   onChange={e => setNewPasswordInput(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
                   autoFocus
-                  style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                  className="input-field"
                 />
-                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 5 }}>El entrenador podrá cambiarla después desde su perfil.</p>
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>El entrenador podrá cambiarla después desde su perfil.</p>
               </div>
               {passwordError && (
-                <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: 13 }}>{passwordError}</div>
+                <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13 }}>{passwordError}</div>
               )}
               <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <button onClick={() => { setSettingPasswordFor(null); setNewPasswordInput(''); setPasswordError('') }} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',
-                  backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                  flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
                 }}>Cancelar</button>
-                <button onClick={handleSetPassword} disabled={settingPassword} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: 'none',
-                  background: settingPassword ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                  color: settingPassword ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700,
-                  cursor: settingPassword ? 'not-allowed' : 'pointer'
+                <button onClick={handleSetPassword} disabled={settingPassword} className="btn-primary" style={{
+                  flex: 1, padding: '12px',
+                  ...(settingPassword ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {})
                 }}>{settingPassword ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </div>
@@ -586,31 +590,29 @@ export default function DirectorPage() {
 
       {/* ── MODAL GESTIONAR ── */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', margin: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 20px' }}>{editing ? 'Gestionar equipo' : 'Nuevo equipo'}</h2>
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 70px rgba(0,0,0,0.22)', margin: 'auto' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editing ? 'Gestionar equipo' : 'Nuevo equipo'}</h2>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Nombre</label>
+                <label className="label-field">Nombre</label>
                 <input type='text' value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
-                  placeholder='Ej: Cadete A'
-                  style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}
-                  onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  placeholder='Ej: Cadete A' className="input-field" />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Categoría</label>
+                  <label className="label-field">Categoría</label>
                   <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}>
+                    className="input-field" style={{ cursor: 'pointer' }}>
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Género</label>
+                  <label className="label-field">Género</label>
                   <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
-                    style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}>
+                    className="input-field" style={{ cursor: 'pointer' }}>
                     <option value='masculino'>Masculino</option>
                     <option value='femenino'>Femenino</option>
                   </select>
@@ -618,52 +620,52 @@ export default function DirectorPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Temporada</label>
+                <label className="label-field">Temporada</label>
                 <select value={form.season} onChange={e => setForm(f => ({ ...f, season: e.target.value }))}
-                  style={{ width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box' }}>
+                  className="input-field" style={{ cursor: 'pointer' }}>
                   {SEASONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
 
               {!editing && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #d1fae5', fontSize: 13, color: '#166534' }}>
+                <div style={{ padding: '11px 14px', borderRadius: 12, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 13, color: '#166534', fontWeight: 500 }}>
                   💡 Guarda el equipo primero y luego edítalo para asignar entrenadores
                 </div>
               )}
 
               {editing && (
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Entrenadores asignados</label>
+                  <label className="label-field" style={{ marginBottom: 8 }}>Entrenadores asignados</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-                    {teamCoaches.length === 0 && <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Ninguno asignado todavía</div>}
+                    {teamCoaches.length === 0 && <div style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>Ninguno asignado todavía</div>}
                     {teamCoaches.map(tc => (
-                      <div key={tc.coach_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #d1fae5' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1C5C2A' }}>👤 {tc.profiles?.full_name}</span>
-                        <button type='button' onClick={() => handleRemoveCoach(tc.coach_id)} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Quitar</button>
+                      <div key={tc.coach_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>👤 {tc.profiles?.full_name}</span>
+                        <button type='button' onClick={() => handleRemoveCoach(tc.coach_id)} style={{ padding: '4px 11px', borderRadius: 7, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
                       </div>
                     ))}
                   </div>
                   {availableCoaches.length > 0 ? (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <select value={addingCoach} onChange={e => setAddingCoach(e.target.value)}
-                        style={{ flex: 1, padding: '10px 12px', borderRadius: 10, fontSize: 13, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none' }}>
+                        className="input-field" style={{ flex: 1, cursor: 'pointer' }}>
                         <option value=''>— Selecciona entrenador —</option>
                         {availableCoaches.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
                       </select>
                       <button type='button' onClick={handleAddCoach} disabled={!addingCoach}
-                        style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: addingCoach ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#e5e7eb', color: addingCoach ? '#fff' : '#9ca3af', fontSize: 13, fontWeight: 700, cursor: addingCoach ? 'pointer' : 'not-allowed' }}>
+                        style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: addingCoach ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#e2e8f0', color: addingCoach ? '#fff' : '#94a3b8', fontSize: 13, fontWeight: 700, cursor: addingCoach ? 'pointer' : 'not-allowed', boxShadow: addingCoach ? '0 2px 8px rgba(82,176,67,0.30)' : 'none' }}>
                         Añadir
                       </button>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 12px', borderRadius: 8, backgroundColor: '#f9fafb' }}>Todos los entrenadores ya están asignados</div>
+                    <div style={{ fontSize: 13, color: '#94a3b8', padding: '9px 12px', borderRadius: 10, backgroundColor: '#f8fafc', border: '1px solid #eef2f7' }}>Todos los entrenadores ya están asignados</div>
                   )}
                 </div>
               )}
 
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-                <button type='button' onClick={() => setShowForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-                <button type='submit' disabled={saving} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: saving ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)', color: saving ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                <button type='button' onClick={() => setShowForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button type='submit' disabled={saving} className="btn-primary" style={{ flex: 1, padding: '12px', ...(saving ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {}) }}>
                   {saving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>

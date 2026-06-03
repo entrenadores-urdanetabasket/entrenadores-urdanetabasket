@@ -113,45 +113,43 @@ export default function EquipoPage() {
 
   const inputStyle = {
     width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14,
-    border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none',
-    boxSizing: 'border-box', backgroundColor: '#fff'
+    border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none',
+    boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s'
   }
-  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }
+  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
+  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   if (error) return (
-    <div style={{ padding: 24, background: '#fef2f2', borderRadius: 12, color: '#ef4444', fontSize: 13 }}>
+    <div style={{ padding: 24, background: '#fef2f2', borderRadius: 14, color: '#dc2626', fontSize: 13, border: '1px solid #fecaca' }}>
       Error al cargar equipos: {error}
     </div>
   )
 
   if (!isDirector && teams.length === 0) return (
-    <div style={{ textAlign: 'center', padding: '64px 0' }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>🏀</div>
-      <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
-      <p style={{ color: '#9ca3af', fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
+    <div className="empty-state">
+      <div className="empty-state-icon" style={{ fontSize: 56 }}>🏀</div>
+      <h2 className="empty-state-title" style={{ fontSize: 20, fontWeight: 800 }}>Sin equipo asignado</h2>
+      <p className="empty-state-text" style={{ fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
     </div>
   )
 
   return (
-    <div>
+    <div className="fade-in">
       {/* Cabecera */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>
+          <h1 className="page-title">
             {isDirector ? 'Equipos' : selectedTeam?.name}
           </h1>
-          <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+          <p className="page-subtitle">
             {isDirector ? `${teams.length} equipos en total` : `${selectedTeam?.category} · ${selectedTeam?.season} · ${players.length} jugadores`}
           </p>
         </div>
         {selectedTeam && (
-          <button onClick={openNew} style={{
-            padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-            fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-          }}>+ Jugador</button>
+          <button onClick={openNew} className="btn-primary" style={{ flexShrink: 0 }}>+ Jugador</button>
         )}
       </div>
 
@@ -167,82 +165,96 @@ export default function EquipoPage() {
       {/* Selector de equipos */}
       {isDirector && teams.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          {teams.map(t => (
-            <button key={t.id} onClick={() => loadPlayers(t.id, teams)} style={{
-              padding: '8px 16px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
-              color: selectedTeam?.id === t.id ? '#fff' : '#374151',
-              transition: 'all 0.15s'
-            }}>
-              {t.name}
-            </button>
-          ))}
+          {teams.map(t => {
+            const active = selectedTeam?.id === t.id
+            return (
+              <button key={t.id} onClick={() => loadPlayers(t.id, teams)} style={{
+                padding: '8px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                color: active ? '#fff' : '#475569',
+                border: active ? 'none' : '1.5px solid #e2e8f0',
+                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
+                transition: 'all 0.15s'
+              }}>
+                {t.name}
+              </button>
+            )
+          })}
         </div>
       )}
 
       {/* Info equipo seleccionado */}
       {selectedTeam && (
         <div style={{
-          borderRadius: 14, marginBottom: 20, overflow: 'hidden',
-          background: 'linear-gradient(135deg,#1C5C2A 0%,#52B043 100%)',
-          boxShadow: '0 4px 20px rgba(82,176,67,0.2)', padding: '16px 20px',
+          borderRadius: 16, marginBottom: 20, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
+          boxShadow: '0 4px 20px rgba(28,92,42,0.25)', padding: '18px 22px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between'
         }}>
           <div>
-            <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 5 }}>
               {selectedTeam.category} · {selectedTeam.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {selectedTeam.season}
             </div>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>{selectedTeam.name}</div>
+            <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, letterSpacing: -0.3 }}>{selectedTeam.name}</div>
             {isDirector && selectedTeam.coaches?.length > 0 && (
-              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 4 }}>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 5, fontWeight: 500 }}>
                 👤 {selectedTeam.coaches.map(c => c.profiles?.full_name).filter(Boolean).join(', ')}
               </div>
             )}
           </div>
-          <div style={{ color: '#fff', fontSize: 32, fontWeight: 900, opacity: 0.8 }}>{players.length}</div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: '#fff', fontSize: 34, fontWeight: 900, lineHeight: 1 }}>{players.length}</div>
+            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 600, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Jugadores</div>
+          </div>
         </div>
       )}
 
       {/* Lista jugadores */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {selectedTeam && players.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>👤</div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>No hay jugadores en este equipo</div>
+          <div className="empty-state">
+            <div className="empty-state-icon">👤</div>
+            <div className="empty-state-title">No hay jugadores en este equipo</div>
+            <div className="empty-state-text">Añade tu primer jugador con el botón “+ Jugador”</div>
           </div>
         )}
         {players.map(player => (
           <div key={player.id} style={{
-            backgroundColor: '#fff', borderRadius: 14, padding: '14px 18px',
-            border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            backgroundColor: '#fff', borderRadius: 16, padding: '14px 16px',
+            border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            transition: 'all 0.2s'
+          }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
               <div style={{
-                width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+                width: 46, height: 46, borderRadius: 12, flexShrink: 0,
                 background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 16, fontWeight: 900
+                color: '#fff', fontSize: 17, fontWeight: 900,
+                boxShadow: '0 2px 8px rgba(28,92,42,0.25)'
               }}>{player.number ?? '—'}</div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{player.full_name}</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.full_name}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontWeight: 600 }}>
                   {player.position || '—'}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
               <Link href={`/dashboard/equipo/jugador/${player.id}`} style={{
-                padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
-                backgroundColor: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, textDecoration: 'none'
+                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0',
+                backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, textDecoration: 'none'
               }}>Ver</Link>
               <button onClick={() => openEdit(player)} style={{
-                padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
-                backgroundColor: '#fff', color: '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer'
+                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0',
+                backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer'
               }}>Editar</button>
               <button onClick={() => handleDelete(player.id)} disabled={deleting === player.id} style={{
-                padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca',
-                backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 12, fontWeight: 600,
+                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #fecaca',
+                backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 700,
                 cursor: deleting === player.id ? 'not-allowed' : 'pointer'
               }}>Baja</button>
             </div>
@@ -252,45 +264,41 @@ export default function EquipoPage() {
 
       {/* Modal */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 20px' }}>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>
               {editing ? 'Editar jugador' : 'Nuevo jugador'}
             </h2>
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={labelStyle}>Nombre completo *</label>
                 <input type='text' value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
                   placeholder='Nombre y apellidos' required style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Dorsal</label>
                   <input type='number' value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
                     placeholder='Ej: 7' min={0} max={99} style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = '#52B043'}
-                    onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                    onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div>
                   <label style={labelStyle}>Posición</label>
                   <select value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))}
-                    style={{ ...inputStyle, cursor: 'pointer' }}>
+                    style={{ ...inputStyle, cursor: 'pointer' }} onFocus={inputFocus} onBlur={inputBlur}>
                     {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button type='button' onClick={() => setShowForm(false)} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',
-                  backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                  flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
                 }}>Cancelar</button>
-                <button type='submit' disabled={saving} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: 'none',
-                  background: saving ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                  color: saving ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700,
-                  cursor: saving ? 'not-allowed' : 'pointer'
+                <button type='submit' disabled={saving} className="btn-primary" style={{
+                  flex: 1, padding: '12px',
+                  ...(saving ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {})
                 }}>{saving ? 'Guardando...' : 'Guardar'}</button>
               </div>
             </form>

@@ -289,19 +289,21 @@ export default function AsistenciaPage() {
   }
 
   const tabStyle = (t) => ({
-    padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 600,
-    backgroundColor: tab === t ? '#1C5C2A' : '#f3f4f6',
-    color: tab === t ? '#fff' : '#374151'
+    padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+    background: tab === t ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+    color: tab === t ? '#fff' : '#475569',
+    border: tab === t ? 'none' : '1.5px solid #e2e8f0',
+    boxShadow: tab === t ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
   })
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   if (!selectedTeam) return (
-    <div style={{ textAlign: 'center', padding: '64px 0' }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
-      <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
-      <p style={{ color: '#9ca3af', fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
+    <div className="empty-state">
+      <div className="empty-state-icon" style={{ fontSize: 56 }}>✅</div>
+      <h2 className="empty-state-title" style={{ fontSize: 20, fontWeight: 800 }}>Sin equipo asignado</h2>
+      <p className="empty-state-text" style={{ fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
     </div>
   )
 
@@ -314,21 +316,26 @@ export default function AsistenciaPage() {
   const filteredHistory = histFilter === 'all' ? history : history.filter(h => h.type === histFilter)
 
   return (
-    <div>
+    <div className="fade-in">
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Asistencia</h1>
-        <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>{selectedTeam.name} · {selectedTeam.category}</p>
+        <h1 className="page-title">Asistencia</h1>
+        <p className="page-subtitle">{selectedTeam.name} · {selectedTeam.category}</p>
       </div>
 
       {isDirector && teams.length > 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {teams.map(t => (
-            <button key={t.id} onClick={() => { setLoading(true); loadTeamData(t, tab) }} style={{
-              padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
-              color: selectedTeam?.id === t.id ? '#fff' : '#374151'
-            }}>{t.name}</button>
-          ))}
+          {teams.map(t => {
+            const active = selectedTeam?.id === t.id
+            return (
+              <button key={t.id} onClick={() => { setLoading(true); loadTeamData(t, tab) }} style={{
+                padding: '8px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                color: active ? '#fff' : '#475569',
+                border: active ? 'none' : '1.5px solid #e2e8f0',
+                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
+              }}>{t.name}</button>
+            )
+          })}
         </div>
       )}
 
@@ -390,36 +397,39 @@ export default function AsistenciaPage() {
               return (
                 <div key={player.id} onClick={() => cycleStatus(player.id)} style={{
                   display:'flex', alignItems:'center', justifyContent:'space-between',
-                  padding:'14px 18px', borderRadius:14, cursor:'pointer',
+                  padding:'13px 16px', borderRadius:14, cursor:'pointer',
                   backgroundColor:bg, border:`1.5px solid ${border}`,
-                  boxShadow:'0 1px 4px rgba(0,0,0,0.04)'
+                  boxShadow:'0 1px 3px rgba(0,0,0,0.04)', transition:'all 0.15s'
                 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                     <div style={{
-                      width:38, height:38, borderRadius:9, flexShrink:0,
-                      background: status==='present' ? 'linear-gradient(135deg,#52B043,#1C5C2A)' : '#e5e7eb',
+                      width:42, height:42, borderRadius:11, flexShrink:0,
+                      background: status==='present' ? 'linear-gradient(135deg,#52B043,#1C5C2A)' : '#fff',
+                      border: status==='present' ? 'none' : '1.5px solid #e2e8f0',
                       display:'flex', alignItems:'center', justifyContent:'center',
-                      color: status==='present' ? '#fff' : '#9ca3af', fontSize:14, fontWeight:900
+                      color: status==='present' ? '#fff' : '#94a3b8', fontSize:15, fontWeight:900,
+                      boxShadow: status==='present' ? '0 2px 8px rgba(28,92,42,0.20)' : 'none'
                     }}>{player.number ?? '—'}</div>
                     <div>
-                      <div style={{ fontWeight:700, fontSize:14, color:'#111827' }}>{player.full_name}</div>
-                      <div style={{ fontSize:12, color:'#9ca3af' }}>{player.position || '—'}</div>
+                      <div style={{ fontWeight:800, fontSize:14, color:'#0f172a', letterSpacing:-0.2 }}>{player.full_name}</div>
+                      <div style={{ fontSize:12, color:'#94a3b8', fontWeight:600 }}>{player.position || '—'}</div>
                     </div>
                   </div>
-                  <span style={{ fontSize:12, fontWeight:700, color, padding:'4px 10px', borderRadius:8, backgroundColor:'#fff' }}>{label}</span>
+                  <span style={{ fontSize:12, fontWeight:800, color, padding:'5px 12px', borderRadius:9, backgroundColor:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>{label}</span>
                 </div>
               )
             })}
           </div>
 
           <button onClick={handleSave} disabled={saving || players.length === 0} style={{
-            width:'100%', padding:'14px', borderRadius:12, border:'none',
-            background: saving ? '#e5e7eb' : sessionType === 'match'
+            width:'100%', padding:'15px', borderRadius:12, border:'none',
+            background: saving ? '#e2e8f0' : sessionType === 'match'
               ? 'linear-gradient(135deg,#2563eb,#1d4ed8)'
               : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-            color: saving ? '#9ca3af' : '#fff', fontSize:15, fontWeight:700,
-            cursor: saving ? 'not-allowed' : 'pointer',
-            boxShadow: saving ? 'none' : '0 2px 12px rgba(0,0,0,0.15)'
+            color: saving ? '#94a3b8' : '#fff', fontSize:15, fontWeight:800,
+            cursor: saving ? 'not-allowed' : 'pointer', letterSpacing:-0.2,
+            boxShadow: saving ? 'none' : sessionType === 'match' ? '0 4px 16px rgba(37,99,235,0.35)' : '0 4px 16px rgba(82,176,67,0.35)',
+            transition:'all 0.2s'
           }}>
             {saving ? 'Guardando...' : saved ? '✓ Guardado' : `Guardar asistencia · ${sessionType === 'match' ? '🏆 Partido' : '🏋️ Entrenamiento'}`}
           </button>
@@ -442,9 +452,9 @@ export default function AsistenciaPage() {
 
           <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {filteredHistory.length === 0 && (
-              <div style={{ textAlign:'center', padding:'48px 0', color:'#9ca3af' }}>
-                <div style={{ fontSize:40, marginBottom:10 }}>📅</div>
-                <div style={{ fontSize:14, fontWeight:600 }}>No hay registros todavía</div>
+              <div className="empty-state">
+                <div className="empty-state-icon">📅</div>
+                <div className="empty-state-title">No hay registros todavía</div>
               </div>
             )}
             {filteredHistory.map(({ date, total, attended, absent, late, justified, type }) => {
@@ -531,9 +541,9 @@ export default function AsistenciaPage() {
       {tab === 'estadisticas' && (
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           {stats.length === 0 && (
-            <div style={{ textAlign:'center', padding:'48px 0', color:'#9ca3af' }}>
-              <div style={{ fontSize:40, marginBottom:10 }}>📊</div>
-              <div style={{ fontSize:14, fontWeight:600 }}>No hay datos todavía</div>
+            <div className="empty-state">
+              <div className="empty-state-icon">📊</div>
+              <div className="empty-state-title">No hay datos todavía</div>
             </div>
           )}
           {stats.map(p => (

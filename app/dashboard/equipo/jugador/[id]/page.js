@@ -61,7 +61,7 @@ export default function JugadorPage() {
     setLoading(false)
   }
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
   if (!player) return null
 
   const pct         = stats.total     > 0 ? Math.round((stats.attended          / stats.total)     * 100) : null
@@ -69,55 +69,58 @@ export default function JugadorPage() {
   const pctMatch    = stats.matches   > 0 ? Math.round((stats.matchesAttended   / stats.matches)   * 100) : null
 
   return (
-    <div>
-      <Link href='/dashboard/equipo' style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#6b7280', fontSize: 13, fontWeight: 600, textDecoration: 'none', marginBottom: 20 }}>
+    <div className="fade-in">
+      <Link href='/dashboard/equipo' style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, textDecoration: 'none', marginBottom: 20 }}>
         ← Volver al equipo
       </Link>
 
       {/* Cabecera jugador */}
       <div style={{
-        borderRadius: 16, marginBottom: 20, overflow: 'hidden',
-        background: 'linear-gradient(135deg,#1C5C2A 0%,#52B043 100%)',
-        padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 18
+        borderRadius: 18, marginBottom: 20, overflow: 'hidden',
+        background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
+        boxShadow: '0 4px 20px rgba(28,92,42,0.25)',
+        padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 18
       }}>
         <div style={{
-          width: 60, height: 60, borderRadius: 14, flexShrink: 0,
-          backgroundColor: 'rgba(255,255,255,0.15)',
+          width: 66, height: 66, borderRadius: 16, flexShrink: 0,
+          backgroundColor: 'rgba(255,255,255,0.16)',
+          border: '1px solid rgba(255,255,255,0.20)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 24, fontWeight: 900
+          color: '#fff', fontSize: 26, fontWeight: 900,
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)'
         }}>{player.number ?? '—'}</div>
         <div>
-          <div style={{ color: '#fff', fontSize: 20, fontWeight: 900 }}>{player.full_name}</div>
-          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 }}>
+          <div style={{ color: '#fff', fontSize: 21, fontWeight: 900, letterSpacing: -0.4 }}>{player.full_name}</div>
+          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 5, fontWeight: 500 }}>
             {player.position || '—'} · {player.teams?.name} · {player.teams?.season}
           </div>
         </div>
       </div>
 
       {/* Resumen estadísticas — fila superior */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
         {[
-          { label: 'Asistencia', value: pct !== null ? `${pct}%` : '—', color: pct !== null ? (pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444') : '#9ca3af' },
-          { label: 'Sesiones',   value: stats.total,   color: '#111827' },
+          { label: 'Asistencia', value: pct !== null ? `${pct}%` : '—', color: pct !== null ? (pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444') : '#94a3b8' },
+          { label: 'Sesiones',   value: stats.total,   color: '#0f172a' },
           { label: 'Faltas',     value: stats.absent,  color: '#ef4444' },
           { label: 'Tardes',     value: stats.late,    color: '#d97706' },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ backgroundColor: '#fff', borderRadius: 12, padding: '12px 8px', border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 900, color }}>{value}</div>
-            <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, marginTop: 3 }}>{label}</div>
+          <div key={label} style={{ backgroundColor: '#fff', borderRadius: 14, padding: '14px 8px', border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
           </div>
         ))}
       </div>
 
       {/* Barra general */}
       {pct !== null && (
-        <div style={{ backgroundColor: '#fff', borderRadius: 14, padding: '14px 18px', border: '1px solid #f3f4f6', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Tasa global de asistencia</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444' }}>{pct}%</span>
+        <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '16px 18px', border: '1px solid #e8edf3', marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Tasa global de asistencia</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444' }}>{pct}%</span>
           </div>
-          <div style={{ height: 7, backgroundColor: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 4, backgroundColor: pct >= 75 ? '#52B043' : pct >= 50 ? '#f59e0b' : '#ef4444' }} />
+          <div style={{ height: 8, backgroundColor: '#eef2f7', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 4, background: pct >= 75 ? 'linear-gradient(90deg,#52B043,#3a8a2e)' : pct >= 50 ? '#f59e0b' : '#ef4444' }} />
           </div>
         </div>
       )}
@@ -166,18 +169,18 @@ export default function JugadorPage() {
       )}
 
       {/* Incidencias */}
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 12 }}>
+      <h3 className="section-title" style={{ marginBottom: 12 }}>
         Incidencias {incidents.filter(i => !i.resolved).length > 0 && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '2px 8px', borderRadius: 6, marginLeft: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '2px 9px', borderRadius: 7, marginLeft: 8 }}>
             {incidents.filter(i => !i.resolved).length} activas
           </span>
         )}
       </h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
         {incidents.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 12, border: '1px solid #f3f4f6' }}>
-            <div style={{ fontSize: 28, marginBottom: 6 }}>✅</div>
-            <div style={{ fontSize: 13 }}>Sin incidencias registradas</div>
+          <div style={{ textAlign: 'center', padding: '28px 0', color: '#94a3b8', backgroundColor: '#fff', borderRadius: 14, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: 30, marginBottom: 8, opacity: 0.6 }}>✅</div>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Sin incidencias registradas</div>
           </div>
         ) : incidents.map(inc => {
           const t = TYPES[inc.type] || TYPES.otro
@@ -209,12 +212,12 @@ export default function JugadorPage() {
       </div>
 
       {/* Historial completo */}
-      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Historial de asistencia</h3>
+      <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de asistencia</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {records.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-            <div style={{ fontSize: 14 }}>Sin registros todavía</div>
+          <div className="empty-state">
+            <div className="empty-state-icon">📅</div>
+            <div className="empty-state-title">Sin registros todavía</div>
           </div>
         )}
         {records.map(r => {

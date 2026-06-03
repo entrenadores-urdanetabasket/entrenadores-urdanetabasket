@@ -78,66 +78,68 @@ export default function LoginPage() {
       }}>🏀</div>
 
       {/* Logo y nombre — protagonistas */}
-      <div style={{ textAlign: 'center', marginBottom: 36 }}>
+      <div style={{ textAlign: 'center', marginBottom: 38 }}>
         <div style={{
-          width: 100, height: 100, margin: '0 auto 20px',
-          background: 'rgba(255,255,255,0.05)',
-          borderRadius: 24,
-          padding: 12,
-          border: '1px solid rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(10px)'
+          width: 104, height: 104, margin: '0 auto 22px',
+          background: 'rgba(82,176,67,0.10)',
+          borderRadius: 26,
+          padding: 13,
+          border: '1px solid rgba(82,176,67,0.30)',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 0 0 1px rgba(82,176,67,0.10), 0 0 40px rgba(82,176,67,0.35), 0 12px 32px rgba(0,0,0,0.4)'
         }}>
           <img src="/logo.png" alt="Urdaneta" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
-        <h1 style={{ color: '#ffffff', fontSize: 28, fontWeight: 900, margin: '0 0 6px', letterSpacing: -0.5 }}>
+        <h1 style={{ color: '#ffffff', fontSize: 27, fontWeight: 900, margin: '0 0 7px', letterSpacing: -0.6 }}>
           Club Deportivo Urdaneta
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0 }}>
+        <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, margin: 0, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>
           Portal de Entrenadores
         </p>
       </div>
 
       {/* Tarjeta login */}
       <div style={{
-        width: '100%', maxWidth: 380,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 20,
-        padding: 32,
-        backdropFilter: 'blur(20px)'
+        width: '100%', maxWidth: 384,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 22,
+        padding: 30,
+        backdropFilter: 'blur(24px)',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)'
       }}>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 1.2, textTransform: 'uppercase' }}>
               Email
             </label>
             <input
               type="email" value={email} onChange={e => setEmail(e.target.value)}
               placeholder="tu@email.com" required
               style={{
-                width: '100%', padding: '12px 16px', borderRadius: 12, fontSize: 14,
-                backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                color: '#fff', outline: 'none', boxSizing: 'border-box'
+                width: '100%', padding: '13px 16px', borderRadius: 12, fontSize: 14,
+                backgroundColor: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)',
+                color: '#fff', outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s'
               }}
-              onFocus={e => e.target.style.borderColor = '#52B043'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              onFocus={e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.18)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none' }}
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: 600, marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 1.2, textTransform: 'uppercase' }}>
               Contraseña
             </label>
             <input
               type="password" value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••" required
               style={{
-                width: '100%', padding: '12px 16px', borderRadius: 12, fontSize: 14,
-                backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                color: '#fff', outline: 'none', boxSizing: 'border-box'
+                width: '100%', padding: '13px 16px', borderRadius: 12, fontSize: 14,
+                backgroundColor: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)',
+                color: '#fff', outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s'
               }}
-              onFocus={e => e.target.style.borderColor = '#52B043'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              onFocus={e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.18)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none' }}
             />
           </div>
 

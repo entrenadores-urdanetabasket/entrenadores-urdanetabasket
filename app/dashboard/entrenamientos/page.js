@@ -183,16 +183,20 @@ export default function EntrenamientosPage() {
   const filtered = sessions.filter(s => tab === 'proximos' ? s.date >= today && !s.completed : s.date < today || s.completed)
 
   const tabStyle = (t) => ({
-    padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 600,
-    backgroundColor: tab === t ? '#1C5C2A' : '#f3f4f6',
-    color: tab === t ? '#fff' : '#374151'
+    padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+    background: tab === t ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+    color: tab === t ? '#fff' : '#475569',
+    border: tab === t ? 'none' : '1.5px solid #e2e8f0',
+    boxShadow: tab === t ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
   })
 
-  const inputStyle = { width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff' }
-  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }
+  const inputStyle = { width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s' }
+  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
+  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   // Full-screen court editor para ejercicio
   if (editorExercise) {
@@ -211,26 +215,26 @@ export default function EntrenamientosPage() {
   }
 
   if (!selectedTeam && tab !== 'compartidos') return (
-    <div style={{ textAlign: 'center', padding: '64px 0' }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
-      <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
-      <p style={{ color: '#9ca3af', fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
+    <div className="empty-state">
+      <div className="empty-state-icon" style={{ fontSize: 56 }}>📝</div>
+      <h2 className="empty-state-title" style={{ fontSize: 20, fontWeight: 800 }}>Sin equipo asignado</h2>
+      <p className="empty-state-text" style={{ fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
     </div>
   )
 
   const totalMinutes = exercises.reduce((a, e) => a + (e.duration_minutes || 0), 0)
 
   return (
-    <div>
+    <div className="fade-in">
       {/* Vista detalle sesión */}
       {detailSession ? (
         <div>
-          <button onClick={() => setDetailSession(null)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#6b7280', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
+          <button onClick={() => setDetailSession(null)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
             ← Volver a entrenamientos
           </button>
 
           {/* Cabecera sesión */}
-          <div style={{ borderRadius: 16, marginBottom: 20, background: detailSession.completed ? 'linear-gradient(135deg,#374151,#6b7280)' : 'linear-gradient(135deg,#1C5C2A,#52B043)', padding: '20px 24px' }}>
+          <div style={{ borderRadius: 18, marginBottom: 20, background: detailSession.completed ? 'linear-gradient(135deg,#475569,#64748b)' : 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)', boxShadow: detailSession.completed ? '0 4px 20px rgba(71,85,105,0.20)' : '0 4px 20px rgba(28,92,42,0.25)', padding: '22px 24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
                 {/* Si es de otro entrenador, mostrar de quién es */}
@@ -385,32 +389,32 @@ export default function EntrenamientosPage() {
 
           {/* Modal añadir ejercicio */}
           {showExForm && (
-            <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-              <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 20px' }}>Añadir ejercicio</h2>
+            <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>Añadir ejercicio</h2>
                 <form onSubmit={handleSaveExercise} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
                     <label style={labelStyle}>Nombre del ejercicio *</label>
                     <input type='text' value={exForm.title} onChange={e => setExForm(f => ({ ...f, title: e.target.value }))}
                       placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
-                      onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                      onFocus={inputFocus} onBlur={inputBlur} />
                   </div>
                   <div>
                     <label style={labelStyle}>Duración (minutos)</label>
                     <input type='number' value={exForm.duration_minutes} onChange={e => setExForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
                       min={1} max={120} style={inputStyle}
-                      onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                      onFocus={inputFocus} onBlur={inputBlur} />
                   </div>
                   <div>
                     <label style={labelStyle}>Descripción / Instrucciones</label>
                     <textarea value={exForm.description} onChange={e => setExForm(f => ({ ...f, description: e.target.value }))}
                       placeholder='Explica cómo se realiza el ejercicio...' rows={3}
                       style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                      onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                      onFocus={inputFocus} onBlur={inputBlur} />
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button type='button' onClick={() => setShowExForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-                    <button type='submit' disabled={savingEx} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    <button type='button' onClick={() => setShowExForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                    <button type='submit' disabled={savingEx} className="btn-primary" style={{ flex: 1, padding: '12px' }}>
                       {savingEx ? 'Guardando...' : 'Añadir'}
                     </button>
                   </div>
@@ -425,32 +429,33 @@ export default function EntrenamientosPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
-              <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Entrenamientos</h1>
-              <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+              <h1 className="page-title">Entrenamientos</h1>
+              <p className="page-subtitle">
                 {tab === 'compartidos'
                   ? `Entrenamientos compartidos por todos los entrenadores del club`
                   : `${selectedTeam?.name || ''} · ${sessions.length} sesiones`}
               </p>
             </div>
             {tab !== 'compartidos' && (
-              <button onClick={openNewSession} style={{
-                padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-                fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-              }}>+ Nuevo</button>
+              <button onClick={openNewSession} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
             )}
           </div>
 
           {/* Selector de equipo — solo en pestañas de sesiones propias */}
           {tab !== 'compartidos' && isDirector && teams.length > 1 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-              {teams.map(t => (
-                <button key={t.id} onClick={() => { setLoading(true); loadSessions(t) }} style={{
-                  padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                  backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
-                  color: selectedTeam?.id === t.id ? '#fff' : '#374151'
-                }}>{t.name}</button>
-              ))}
+              {teams.map(t => {
+                const active = selectedTeam?.id === t.id
+                return (
+                  <button key={t.id} onClick={() => { setLoading(true); loadSessions(t) }} style={{
+                    padding: '8px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                    color: active ? '#fff' : '#475569',
+                    border: active ? 'none' : '1.5px solid #e2e8f0',
+                    boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
+                  }}>{t.name}</button>
+                )
+              })}
             </div>
           )}
 
@@ -476,9 +481,9 @@ export default function EntrenamientosPage() {
                   <div style={{ fontSize: 14 }}>Cargando entrenamientos compartidos...</div>
                 </div>
               ) : sharedSessions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '64px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6' }}>
-                  <div style={{ fontSize: 52, marginBottom: 14 }}>📤</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin entrenamientos compartidos todavía</div>
+                <div style={{ textAlign: 'center', padding: '56px 24px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ fontSize: 52, marginBottom: 14, opacity: 0.55 }}>📤</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>Sin entrenamientos compartidos todavía</div>
                   <div style={{ fontSize: 13, maxWidth: 320, margin: '0 auto', lineHeight: 1.6 }}>
                     Cuando un entrenador finalice una sesión y pulse <strong>«Compartir con el club»</strong>, aparecerá aquí para que todos puedan verla.
                   </div>
@@ -550,49 +555,50 @@ export default function EntrenamientosPage() {
           {tab !== 'compartidos' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filtered.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-                  <div style={{ fontSize: 48, marginBottom: 12 }}>📝</div>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{tab === 'proximos' ? 'No hay entrenamientos planificados' : 'No hay entrenamientos pasados'}</div>
-                  {tab === 'proximos' && <div style={{ fontSize: 13, marginTop: 4 }}>Crea el primero con el botón de arriba</div>}
+                <div className="empty-state">
+                  <div className="empty-state-icon">📝</div>
+                  <div className="empty-state-title">{tab === 'proximos' ? 'No hay entrenamientos planificados' : 'No hay entrenamientos pasados'}</div>
+                  {tab === 'proximos' && <div className="empty-state-text">Crea el primero con el botón de arriba</div>}
                 </div>
               )}
               {filtered.map(session => (
                 <div key={session.id} onClick={() => openDetail(session)} style={{
-                  backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
-                  border: `1px solid ${session.completed ? '#e5e7eb' : '#d1fae5'}`,
-                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
+                  backgroundColor: '#fff', borderRadius: 16, padding: '15px 18px',
+                  border: `1px solid ${session.completed ? '#e8edf3' : '#bbf7d0'}`,
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  transition: 'all 0.2s'
                 }}
-                  onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'}
-                  onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
                     <div style={{
-                      width: 46, height: 46, borderRadius: 12, flexShrink: 0,
-                      background: session.completed ? 'linear-gradient(135deg,#6b7280,#374151)' : 'linear-gradient(135deg,#52B043,#1C5C2A)',
+                      width: 50, height: 50, borderRadius: 13, flexShrink: 0,
+                      background: session.completed ? 'linear-gradient(135deg,#94a3b8,#64748b)' : 'linear-gradient(135deg,#52B043,#1C5C2A)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff'
+                      color: '#fff', boxShadow: session.completed ? 'none' : '0 2px 8px rgba(28,92,42,0.25)'
                     }}>
-                      <div style={{ fontSize: 14, fontWeight: 900 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
-                      <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', opacity: 0.8 }}>
+                      <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', opacity: 0.85, marginTop: 2 }}>
                         {new Date(session.date + 'T12:00:00').toLocaleDateString('es-ES', { month: 'short' })}
                       </div>
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: session.completed ? '#9ca3af' : '#111827' }}>{session.title}</div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: session.completed ? '#94a3b8' : '#0f172a', letterSpacing: -0.2 }}>{session.title}</div>
                         {session.shared && (
-                          <span title="Compartido con el club" style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '1px 6px', borderRadius: 4 }}>📤 Compartido</span>
+                          <span title="Compartido con el club" style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '1px 7px', borderRadius: 5 }}>📤 Compartido</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontWeight: 600 }}>
                         {session.start_time ? session.start_time.slice(0,5) + 'h · ' : ''}{session.duration_minutes} min
                         {session.completed && ' · ✓ Completado'}
                       </div>
-                      {session.objectives && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{session.objectives}</div>}
+                      {session.objectives && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{session.objectives}</div>}
                     </div>
                   </div>
-                  <span style={{ color: '#9ca3af', fontSize: 18, flexShrink: 0 }}>→</span>
+                  <span style={{ color: '#cbd5e1', fontSize: 18, flexShrink: 0 }}>→</span>
                 </div>
               ))}
             </div>
@@ -602,9 +608,9 @@ export default function EntrenamientosPage() {
 
       {/* Modal nueva/editar sesión */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 20px' }}>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 24px 70px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>
               {editingSession ? 'Editar entrenamiento' : 'Nuevo entrenamiento'}
             </h2>
             <form onSubmit={handleSaveSession} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -612,43 +618,43 @@ export default function EntrenamientosPage() {
                 <label style={labelStyle}>Título *</label>
                 <input type='text' value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder='Ej: Entrenamiento técnico, Partido de preparación...' required style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Fecha</label>
                   <input type='date' value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                    onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
                 <div>
                   <label style={labelStyle}>Hora inicio</label>
                   <input type='time' value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                    onFocus={inputFocus} onBlur={inputBlur} />
                 </div>
               </div>
               <div>
                 <label style={labelStyle}>Duración (minutos)</label>
                 <input type='number' value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
                   min={15} max={240} style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
               <div>
                 <label style={labelStyle}>Objetivos</label>
                 <textarea value={form.objectives} onChange={e => setForm(f => ({ ...f, objectives: e.target.value }))}
                   placeholder='¿Qué queremos trabajar hoy?' rows={3}
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                  onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
               <div>
                 <label style={labelStyle}>Notas adicionales</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   placeholder='Convocatoria, material necesario...' rows={2}
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                  onFocus={e => e.target.style.borderColor = '#52B043'} onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button type='button' onClick={() => setShowForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-                <button type='submit' disabled={saving} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: saving ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)', color: saving ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                <button type='button' onClick={() => setShowForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button type='submit' disabled={saving} className="btn-primary" style={{ flex: 1, padding: '12px', ...(saving ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {}) }}>
                   {saving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>

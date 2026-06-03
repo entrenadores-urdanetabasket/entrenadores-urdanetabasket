@@ -156,48 +156,50 @@ export default function NuevaConvocatoriaPage() {
 
   const inputStyle = {
     width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14,
-    border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none',
-    boxSizing: 'border-box', backgroundColor: '#fff',
+    border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none',
+    boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s',
   }
   const labelStyle = {
-    display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6
+    display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7
   }
+  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
   const canSave = form.rival.trim() && form.date
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14, padding: 20 }}>Cargando plantilla...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14, padding: 20 }}>Cargando plantilla...</div>
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+    <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto' }}>
 
       {/* Back + título */}
       <div style={{ marginBottom: 24 }}>
         <button onClick={() => router.back()} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: '#9ca3af', fontSize: 13, padding: 0, marginBottom: 8
+          color: '#64748b', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 8
         }}>← Volver</button>
-        <h1 style={{ color: '#111827', fontSize: 22, fontWeight: 800, margin: 0 }}>Nueva convocatoria</h1>
-        <p style={{ color: '#9ca3af', fontSize: 13, marginTop: 4 }}>{activeTeam?.name}</p>
+        <h1 className="page-title">Nueva convocatoria</h1>
+        <p className="page-subtitle">{activeTeam?.name}</p>
       </div>
 
       {/* ── Datos del partido ── */}
       <div style={{
         backgroundColor: '#fff', borderRadius: 16, padding: 20,
-        border: '1px solid #f3f4f6', marginBottom: 16
+        border: '1px solid #e8edf3', marginBottom: 16,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'
       }}>
         <div style={{
-          fontSize: 12, fontWeight: 700, color: '#374151',
+          fontSize: 12, fontWeight: 800, color: '#334155',
           textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 16
         }}>📅 Datos del partido</div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={labelStyle}>Rival *</label>
             <input type="text" value={form.rival}
               onChange={e => setForm(f => ({ ...f, rival: e.target.value }))}
               placeholder="Nombre del equipo rival" required style={inputStyle}
-              onFocus={e => e.target.style.borderColor = '#52B043'}
-              onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+              onFocus={inputFocus} onBlur={inputBlur} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -206,16 +208,14 @@ export default function NuevaConvocatoriaPage() {
               <input type="date" value={form.date}
                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                 required style={inputStyle}
-                onFocus={e => e.target.style.borderColor = '#52B043'}
-                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                onFocus={inputFocus} onBlur={inputBlur} />
             </div>
             <div>
               <label style={labelStyle}>Hora</label>
               <input type="time" value={form.time}
                 onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
                 style={inputStyle}
-                onFocus={e => e.target.style.borderColor = '#52B043'}
-                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                onFocus={inputFocus} onBlur={inputBlur} />
             </div>
           </div>
 
@@ -224,8 +224,7 @@ export default function NuevaConvocatoriaPage() {
             <input type="text" value={form.location}
               onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
               placeholder="Pabellón / campo" style={inputStyle}
-              onFocus={e => e.target.style.borderColor = '#52B043'}
-              onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+              onFocus={inputFocus} onBlur={inputBlur} />
           </div>
 
           <div>
@@ -234,8 +233,7 @@ export default function NuevaConvocatoriaPage() {
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="Instrucciones, hora de concentración previa..."
               rows={2} style={{ ...inputStyle, resize: 'vertical' }}
-              onFocus={e => e.target.style.borderColor = '#52B043'}
-              onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+              onFocus={inputFocus} onBlur={inputBlur} />
           </div>
         </div>
       </div>
@@ -243,15 +241,16 @@ export default function NuevaConvocatoriaPage() {
       {/* ── Selección de jugadores ── */}
       <div style={{
         backgroundColor: '#fff', borderRadius: 16, padding: 20,
-        border: '1px solid #f3f4f6', marginBottom: 20
+        border: '1px solid #e8edf3', marginBottom: 20,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'
       }}>
         {/* Cabecera sección */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{
-            fontSize: 12, fontWeight: 700, color: '#374151',
+            fontSize: 12, fontWeight: 800, color: '#334155',
             textTransform: 'uppercase', letterSpacing: 0.8
           }}>👥 Seleccionar jugadores</div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#52B043' }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#15803d', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', padding: '3px 11px', borderRadius: 20 }}>
             {selected.size} seleccionados
           </div>
         </div>
@@ -259,19 +258,19 @@ export default function NuevaConvocatoriaPage() {
         {/* Acciones rápidas */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <button onClick={selectAll} style={{
-            padding: '5px 12px', borderRadius: 8, border: '1px solid #d1f0d1',
-            backgroundColor: '#f0faf0', color: '#1C5C2A', fontSize: 12, fontWeight: 600, cursor: 'pointer'
+            padding: '6px 14px', borderRadius: 9, border: '1.5px solid #bbf7d0',
+            backgroundColor: '#f0fdf4', color: '#15803d', fontSize: 12, fontWeight: 700, cursor: 'pointer'
           }}>Todos</button>
           <button onClick={clearAll} style={{
-            padding: '5px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
-            backgroundColor: '#f9fafb', color: '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer'
+            padding: '6px 14px', borderRadius: 9, border: '1.5px solid #e2e8f0',
+            backgroundColor: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 700, cursor: 'pointer'
           }}>Ninguno</button>
         </div>
 
         {/* Leyenda */}
         <div style={{
-          display: 'flex', gap: 14, marginBottom: 14, fontSize: 11, color: '#9ca3af',
-          padding: '8px 10px', backgroundColor: '#f9fafb', borderRadius: 8
+          display: 'flex', gap: 14, marginBottom: 14, fontSize: 11, color: '#64748b', fontWeight: 600,
+          padding: '9px 12px', backgroundColor: '#f8fafc', borderRadius: 10, border: '1px solid #eef2f7', flexWrap: 'wrap'
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52B043', display: 'inline-block' }} />
@@ -315,41 +314,42 @@ export default function NuevaConvocatoriaPage() {
                   key={p.id}
                   onClick={() => togglePlayer(p.id)}
                   style={{
-                    padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                    border: `2px solid ${isSelected ? '#52B043' : hasIncidents ? '#fde68a' : '#f3f4f6'}`,
-                    backgroundColor: isSelected ? '#f0faf0' : hasIncidents ? '#fffbeb' : '#fff',
+                    padding: '12px 14px', borderRadius: 13, cursor: 'pointer',
+                    border: `2px solid ${isSelected ? '#52B043' : hasIncidents ? '#fde68a' : '#eef2f7'}`,
+                    backgroundColor: isSelected ? '#f0fdf4' : hasIncidents ? '#fffbeb' : '#fff',
                     transition: 'all 0.15s',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     {/* Dorsal */}
                     <div style={{
-                      width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+                      width: 42, height: 42, borderRadius: 11, flexShrink: 0,
                       background: isSelected
                         ? 'linear-gradient(135deg,#52B043,#1C5C2A)'
-                        : 'linear-gradient(135deg,#f3f4f6,#e5e7eb)',
+                        : '#f1f5f9',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: isSelected ? '#fff' : '#6b7280',
-                      fontSize: 13, fontWeight: 900,
+                      color: isSelected ? '#fff' : '#64748b',
+                      fontSize: 14, fontWeight: 900,
                       transition: 'all 0.15s',
+                      boxShadow: isSelected ? '0 2px 8px rgba(28,92,42,0.20)' : 'none'
                     }}>{p.number ?? '—'}</div>
 
                     {/* Info jugador */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: '#0f172a', letterSpacing: -0.2 }}>
                           {p.full_name}
                         </span>
                         {hasIncidents && (
                           <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
-                            backgroundColor: '#fef2f2', color: '#ef4444'
+                            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                            backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca'
                           }}>
                             ⚠️ {INCIDENT_TYPE[p.incidents[0].type] || 'Incidencia'}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontWeight: 600 }}>
                         {p.position || '—'}
                       </div>
 
@@ -383,12 +383,13 @@ export default function NuevaConvocatoriaPage() {
 
                     {/* Checkbox */}
                     <div style={{
-                      width: 24, height: 24, borderRadius: 7, flexShrink: 0,
-                      border: `2px solid ${isSelected ? '#52B043' : '#d1d5db'}`,
-                      backgroundColor: isSelected ? '#52B043' : '#fff',
+                      width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                      border: `2px solid ${isSelected ? '#52B043' : '#cbd5e1'}`,
+                      background: isSelected ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', fontSize: 13, fontWeight: 900,
+                      color: '#fff', fontSize: 14, fontWeight: 900,
                       transition: 'all 0.15s',
+                      boxShadow: isSelected ? '0 2px 6px rgba(82,176,67,0.30)' : 'none'
                     }}>{isSelected ? '✓' : ''}</div>
                   </div>
                 </div>
@@ -405,12 +406,12 @@ export default function NuevaConvocatoriaPage() {
         style={{
           width: '100%', padding: '15px', borderRadius: 12, border: 'none',
           background: (saving || !canSave)
-            ? '#e5e7eb'
+            ? '#e2e8f0'
             : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-          color: (saving || !canSave) ? '#9ca3af' : '#fff',
-          fontSize: 15, fontWeight: 700,
+          color: (saving || !canSave) ? '#94a3b8' : '#fff',
+          fontSize: 15, fontWeight: 800, letterSpacing: -0.2,
           cursor: (saving || !canSave) ? 'not-allowed' : 'pointer',
-          boxShadow: canSave ? '0 4px 16px rgba(82,176,67,0.3)' : 'none',
+          boxShadow: canSave ? '0 4px 16px rgba(82,176,67,0.35)' : 'none',
           marginBottom: 40, transition: 'all 0.2s',
         }}
       >

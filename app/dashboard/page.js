@@ -72,11 +72,11 @@ export default function DashboardPage() {
   const modules = isDirector ? directorModules : coachModules
 
   return (
-    <div>
+    <div className="fade-in">
       {/* Cabecera */}
       <div style={{ marginBottom: 28 }}>
-        <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 4, textTransform: 'capitalize' }}>{today}</p>
-        <h1 style={{ color: '#111827', fontSize: 26, fontWeight: 800, margin: 0 }}>
+        <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 6, textTransform: 'capitalize', fontWeight: 600, letterSpacing: 0.2 }}>{today}</p>
+        <h1 style={{ color: '#0f172a', fontSize: 28, fontWeight: 900, margin: 0, letterSpacing: -0.6 }}>
           {greeting}, {firstName} 👋
         </h1>
       </div>
@@ -85,8 +85,9 @@ export default function DashboardPage() {
       {!isDirector && profile && !profile.profile_completed && (
         <Link href="/dashboard/perfil" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 18px', borderRadius: 12, marginBottom: 20,
-          backgroundColor: '#fffbeb', border: '1px solid #fde68a', textDecoration: 'none'
+          padding: '14px 18px', borderRadius: 14, marginBottom: 20,
+          backgroundColor: '#fffbeb', border: '1px solid #fde68a', textDecoration: 'none',
+          boxShadow: '0 2px 8px rgba(217,119,6,0.10)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 20 }}>👋</span>
@@ -102,34 +103,34 @@ export default function DashboardPage() {
       {/* ── BANNER DIRECTOR ── */}
       {isDirector && (
         <div style={{
-          borderRadius: 16, marginBottom: 28, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
-          boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
+          borderRadius: 18, marginBottom: 28, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
+          boxShadow: '0 4px 24px rgba(28,92,42,0.30)'
         }}>
-          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+              <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>
                 Club Deportivo Urdaneta
               </p>
-              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+              <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: '0 0 5px', letterSpacing: -0.4 }}>
                 Vista general del club
               </h2>
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
+              <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                 Temporada 2025-2026
               </p>
             </div>
-            <div style={{ fontSize: 52, opacity: 0.5 }}>🛡️</div>
+            <div style={{ fontSize: 54, opacity: 0.45 }}>🛡️</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
             {[
               { label: 'Equipos',      value: dirStats.teams },
               { label: 'Entrenadores', value: dirStats.coaches },
               { label: 'Jugadores',    value: dirStats.players },
               { label: 'Incidencias',  value: dirStats.incidents },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ padding: '14px 8px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{value}</div>
-                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
+            ].map(({ label, value }, i, arr) => (
+              <div key={label} style={{ padding: '16px 8px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
+                <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
               </div>
             ))}
           </div>
@@ -139,36 +140,36 @@ export default function DashboardPage() {
       {/* ── BANNER COACH ── */}
       {!isDirector && (
         <div style={{
-          borderRadius: 16, marginBottom: 28, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #1C5C2A 0%, #52B043 100%)',
-          boxShadow: '0 4px 20px rgba(82,176,67,0.25)'
+          borderRadius: 18, marginBottom: 28, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
+          boxShadow: '0 4px 24px rgba(28,92,42,0.30)'
         }}>
-          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+              <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>
                 {team ? 'Tu equipo' : 'Sin equipo asignado'}
               </p>
-              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 900, margin: '0 0 4px' }}>
+              <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 900, margin: '0 0 5px', letterSpacing: -0.4 }}>
                 {team ? team.name : 'Pendiente de asignación'}
               </h2>
               {team && (
-                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0 }}>
+                <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                   {team.category} · {team.season} · {stats.players} jugadores
                 </p>
               )}
             </div>
-            <div style={{ fontSize: 52, opacity: 0.5 }}>🏀</div>
+            <div style={{ fontSize: 54, opacity: 0.45 }}>🏀</div>
           </div>
 
           {team && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
               {[
                 { label: 'Jugadores',   value: stats.players },
                 { label: 'Incidencias', value: stats.incidents },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ padding: '14px 20px', textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div style={{ color: '#fff', fontSize: 22, fontWeight: 900 }}>{value}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 2 }}>{label}</div>
+              ].map(({ label, value }, i, arr) => (
+                <div key={label} style={{ padding: '16px 20px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
+                  <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -178,21 +179,26 @@ export default function DashboardPage() {
 
       {/* Módulos */}
       <div style={{ marginBottom: 8 }}>
-        <h3 style={{ color: '#374151', fontSize: 15, fontWeight: 700, marginBottom: 14 }}>¿Qué quieres hacer hoy?</h3>
+        <h3 style={{ color: '#0f172a', fontSize: 16, fontWeight: 800, marginBottom: 16, letterSpacing: -0.2 }}>¿Qué quieres hacer hoy?</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
           {modules.map(({ label, desc, href, emoji, color }) => (
             <Link key={label} href={href} style={{
-              display: 'block', padding: '18px 16px', borderRadius: 14,
-              backgroundColor: '#fff', border: '1px solid #f3f4f6',
+              display: 'block', padding: '18px 18px', borderRadius: 16,
+              backgroundColor: '#fff', border: '1px solid #e8edf3',
               textDecoration: 'none', transition: 'all 0.2s',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+              position: 'relative', overflow: 'hidden'
             }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'translateY(0)' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
             >
-              <div style={{ fontSize: 28, marginBottom: 10 }}>{emoji}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 3 }}>{label}</div>
-              <div style={{ fontSize: 12, color: '#9ca3af' }}>{desc}</div>
+              <div style={{
+                width: 46, height: 46, borderRadius: 13, marginBottom: 12,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+                background: `${color}14`, border: `1px solid ${color}26`
+              }}>{emoji}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 3, letterSpacing: -0.2 }}>{label}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{desc}</div>
             </Link>
           ))}
         </div>

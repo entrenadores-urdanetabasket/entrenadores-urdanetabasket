@@ -52,98 +52,95 @@ export default function ResetPasswordPage() {
 
   const inputStyle = {
     width: '100%', padding: '13px 16px', borderRadius: 12, fontSize: 15,
-    border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none',
-    boxSizing: 'border-box', backgroundColor: '#fff',
+    border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none',
+    boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s',
   }
+  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
   if (checking) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
-      <div style={{ color: '#9ca3af', fontSize: 14 }}>Verificando enlace...</div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f3f8' }}>
+      <div style={{ color: '#94a3b8', fontSize: 14 }}>Verificando enlace...</div>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f0f3f8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="fade-in" style={{ width: '100%', maxWidth: 400 }}>
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{
-            width: 56, height: 56, borderRadius: 16, margin: '0 auto 12px',
+            width: 60, height: 60, borderRadius: 18, margin: '0 auto 14px',
             background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
+            boxShadow: '0 8px 24px rgba(28,92,42,0.30)'
           }}>🏀</div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: '#111827', margin: '0 0 4px' }}>Nueva contraseña</h1>
-          <p style={{ fontSize: 14, color: '#9ca3af', margin: 0 }}>C.D. Urdaneta · Entrenadores</p>
+          <h1 style={{ fontSize: 23, fontWeight: 900, color: '#0f172a', margin: '0 0 5px', letterSpacing: -0.4 }}>Nueva contraseña</h1>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase' }}>C.D. Urdaneta · Entrenadores</p>
         </div>
 
-        <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 4px 24px rgba(0,0,0,0.06)', border: '1px solid #f3f4f6' }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', border: '1px solid #e8edf3' }}>
 
           {done ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
                 Contraseña actualizada
               </div>
-              <div style={{ fontSize: 13, color: '#9ca3af' }}>
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>
                 Redirigiendo al dashboard...
               </div>
             </div>
           ) : !validSession ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>
                 Enlace no válido o caducado
               </div>
-              <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
                 Pide al director que envíe un nuevo email de recuperación.
               </div>
-              <button onClick={() => router.replace('/login')} style={{
-                padding: '12px 24px', borderRadius: 10, border: 'none',
-                background: 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer'
-              }}>Ir al login</button>
+              <button onClick={() => router.replace('/login')} className="btn-primary">Ir al login</button>
             </div>
           ) : (
-            <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
+            <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 4px', fontWeight: 500 }}>
                 Elige una contraseña nueva para tu cuenta.
               </p>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                <label className="label-field">
                   Nueva contraseña
                 </label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres" required style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                <label className="label-field">
                   Confirmar contraseña
                 </label>
                 <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
                   placeholder="Repite la contraseña" required style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
 
               {error && (
-                <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#ef4444', fontSize: 13 }}>
+                <div style={{ padding: '10px 14px', borderRadius: 10, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13 }}>
                   {error}
                 </div>
               )}
 
               <button type="submit" disabled={loading} style={{
                 padding: '14px', borderRadius: 12, border: 'none',
-                background: loading ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                color: loading ? '#9ca3af' : '#fff',
-                fontSize: 15, fontWeight: 700,
+                background: loading ? '#e2e8f0' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
+                color: loading ? '#94a3b8' : '#fff',
+                fontSize: 15, fontWeight: 800, letterSpacing: -0.2,
                 cursor: loading ? 'not-allowed' : 'pointer',
-                boxShadow: loading ? 'none' : '0 4px 16px rgba(82,176,67,0.3)',
-                marginTop: 4,
+                boxShadow: loading ? 'none' : '0 4px 16px rgba(82,176,67,0.35)',
+                marginTop: 4, transition: 'all 0.2s',
               }}>
                 {loading ? 'Guardando...' : 'Guardar nueva contraseña'}
               </button>

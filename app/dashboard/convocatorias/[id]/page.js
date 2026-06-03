@@ -89,7 +89,7 @@ export default function ConvocatoriaDetailPage() {
     router.replace('/dashboard/convocatorias')
   }
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
   if (!conv) return null
 
   const dateObj = new Date(conv.date + 'T12:00:00')
@@ -102,48 +102,49 @@ export default function ConvocatoriaDetailPage() {
 
   return (
     <>
-      <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto' }}>
 
         {/* Volver */}
         <button onClick={() => router.back()} style={{
           background: 'none', border: 'none', cursor: 'pointer',
-          color: '#9ca3af', fontSize: 13, padding: 0, marginBottom: 16
+          color: '#64748b', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 16
         }}>← Volver</button>
 
         {/* Banner principal */}
         <div style={{
-          borderRadius: 16, marginBottom: 20, overflow: 'hidden',
-          background: 'linear-gradient(135deg,#1C5C2A 0%,#52B043 100%)',
-          boxShadow: '0 4px 20px rgba(82,176,67,0.2)', padding: '22px 24px'
+          borderRadius: 18, marginBottom: 20, overflow: 'hidden',
+          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
+          boxShadow: '0 4px 20px rgba(28,92,42,0.25)', padding: '24px 24px'
         }}>
           <div style={{
-            color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 600,
-            letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6
+            color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700,
+            letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8
           }}>
             {teamName} · Convocatoria
           </div>
-          <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, marginBottom: 10 }}>
+          <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, marginBottom: 12, letterSpacing: -0.5 }}>
             vs {conv.rival}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: 500, textTransform: 'capitalize' }}>
               📅 {dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}
               {conv.time ? ` · ${conv.time}h` : ''}
             </div>
             {conv.location && (
-              <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>
+              <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: 13, fontWeight: 500 }}>
                 📍 {conv.location}
               </div>
             )}
-            <div style={{ color: '#fff', fontWeight: 800, fontSize: 14, marginTop: 6 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', color: '#fff', fontWeight: 800, fontSize: 13, marginTop: 8, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.20)', padding: '5px 12px', borderRadius: 20 }}>
               👥 {players.length} jugadores convocados
             </div>
           </div>
           {conv.notes && (
             <div style={{
-              marginTop: 14, padding: '10px 14px',
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              borderRadius: 10, color: 'rgba(255,255,255,0.9)', fontSize: 12
+              marginTop: 16, padding: '11px 14px',
+              backgroundColor: 'rgba(255,255,255,0.14)',
+              border: '1px solid rgba(255,255,255,0.16)',
+              borderRadius: 12, color: 'rgba(255,255,255,0.92)', fontSize: 12.5, lineHeight: 1.5
             }}>
               📝 {conv.notes}
             </div>
@@ -153,20 +154,20 @@ export default function ConvocatoriaDetailPage() {
         {/* Botones de acción */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
           <button onClick={handleCopyWhatsApp} style={{
-            padding: '13px 16px', borderRadius: 12,
-            border: `1.5px solid ${copied ? '#25D366' : '#25D366'}`,
-            backgroundColor: copied ? '#25D366' : '#fff',
-            color: copied ? '#fff' : '#25D366',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            padding: '14px 16px', borderRadius: 12, border: 'none',
+            background: copied ? 'linear-gradient(135deg,#25D366,#1da851)' : 'linear-gradient(135deg,#25D366,#1da851)',
+            color: '#fff',
+            fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: '0 2px 10px rgba(37,211,102,0.35)',
             transition: 'all 0.2s',
           }}>
             {copied ? '✓ ¡Copiado!' : '📲 Copiar para WhatsApp'}
           </button>
           <button onClick={() => window.print()} style={{
-            padding: '13px 16px', borderRadius: 12,
-            border: '1.5px solid #3b82f6',
-            backgroundColor: '#fff', color: '#3b82f6',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            padding: '14px 16px', borderRadius: 12, border: 'none',
+            background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff',
+            fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+            boxShadow: '0 2px 10px rgba(37,99,235,0.35)',
           }}>
             🖨️ Exportar PDF
           </button>
@@ -175,17 +176,18 @@ export default function ConvocatoriaDetailPage() {
         {/* Lista de jugadores */}
         <div style={{
           backgroundColor: '#fff', borderRadius: 16, padding: 20,
-          border: '1px solid #f3f4f6', marginBottom: 20
+          border: '1px solid #e8edf3', marginBottom: 20,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'
         }}>
           <div style={{
-            fontSize: 12, fontWeight: 700, color: '#374151',
+            fontSize: 12, fontWeight: 800, color: '#334155',
             textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 16
           }}>
             Jugadores convocados
           </div>
 
           {players.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 20, color: '#9ca3af', fontSize: 13 }}>
+            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>
               No se seleccionaron jugadores
             </div>
           ) : (
@@ -193,17 +195,18 @@ export default function ConvocatoriaDetailPage() {
               {players.map(p => (
                 <div key={p.id} style={{
                   display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 12px', borderRadius: 10, backgroundColor: '#f9fafb'
+                  padding: '11px 13px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #eef2f7'
                 }}>
                   <div style={{
-                    width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
                     background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#fff', fontSize: 12, fontWeight: 900
+                    color: '#fff', fontSize: 13, fontWeight: 900,
+                    boxShadow: '0 2px 6px rgba(28,92,42,0.20)'
                   }}>{p.number ?? '—'}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{p.full_name}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.position || '—'}</div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#0f172a', letterSpacing: -0.2 }}>{p.full_name}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>{p.position || '—'}</div>
                   </div>
                 </div>
               ))}
@@ -214,9 +217,9 @@ export default function ConvocatoriaDetailPage() {
         {/* Eliminar — solo entrenador */}
         {!isDirector && (
           <button onClick={handleDelete} style={{
-            width: '100%', padding: '12px', borderRadius: 12,
+            width: '100%', padding: '13px', borderRadius: 12,
             border: '1.5px solid #fecaca', backgroundColor: '#fef2f2',
-            color: '#ef4444', fontSize: 13, fontWeight: 700,
+            color: '#dc2626', fontSize: 13, fontWeight: 700,
             cursor: 'pointer', marginBottom: 40,
           }}>
             🗑️ Eliminar convocatoria

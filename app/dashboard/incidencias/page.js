@@ -97,58 +97,63 @@ export default function IncidenciasPage() {
   const filtered = incidents.filter(i => tab === 'activas' ? !i.resolved : i.resolved)
 
   const tabStyle = (t) => ({
-    padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 600,
-    backgroundColor: tab === t ? '#1C5C2A' : '#f3f4f6',
-    color: tab === t ? '#fff' : '#374151'
+    padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+    background: tab === t ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+    color: tab === t ? '#fff' : '#475569',
+    border: tab === t ? 'none' : '1.5px solid #e2e8f0',
+    boxShadow: tab === t ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
   })
 
   const inputStyle = {
     width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14,
-    border: '1.5px solid #e5e7eb', color: '#111827', outline: 'none',
-    boxSizing: 'border-box', backgroundColor: '#fff'
+    border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none',
+    boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s'
   }
-  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }
+  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
+  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
-  if (loading) return <div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+  if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   if (!selectedTeam) return (
-    <div style={{ textAlign: 'center', padding: '64px 0' }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>⚠️</div>
-      <h2 style={{ color: '#111827', fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sin equipo asignado</h2>
-      <p style={{ color: '#9ca3af', fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
+    <div className="empty-state">
+      <div className="empty-state-icon" style={{ fontSize: 56 }}>⚠️</div>
+      <h2 className="empty-state-title" style={{ fontSize: 20, fontWeight: 800 }}>Sin equipo asignado</h2>
+      <p className="empty-state-text" style={{ fontSize: 14 }}>El director deportivo te asignará un equipo en breve.</p>
     </div>
   )
 
   const activeCount = incidents.filter(i => !i.resolved).length
 
   return (
-    <div>
+    <div className="fade-in">
       {/* Cabecera */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h1 style={{ color: '#111827', fontSize: 24, fontWeight: 800, margin: '0 0 4px' }}>Incidencias</h1>
-          <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>
+          <h1 className="page-title">Incidencias</h1>
+          <p className="page-subtitle">
             {selectedTeam.name} · {activeCount > 0 ? <span style={{ color: '#ef4444', fontWeight: 700 }}>{activeCount} activas</span> : 'Sin incidencias activas'}
           </p>
         </div>
-        <button onClick={() => setShowForm(true)} style={{
-          padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
-          background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff',
-          fontSize: 14, fontWeight: 700, boxShadow: '0 2px 12px rgba(82,176,67,0.3)'
-        }}>+ Nueva</button>
+        <button onClick={() => setShowForm(true)} className="btn-primary" style={{ flexShrink: 0 }}>+ Nueva</button>
       </div>
 
       {/* Selector equipos (director) */}
       {isDirector && teams.length > 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {teams.map(t => (
-            <button key={t.id} onClick={() => { setLoading(true); loadTeamData(t) }} style={{
-              padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-              backgroundColor: selectedTeam?.id === t.id ? '#1C5C2A' : '#f3f4f6',
-              color: selectedTeam?.id === t.id ? '#fff' : '#374151'
-            }}>{t.name}</button>
-          ))}
+          {teams.map(t => {
+            const active = selectedTeam?.id === t.id
+            return (
+              <button key={t.id} onClick={() => { setLoading(true); loadTeamData(t) }} style={{
+                padding: '8px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                color: active ? '#fff' : '#475569',
+                border: active ? 'none' : '1.5px solid #e2e8f0',
+                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
+              }}>{t.name}</button>
+            )
+          })}
         </div>
       )}
 
@@ -165,9 +170,9 @@ export default function IncidenciasPage() {
       {/* Lista incidencias */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>{tab === 'activas' ? '✅' : '📋'}</div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">{tab === 'activas' ? '✅' : '📋'}</div>
+            <div className="empty-state-title">
               {tab === 'activas' ? '¡Sin incidencias activas!' : 'No hay incidencias resueltas'}
             </div>
           </div>
@@ -177,9 +182,13 @@ export default function IncidenciasPage() {
           const t = TYPES[inc.type] || TYPES.otro
           return (
             <div key={inc.id} style={{
-              backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${t.border}`,
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden'
-            }}>
+              backgroundColor: '#fff', borderRadius: 16, border: `1.5px solid ${t.border}`,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', overflow: 'hidden',
+              borderLeft: `4px solid ${t.color}`, transition: 'all 0.2s'
+            }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+            >
               {/* Header tipo */}
               <div style={{ backgroundColor: t.bg, padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -237,9 +246,9 @@ export default function IncidenciasPage() {
 
       {/* Modal nueva incidencia */}
       {showForm && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 20px 60px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 20px' }}>Nueva incidencia</h2>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 460, boxShadow: '0 24px 70px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>Nueva incidencia</h2>
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
               {/* Tipo */}
@@ -274,8 +283,7 @@ export default function IncidenciasPage() {
                 <label style={labelStyle}>Fecha</label>
                 <input type='date' value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                   required style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
 
               {/* Descripción */}
@@ -284,19 +292,16 @@ export default function IncidenciasPage() {
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   placeholder='Describe la incidencia con detalle...' required rows={4}
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                  onFocus={e => e.target.style.borderColor = '#52B043'}
-                  onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                  onFocus={inputFocus} onBlur={inputBlur} />
               </div>
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type='button' onClick={() => setShowForm(false)} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',
-                  backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                  flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
                 }}>Cancelar</button>
-                <button type='submit' disabled={saving} style={{
-                  flex: 1, padding: '12px', borderRadius: 10, border: 'none',
-                  background: saving ? '#e5e7eb' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                  color: saving ? '#9ca3af' : '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer'
+                <button type='submit' disabled={saving} className="btn-primary" style={{
+                  flex: 1, padding: '12px', ...(saving ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {})
                 }}>{saving ? 'Guardando...' : 'Registrar'}</button>
               </div>
             </form>
@@ -306,27 +311,24 @@ export default function IncidenciasPage() {
 
       {/* Modal resolver incidencia */}
       {showResolve && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>Marcar como resuelta</h2>
-            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>{showResolve.description}</p>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 8px', letterSpacing: -0.3 }}>Marcar como resuelta</h2>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 20px' }}>{showResolve.description}</p>
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Nota de resolución (opcional)</label>
               <textarea value={resolveNote} onChange={e => setResolveNote(e.target.value)}
                 placeholder='¿Cómo se resolvió? Alta médica, cumplida sanción...' rows={3}
                 style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                onFocus={e => e.target.style.borderColor = '#52B043'}
-                onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                onFocus={inputFocus} onBlur={inputBlur} />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setShowResolve(null)} style={{
-                flex: 1, padding: '12px', borderRadius: 10, border: '1px solid #e5e7eb',
-                backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+                flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
               }}>Cancelar</button>
-              <button onClick={() => handleResolve(showResolve)} style={{
-                flex: 1, padding: '12px', borderRadius: 10, border: 'none',
-                background: 'linear-gradient(135deg,#52B043,#3a8a2e)',
-                color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer'
+              <button onClick={() => handleResolve(showResolve)} className="btn-primary" style={{
+                flex: 1, padding: '12px'
               }}>✓ Confirmar</button>
             </div>
           </div>

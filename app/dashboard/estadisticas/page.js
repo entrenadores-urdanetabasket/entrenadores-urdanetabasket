@@ -72,66 +72,61 @@ export default function EstadisticasPage() {
   ]
 
   return (
-    <div>
+    <div className="fade-in">
       {/* Cabecera */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: '#111827', margin: 0 }}>Estadísticas</h1>
-          {teamName && <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 3 }}>{teamName}</div>}
+          <h1 className="page-title">Estadísticas</h1>
+          {teamName && <div className="page-subtitle">{teamName}</div>}
         </div>
-        <Link href="/dashboard/estadisticas/nuevo" style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: 'linear-gradient(135deg,#1C5C2A,#52B043)',
-          color: '#fff', fontSize: 13, fontWeight: 700,
-          padding: '9px 16px', borderRadius: 10, textDecoration: 'none',
-          boxShadow: '0 2px 8px rgba(82,176,67,0.35)'
-        }}>
+        <Link href="/dashboard/estadisticas/nuevo" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>
           + Nuevo partido
         </Link>
       </div>
 
       {/* Tabs filtro */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setFilter(t.key)} style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-            fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.15s',
-            backgroundColor: filter === t.key ? '#1C5C2A' : '#f3f4f6',
-            color: filter === t.key ? '#fff' : '#6b7280',
-          }}>
-            {t.label}
-            {t.count > 0 && (
-              <span style={{
-                fontSize: 10, fontWeight: 800, minWidth: 16, height: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                backgroundColor: filter === t.key ? 'rgba(255,255,255,0.25)' : '#e5e7eb',
-                color: filter === t.key ? '#fff' : '#6b7280',
-                borderRadius: 8, padding: '0 4px'
-              }}>{t.count}</span>
-            )}
-          </button>
-        ))}
+        {tabs.map(t => {
+          const active = filter === t.key
+          return (
+            <button key={t.key} onClick={() => setFilter(t.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '8px 15px', borderRadius: 20, cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.15s',
+              background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+              color: active ? '#fff' : '#475569',
+              border: active ? 'none' : '1.5px solid #e2e8f0',
+              boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
+            }}>
+              {t.label}
+              {t.count > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 800, minWidth: 17, height: 17,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: active ? 'rgba(255,255,255,0.25)' : '#eef2f7',
+                  color: active ? '#fff' : '#64748b',
+                  borderRadius: 9, padding: '0 5px'
+                }}>{t.count}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Lista */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', fontSize: 14 }}>Cargando...</div>
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🏀</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+        <div style={{ textAlign: 'center', padding: '56px 20px', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }}>
+          <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.5 }}>🏀</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
             {filter === 'all' ? 'No hay partidos registrados' : `No hay partidos ${filter === 'live' ? 'en vivo' : filter === 'finished' ? 'finalizados' : 'pendientes'}`}
           </div>
-          <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 20 }}>
             {filter === 'all' ? 'Crea el primer partido para empezar a registrar estadísticas' : ''}
           </div>
           {filter === 'all' && (
-            <Link href="/dashboard/estadisticas/nuevo" style={{
-              display: 'inline-block', background: 'linear-gradient(135deg,#1C5C2A,#52B043)',
-              color: '#fff', fontSize: 13, fontWeight: 700,
-              padding: '9px 20px', borderRadius: 10, textDecoration: 'none'
-            }}>
+            <Link href="/dashboard/estadisticas/nuevo" className="btn-primary" style={{ textDecoration: 'none' }}>
               + Crear partido
             </Link>
           )}
@@ -147,38 +142,41 @@ export default function EstadisticasPage() {
             return (
               <Link key={game.id} href={`/live/${game.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{
-                  backgroundColor: '#fff', borderRadius: 14, border: `1px solid ${isLive ? '#fca5a5' : '#f3f4f6'}`,
-                  padding: '14px 18px', boxShadow: isLive ? '0 2px 12px rgba(239,68,68,0.15)' : '0 1px 4px rgba(0,0,0,0.04)',
-                  transition: 'box-shadow 0.15s', position: 'relative',
-                }}>
+                  backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${isLive ? '#fca5a5' : '#e8edf3'}`,
+                  padding: '14px 18px', boxShadow: isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+                  transition: 'all 0.2s', position: 'relative',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = isLive ? '0 6px 22px rgba(239,68,68,0.24)' : '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                         <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 7,
                           backgroundColor: st.bg, color: st.color
                         }}>{st.label}</span>
                         {game.game_type && (
-                          <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>
+                          <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>
                             {TYPE_LABEL[game.game_type] || game.game_type}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#111827', marginBottom: 3 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 3, letterSpacing: -0.2 }}>
                         vs {game.rival_name}
                       </div>
-                      <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                      <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, textTransform: 'capitalize' }}>
                         {dateStr}{game.location ? ` · ${game.location}` : ''}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
                       {game.status !== 'pending' && (
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 24, fontWeight: 900, color: '#111827', letterSpacing: -1 }}>
+                          <div style={{ fontSize: 25, fontWeight: 900, color: '#0f172a', letterSpacing: -1 }}>
                             {game.our_score ?? 0} – {game.rival_score ?? 0}
                           </div>
                           {isLive && (
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textAlign: 'center' }}>EN VIVO</div>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: '#ef4444', textAlign: 'center', letterSpacing: 0.5 }}>EN VIVO</div>
                           )}
                         </div>
                       )}
@@ -187,9 +185,9 @@ export default function EstadisticasPage() {
                         onClick={(e) => deleteGame(game.id, e)}
                         disabled={deleting === game.id}
                         style={{
-                          width: 32, height: 32, borderRadius: 8, border: '1px solid #fee2e2',
-                          backgroundColor: deleting === game.id ? '#f3f4f6' : '#fff',
-                          color: deleting === game.id ? '#d1d5db' : '#ef4444',
+                          width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fee2e2',
+                          backgroundColor: deleting === game.id ? '#f1f5f9' : '#fff',
+                          color: deleting === game.id ? '#cbd5e1' : '#ef4444',
                           cursor: deleting === game.id ? 'not-allowed' : 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 15, flexShrink: 0, transition: 'background 0.1s',

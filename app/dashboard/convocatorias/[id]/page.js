@@ -155,19 +155,19 @@ export default function ConvocatoriaDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
           <button onClick={handleCopyWhatsApp} style={{
             padding: '14px 16px', borderRadius: 12, border: 'none',
-            background: copied ? 'linear-gradient(135deg,#25D366,#1da851)' : 'linear-gradient(135deg,#25D366,#1da851)',
+            background: copied ? '#1da851' : '#25D366',
             color: '#fff',
             fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
-            boxShadow: '0 2px 10px rgba(37,211,102,0.35)',
+            boxShadow: '0 4px 14px rgba(37,211,102,0.40)',
             transition: 'all 0.2s',
           }}>
             {copied ? '✓ ¡Copiado!' : '📲 Copiar para WhatsApp'}
           </button>
           <button onClick={() => window.print()} style={{
             padding: '14px 16px', borderRadius: 12, border: 'none',
-            background: 'linear-gradient(135deg,#3b82f6,#2563eb)', color: '#fff',
+            background: '#2563eb', color: '#fff',
             fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
-            boxShadow: '0 2px 10px rgba(37,99,235,0.35)',
+            boxShadow: '0 4px 14px rgba(37,99,235,0.40)',
           }}>
             🖨️ Exportar PDF
           </button>

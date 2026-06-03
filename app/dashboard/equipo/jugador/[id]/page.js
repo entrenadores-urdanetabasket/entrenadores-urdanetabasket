@@ -76,24 +76,23 @@ export default function JugadorPage() {
 
       {/* Cabecera jugador */}
       <div style={{
-        borderRadius: 18, marginBottom: 20, overflow: 'hidden',
-        background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
-        boxShadow: '0 4px 20px rgba(28,92,42,0.25)',
-        padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 18
+        borderRadius: 20, marginBottom: 20, overflow: 'hidden',
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+        padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18
       }}>
-        <div style={{
-          width: 66, height: 66, borderRadius: 16, flexShrink: 0,
-          backgroundColor: 'rgba(255,255,255,0.16)',
-          border: '1px solid rgba(255,255,255,0.20)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: 26, fontWeight: 900,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)'
-        }}>{player.number ?? '—'}</div>
         <div>
-          <div style={{ color: '#fff', fontSize: 21, fontWeight: 900, letterSpacing: -0.4 }}>{player.full_name}</div>
-          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 5, fontWeight: 500 }}>
-            {player.position || '—'} · {player.teams?.name} · {player.teams?.season}
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {player.teams?.name} · {player.teams?.season}
+          </p>
+          <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, letterSpacing: -0.5 }}>{player.full_name}</div>
+          <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 4, fontWeight: 500 }}>
+            {player.position || '—'}
           </div>
+        </div>
+        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>Dorsal</div>
+          <div style={{ color: '#fff', fontSize: 64, fontWeight: 900, lineHeight: 0.9, letterSpacing: -3 }}>{player.number ?? '—'}</div>
         </div>
       </div>
 
@@ -105,9 +104,9 @@ export default function JugadorPage() {
           { label: 'Faltas',     value: stats.absent,  color: '#ef4444' },
           { label: 'Tardes',     value: stats.late,    color: '#d97706' },
         ].map(({ label, value, color }) => (
-          <div key={label} style={{ backgroundColor: '#fff', borderRadius: 14, padding: '14px 8px', border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', textAlign: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+          <div key={label} style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px solid #e8edf3', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, fontWeight: 900, color, lineHeight: 1, letterSpacing: -1.5 }}>{value}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</div>
           </div>
         ))}
       </div>

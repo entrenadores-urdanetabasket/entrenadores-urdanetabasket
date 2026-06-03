@@ -128,12 +128,20 @@ export default function IncidenciasPage() {
 
   return (
     <div className="fade-in">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Cabecera — banner verde */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
         <div>
-          <h1 className="page-title">Incidencias</h1>
-          <p className="page-subtitle">
-            {selectedTeam.name} · {activeCount > 0 ? <span style={{ color: '#ef4444', fontWeight: 700 }}>{activeCount} activas</span> : 'Sin incidencias activas'}
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {selectedTeam.name} · Registro de eventos
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Incidencias</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
+            {activeCount > 0 ? `${activeCount} ${activeCount === 1 ? 'activa' : 'activas'}` : 'Sin incidencias activas'}
           </p>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary" style={{ flexShrink: 0 }}>+ Nueva</button>

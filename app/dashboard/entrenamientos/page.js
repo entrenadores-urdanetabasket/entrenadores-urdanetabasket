@@ -427,18 +427,26 @@ export default function EntrenamientosPage() {
       ) : (
         /* Vista lista sesiones */
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+            borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+          }}>
             <div>
-              <h1 className="page-title">Entrenamientos</h1>
-              <p className="page-subtitle">
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+                {tab === 'compartidos' ? 'Compartidos en el club' : (selectedTeam?.name || 'Planificar sesiones')}
+              </p>
+              <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Entrenamientos</h1>
+              <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                 {tab === 'compartidos'
-                  ? `Entrenamientos compartidos por todos los entrenadores del club`
-                  : `${selectedTeam?.name || ''} · ${sessions.length} sesiones`}
+                  ? `Sesiones compartidas por todos los entrenadores`
+                  : `${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'}`}
               </p>
             </div>
-            {tab !== 'compartidos' && (
-              <button onClick={openNewSession} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
-            )}
+            {tab !== 'compartidos'
+              ? <button onClick={openNewSession} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
+              : <div style={{ fontSize: 48, opacity: 0.35 }}>📝</div>}
           </div>
 
           {/* Selector de equipo — solo en pestañas de sesiones propias */}

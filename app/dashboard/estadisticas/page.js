@@ -73,11 +73,21 @@ export default function EstadisticasPage() {
 
   return (
     <div className="fade-in">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      {/* Cabecera — banner verde */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
         <div>
-          <h1 className="page-title">Estadísticas</h1>
-          {teamName && <div className="page-subtitle">{teamName}</div>}
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {teamName || 'Análisis de partidos'}
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Estadísticas</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
+            {games.length} {games.length === 1 ? 'partido registrado' : 'partidos registrados'}
+          </p>
         </div>
         <Link href="/dashboard/estadisticas/nuevo" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>
           + Nuevo partido
@@ -172,7 +182,7 @@ export default function EstadisticasPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
                       {game.status !== 'pending' && (
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 25, fontWeight: 900, color: '#0f172a', letterSpacing: -1 }}>
+                          <div style={{ fontSize: 32, fontWeight: 900, color: '#0a1f0e', letterSpacing: -1.5 }}>
                             {game.our_score ?? 0} – {game.rival_score ?? 0}
                           </div>
                           {isLive && (

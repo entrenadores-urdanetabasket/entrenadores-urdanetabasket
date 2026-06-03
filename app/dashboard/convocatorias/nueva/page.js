@@ -173,13 +173,24 @@ export default function NuevaConvocatoriaPage() {
     <div className="fade-in" style={{ maxWidth: 600, margin: '0 auto' }}>
 
       {/* Back + título */}
-      <div style={{ marginBottom: 24 }}>
-        <button onClick={() => router.back()} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#64748b', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 8
-        }}>← Volver</button>
-        <h1 className="page-title">Nueva convocatoria</h1>
-        <p className="page-subtitle">{activeTeam?.name}</p>
+      <button onClick={() => router.back()} style={{
+        background: 'none', border: 'none', cursor: 'pointer',
+        color: '#64748b', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 12
+      }}>← Volver</button>
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 24,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {activeTeam?.name || 'Nueva convocatoria'}
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Nueva convocatoria</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>Selecciona rival, fecha y jugadores</p>
+        </div>
+        <div style={{ fontSize: 48, opacity: 0.35 }}>📋</div>
       </div>
 
       {/* ── Datos del partido ── */}
@@ -342,8 +353,9 @@ export default function NuevaConvocatoriaPage() {
                         </span>
                         {hasIncidents && (
                           <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                            backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca'
+                            fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 7,
+                            backgroundColor: '#dc2626', color: '#fff', letterSpacing: 0.2,
+                            boxShadow: '0 1px 4px rgba(220,38,38,0.30)'
                           }}>
                             ⚠️ {INCIDENT_TYPE[p.incidents[0].type] || 'Incidencia'}
                           </span>

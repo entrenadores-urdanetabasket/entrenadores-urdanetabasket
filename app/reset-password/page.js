@@ -59,13 +59,13 @@ export default function ResetPasswordPage() {
   const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
   if (checking) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f3f8' }}>
-      <div style={{ color: '#94a3b8', fontSize: 14 }}>Verificando enlace...</div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(160deg, #0a1a0a 0%, #1a3a1a 50%, #0f2a0f 100%)' }}>
+      <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>Verificando enlace...</div>
     </div>
   )
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f0f3f8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #0a1a0a 0%, #1a3a1a 50%, #0f2a0f 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div className="fade-in" style={{ width: '100%', maxWidth: 400 }}>
 
         {/* Logo */}
@@ -76,8 +76,8 @@ export default function ResetPasswordPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30,
             boxShadow: '0 8px 24px rgba(28,92,42,0.30)'
           }}>🏀</div>
-          <h1 style={{ fontSize: 23, fontWeight: 900, color: '#0f172a', margin: '0 0 5px', letterSpacing: -0.4 }}>Nueva contraseña</h1>
-          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase' }}>C.D. Urdaneta · Entrenadores</p>
+          <h1 style={{ fontSize: 23, fontWeight: 900, color: '#fff', margin: '0 0 5px', letterSpacing: -0.4 }}>Nueva contraseña</h1>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', margin: 0, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase' }}>C.D. Urdaneta · Entrenadores</p>
         </div>
 
         <div style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, boxShadow: '0 8px 32px rgba(0,0,0,0.08)', border: '1px solid #e8edf3' }}>

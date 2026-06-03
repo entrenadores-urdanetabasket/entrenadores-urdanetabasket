@@ -282,19 +282,27 @@ export default function DirectorPage() {
   // ── RENDER ────────────────────────────────────────────────
   return (
     <div className="fade-in">
-      {/* Cabecera */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      {/* Cabecera — banner verde */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
         <div>
-          <h1 className="page-title">Panel Director</h1>
-          <p className="page-subtitle">
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            Club Deportivo Urdaneta
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Panel Director</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
             {overview
               ? `${overview.teamsCount} equipos · ${overview.coachesCount} entrenadores · ${overview.playersCount} jugadores`
               : 'Cargando...'}
           </p>
         </div>
-        {tab === 'equipos' && (
-          <button onClick={openNew} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo equipo</button>
-        )}
+        {tab === 'equipos'
+          ? <button onClick={openNew} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo equipo</button>
+          : <div style={{ fontSize: 48, opacity: 0.35 }}>🛡️</div>}
       </div>
 
       {/* Tabs */}
@@ -327,10 +335,10 @@ export default function DirectorPage() {
                 { label: 'Entrenadores',     value: overview.coachesCount, emoji: '👤', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
                 { label: 'Jugadores activos',value: overview.playersCount, emoji: '🏀', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
               ].map(card => (
-                <div key={card.label} style={{ backgroundColor: card.bg, borderRadius: 16, padding: '16px 18px', border: `1px solid ${card.border}` }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>{card.emoji}</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: card.color, lineHeight: 1 }}>{card.value}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginTop: 6 }}>{card.label}</div>
+                <div key={card.label} style={{ backgroundColor: card.bg, borderRadius: 16, padding: '18px 18px', border: `1px solid ${card.border}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                  <div style={{ fontSize: 26, marginBottom: 8 }}>{card.emoji}</div>
+                  <div style={{ fontSize: 44, fontWeight: 900, color: card.color, lineHeight: 1, letterSpacing: -2 }}>{card.value}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.8 }}>{card.label}</div>
                 </div>
               ))}
             </div>

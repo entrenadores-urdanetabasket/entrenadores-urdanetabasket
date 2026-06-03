@@ -29,18 +29,18 @@ export default function DashboardLayout({ children }) {
   if (!user) return null
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg, #eef0f5)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f5f7fa' }}>
       <Sidebar />
       <main style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ padding: '24px 20px', maxWidth: 880, margin: '0 auto' }}
+        <div style={{ padding: '28px 24px', maxWidth: 900, margin: '0 auto' }}
           className="fade-in dash-content">
           {children}
         </div>
       </main>
       <style>{`
-        @media (min-width: 1024px) { main { margin-left: 252px; } }
-        .dash-content { padding-top: 72px !important; }
-        @media (min-width: 1024px) { .dash-content { padding-top: 36px !important; } }
+        @media (min-width: 1024px) { main { margin-left: 256px; } }
+        .dash-content { padding-top: 74px !important; }
+        @media (min-width: 1024px) { .dash-content { padding-top: 32px !important; } }
       `}</style>
     </div>
   )

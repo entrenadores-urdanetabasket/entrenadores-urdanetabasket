@@ -317,9 +317,20 @@ export default function AsistenciaPage() {
 
   return (
     <div className="fade-in">
-      <div style={{ marginBottom: 20 }}>
-        <h1 className="page-title">Asistencia</h1>
-        <p className="page-subtitle">{selectedTeam.name} · {selectedTeam.category}</p>
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {selectedTeam.name} · {selectedTeam.category}
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Asistencia</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>Control de presencia del equipo</p>
+        </div>
+        <div style={{ fontSize: 48, opacity: 0.35 }}>✅</div>
       </div>
 
       {isDirector && teams.length > 1 && (

@@ -72,10 +72,21 @@ export default function PerfilPage() {
 
   return (
     <div className="fade-in">
-      {/* Cabecera */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 className="page-title">Mi Perfil</h1>
-        <p className="page-subtitle">Actualiza tu información personal</p>
+      {/* Cabecera — banner verde */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)', maxWidth: 560,
+      }}>
+        <div>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {profile?.role === 'director' ? 'Director Deportivo' : 'Entrenador'}
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Mi Perfil</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>Actualiza tu información personal</p>
+        </div>
+        <div style={{ fontSize: 48, opacity: 0.35 }}>👤</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, maxWidth: 560 }}>

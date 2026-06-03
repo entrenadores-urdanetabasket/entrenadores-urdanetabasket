@@ -119,7 +119,7 @@ export default function DashboardPage() {
                 Temporada 2025-2026
               </p>
             </div>
-            <div style={{ fontSize: 54, opacity: 0.45 }}>🛡️</div>
+            <div style={{ fontSize: 72, opacity: 0.35 }}>🛡️</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
             {[
@@ -128,8 +128,8 @@ export default function DashboardPage() {
               { label: 'Jugadores',    value: dirStats.players },
               { label: 'Incidencias',  value: dirStats.incidents },
             ].map(({ label, value }, i, arr) => (
-              <div key={label} style={{ padding: '16px 8px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
-                <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+              <div key={label} style={{ padding: '18px 8px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
+                <div style={{ color: '#fff', fontSize: 40, fontWeight: 900, lineHeight: 1, letterSpacing: -1.5 }}>{value}</div>
                 <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
               </div>
             ))}
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
-            <div style={{ fontSize: 54, opacity: 0.45 }}>🏀</div>
+            <div style={{ fontSize: 72, opacity: 0.35 }}>🏀</div>
           </div>
 
           {team && (
@@ -167,8 +167,8 @@ export default function DashboardPage() {
                 { label: 'Jugadores',   value: stats.players },
                 { label: 'Incidencias', value: stats.incidents },
               ].map(({ label, value }, i, arr) => (
-                <div key={label} style={{ padding: '16px 20px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
-                  <div style={{ color: '#fff', fontSize: 24, fontWeight: 900, lineHeight: 1 }}>{value}</div>
+                <div key={label} style={{ padding: '18px 20px', textAlign: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.10)' : 'none' }}>
+                  <div style={{ color: '#fff', fontSize: 44, fontWeight: 900, lineHeight: 1, letterSpacing: -2 }}>{value}</div>
                   <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
                 </div>
               ))}
@@ -193,12 +193,12 @@ export default function DashboardPage() {
               onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
             >
               <div style={{
-                width: 46, height: 46, borderRadius: 13, marginBottom: 12,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-                background: `${color}14`, border: `1px solid ${color}26`
+                width: 54, height: 54, borderRadius: 15, marginBottom: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
+                background: `${color}1a`, border: `1px solid ${color}33`
               }}>{emoji}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 3, letterSpacing: -0.2 }}>{label}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>{desc}</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginBottom: 4, letterSpacing: -0.3 }}>{label}</div>
+              <div style={{ fontSize: 12.5, color: '#94a3b8', fontWeight: 500 }}>{desc}</div>
             </Link>
           ))}
         </div>

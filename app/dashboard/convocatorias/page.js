@@ -133,19 +133,25 @@ export default function ConvocatoriasPage() {
 
   return (
     <div className="fade-in">
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Header — banner verde */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        borderRadius: 20, padding: '24px 28px', marginBottom: 28,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
+      }}>
         <div>
-          <h1 className="page-title">
-            Convocatorias
-          </h1>
-          <p className="page-subtitle">
-            {isDirector ? selectedTeam?.name : `${selectedTeam?.name || ''} · ${convocatorias.length} convocatorias`}
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {selectedTeam?.name || 'Lista de citados'}
+          </p>
+          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Convocatorias</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
+            {convocatorias.length} {convocatorias.length === 1 ? 'convocatoria' : 'convocatorias'}
           </p>
         </div>
-        {!isDirector && (
-          <Link href="/dashboard/convocatorias/nueva" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>+ Nueva</Link>
-        )}
+        {!isDirector
+          ? <Link href="/dashboard/convocatorias/nueva" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>+ Nueva</Link>
+          : <div style={{ fontSize: 48, opacity: 0.35 }}>📋</div>}
       </div>
 
       {/* Selector equipos (director) */}

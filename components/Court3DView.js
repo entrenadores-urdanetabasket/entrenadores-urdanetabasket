@@ -314,10 +314,9 @@ function buildSurround(scene,W_m,H_m){
 /* ── camera presets ──────────────────────────────────────────── */
 function applyCamera(cam,mode,H_m,W_m){
   if(mode==='overhead'){
-    // ── TECHO: cámara desde arriba del centro de pista, vista completa ──
-    // FOV estrecho para que la pista llene el encuadre
-    cam.fov=44;cam.updateProjectionMatrix()
-    cam.position.set(0,21,H_m/2)
+    // Techo del pabellón — toda la pista visible, FOV calibrado para 15×14m
+    cam.fov=42;cam.updateProjectionMatrix()
+    cam.position.set(0,26,H_m/2)
     cam.lookAt(0,0,H_m/2)
   } else if(mode==='angled'){
     // Vista ligeramente inclinada (muestra algo de profundidad 3D)
@@ -338,9 +337,10 @@ function applyCamera(cam,mode,H_m,W_m){
 
 /* ── main component ──────────────────────────────────────────── */
 export default function Court3DView({phases,courtType}){
-  const canvasRef=useRef(null)
-  const stateRef =useRef(null)
-  const animRef  =useRef(null)
+  const wrapRef   =useRef(null)   // container div — used for dimensions
+  const canvasRef =useRef(null)
+  const stateRef  =useRef(null)
+  const animRef   =useRef(null)
   const [playing,  setPlaying] =useState(false)
   const [recording,setRecording]=useState(false)
   const [camMode,  setCamMode] =useState('overhead')
@@ -350,13 +350,16 @@ export default function Court3DView({phases,courtType}){
 
   /* ── init ──────────────────────────────────────────────────── */
   useEffect(()=>{
-    const canvas=canvasRef.current;if(!canvas)return
+    const wrap=wrapRef.current; const canvas=canvasRef.current
+    if(!wrap||!canvas)return
     let renderer,ro
     try{
-      const W=canvas.clientWidth||900,H=canvas.clientHeight||540
+      // Read size from wrapper, not canvas (canvas has no intrinsic CSS size yet)
+      const W=wrap.clientWidth||900,H=wrap.clientHeight||540
       renderer=new THREE.WebGLRenderer({canvas,antialias:true})
-      renderer.setSize(W,H,false)
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio,2))
+      // setSize WITHOUT false → Three.js controls canvas width/height attributes AND CSS
+      renderer.setSize(W,H)
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5))
       renderer.shadowMap.enabled=true
       renderer.shadowMap.type=THREE.PCFSoftShadowMap
       renderer.toneMapping=THREE.ACESFilmicToneMapping
@@ -415,9 +418,11 @@ export default function Court3DView({phases,courtType}){
       setInitError(null)
 
       ro=new ResizeObserver(()=>{
-        const w=canvas.clientWidth,h=canvas.clientHeight
-        renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera)
-      });ro.observe(canvas)
+        const w=wrap.clientWidth,h=wrap.clientHeight
+        if(!w||!h)return
+        renderer.setSize(w,h)   // Three.js updates both buffer and CSS
+        camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera)
+      });ro.observe(wrap)
     }catch(e){console.error('3D init:',e);setInitError(e.message||String(e))}
     return()=>{cancelAnimationFrame(animRef.current);ro?.disconnect();try{renderer?.dispose()}catch(_){};stateRef.current=null}
   },[phases,courtType]) // eslint-disable-line
@@ -562,7 +567,7 @@ export default function Court3DView({phases,courtType}){
     setCamMode(mode)
     const s=stateRef.current;if(!s)return
     applyCamera(s.camera,mode,H_m,W_m)
-    s.camera.aspect=canvasRef.current.clientWidth/canvasRef.current.clientHeight
+    s.camera.aspect=(wrapRef.current?.clientWidth||900)/(wrapRef.current?.clientHeight||540)
     s.camera.updateProjectionMatrix()
     if(!playing)s.renderer.render(s.scene,s.camera)
   }
@@ -588,8 +593,9 @@ export default function Court3DView({phases,courtType}){
   const btn=a=>({padding:'7px 14px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,border:`1px solid ${a?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.07)'}`,background:a?'rgba(255,255,255,0.12)':'rgba(255,255,255,0.03)',color:a?'#fff':'rgba(255,255,255,0.4)',transition:'all 0.15s'})
 
   return(
-    <div style={{position:'relative',width:'100%',height:'100%',background:'#080b14',display:'flex',flexDirection:'column'}}>
-      <canvas ref={canvasRef} style={{flex:1,width:'100%',display:'block'}}/>
+    <div ref={wrapRef} style={{position:'relative',width:'100%',height:'100%',background:'#080b14',overflow:'hidden'}}>
+      {/* canvas: no CSS width/height — Three.js controls its size via setSize() */}
+      <canvas ref={canvasRef} style={{display:'block',position:'absolute',top:0,left:0}}/>
       {/* Subtle vignette */}
       <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 48%,transparent 52%,rgba(0,0,0,0.45) 100%)',pointerEvents:'none'}}/>
       {/* Controls */}

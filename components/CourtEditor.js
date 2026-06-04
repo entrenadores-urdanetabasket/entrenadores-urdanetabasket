@@ -415,7 +415,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
   /* ─────────── EDIT MODE ─────────── */
   if (isEditing) {
-    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep, H)
+    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep, H, courtType)
 
     // Draw arrows — current step at full opacity, others dimmed
     for (const el of elems) {
@@ -482,7 +482,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   }
 
   /* ─────────── ANIMATION MODE ─────────── */
-  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx, H)
+  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx, H, courtType)
 
   // Targets for this step (only MOVE_ARROW_TYPES)
   const targets = {}
@@ -531,23 +531,25 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     targets[p2id] = { x: basePos[p1id].x, y: basePos[p1id].y }
   }
 
-  // Auto-follow defenders (clamped to court bounds)
+  // Smart defensive repositioning (basketball principles: protect basket, help side, denial)
   const clampX = v => Math.max(PR + 4, Math.min(W - PR - 4, v))
   const clampY = v => Math.max(PR + 4, Math.min(H - PR - 4, v))
-  const attMoves = {}
-  for (const el of elems) {
-    if (el.type !== 'offense' || !el.num || !targets[el.id]) continue
-    const base = basePos[el.id]
-    if (base) attMoves[el.num] = { dx: targets[el.id].x - base.x, dy: targets[el.id].y - base.y }
-  }
+  const hasBallTransfer = elems.some(e =>
+    (e.type === 'pass' || e.type === 'handoff') && (e.step ?? 0) === animStepIdx
+  )
   for (const el of elems) {
     if (!['defense','xdefense'].includes(el.type) || !el.num || targets[el.id]) continue
-    const base = basePos[el.id]
-    if (!base || !attMoves[el.num]) continue
-    targets[el.id] = {
-      x: clampX(base.x + attMoves[el.num].dx),
-      y: clampY(base.y + attMoves[el.num].dy),
-    }
+    const base = basePos[el.id]; if (!base) continue
+    const att  = elems.find(e => e.type === 'offense' && e.num === el.num)
+    if (!att || !basePos[att.id]) continue
+    const attMoved = !!targets[att.id]
+    if (!attMoved && !hasBallTransfer) continue   // nothing relevant happened
+    const attEndPos  = targets[att.id] || basePos[att.id]
+    const ballEndPos = baseCarrierId
+      ? (targets[baseCarrierId] || basePos[baseCarrierId])
+      : null
+    const ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
+    targets[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
   }
 
   const et = easeInOut(stepT)
@@ -755,11 +757,61 @@ function getNumSteps(elems) {
 }
 
 /*
+ * computeSmartDefPos — basketball-aware defensive positioning
+ *
+ * Returns the ideal position for a defender matched to `attPos`:
+ *   • Ball carrier  → tight on-ball: 1 step between attacker and basket
+ *   • 1 pass away   → denial: slightly toward ball and basket
+ *   • Weak side     → help: float toward paint proportional to ball distance
+ */
+function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
+  const mg    = 22
+  const halfH = courtType === 'full' ? Math.round(courtH / 2) : courtH
+  const sy    = (halfH - 2 * mg) / 14
+  const rimY  = mg + 1.575 * sy
+  const ftY   = mg + 5.8   * sy
+
+  // Pick basket: full court → use attacker's half; half court → always top
+  const useBottom = courtType === 'full' && attPos.y > courtH / 2
+  const basketX = CW / 2
+  const basketY = useBottom ? courtH - rimY : rimY
+  const paintY  = useBottom ? courtH - (rimY + ftY) / 2 : (rimY + ftY) / 2
+
+  // Direction attacker → basket
+  const dxB = basketX - attPos.x, dyB = basketY - attPos.y
+  const distB = Math.hypot(dxB, dyB) || 1
+  // Stay 1 defensive step toward basket (shrinks near basket to avoid going behind it)
+  const OFFSET = Math.min(46, distB * 0.32)
+  const primX = attPos.x + (dxB / distB) * OFFSET
+  const primY = attPos.y + (dyB / distB) * OFFSET
+
+  if (!ballPos) return { x: primX, y: primY }
+
+  const distBall = Math.hypot(ballPos.x - attPos.x, ballPos.y - attPos.y)
+
+  // On-ball (≤ 55 px) → tight defense, no sag
+  if (distBall < 55) return { x: primX, y: primY }
+
+  // Off-ball sag: drift toward paint, proportional to distance from ball
+  // max sag of 60% at ~305 px away
+  const sag = Math.min(0.60, (distBall - 55) / 305)
+
+  // Help target: maintain goal-side while drifting toward paint center
+  const helpX = attPos.x + (basketX - attPos.x) * 0.35
+  const helpY = attPos.y + (paintY   - attPos.y) * 0.48
+
+  return {
+    x: primX + (helpX - primX) * sag,
+    y: primY + (helpY - primY) * sag,
+  }
+}
+
+/*
  * accumulateSteps(elems, throughStep)
  * Returns { playerPos: {id→{x,y}}, carrierId }
  * representing the state of the court AFTER steps 0 … throughStep-1 have played out.
  */
-function accumulateSteps(elems, throughStep, courtH = FULL_H) {
+function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half') {
   const clampX = v => Math.max(PR + 4, Math.min(CW - PR - 4, v))
   const clampY = v => Math.max(PR + 4, Math.min(courtH - PR - 4, v))
 
@@ -830,23 +882,8 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H) {
       if (carrierId === p1id) carrierId = p2id
     }
 
-    // Auto-follow: defenders mirror their matching attacker's displacement, clamped to court
-    for (const el of elems) {
-      if (!['defense','xdefense'].includes(el.type) || !el.num) continue
-      const hasManual = elems.some(e =>
-        (MOVE_ARROW_TYPES.includes(e.type) || e.type === 'handoff') && (e.step ?? 0) === s && e.fromId === el.id
-      )
-      if (hasManual || !playerPos[el.id]) continue
-      const att = elems.find(e => e.type === 'offense' && e.num === el.num)
-      if (att && stepMoves[att.id]) {
-        playerPos[el.id] = {
-          x: clampX(playerPos[el.id].x + stepMoves[att.id].dx),
-          y: clampY(playerPos[el.id].y + stepMoves[att.id].dy),
-        }
-      }
-    }
-
     // Ball transfer (pass only — handoff handled above)
+    // Resolve BEFORE smart defense so defenders know who has the ball
     if (carrierId) {
       const arr = elems.find(e =>
         e.type === 'pass' && (e.step ?? 0) === s && e.fromId === carrierId
@@ -861,6 +898,25 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H) {
         }
         if (bestId) carrierId = bestId
       }
+    }
+
+    // Smart auto-follow: position defenders using basketball principles
+    const ballPos = carrierId ? playerPos[carrierId] : null
+    for (const el of elems) {
+      if (!['defense','xdefense'].includes(el.type) || !el.num) continue
+      const hasManual = elems.some(e =>
+        (MOVE_ARROW_TYPES.includes(e.type) || e.type === 'handoff') && (e.step ?? 0) === s && e.fromId === el.id
+      )
+      if (hasManual || !playerPos[el.id]) continue
+      const att = elems.find(e => e.type === 'offense' && e.num === el.num)
+      if (!att || !playerPos[att.id]) continue
+      // Only reposition if something moved this step (attacker or ball)
+      const attMoved = !!stepMoves[att.id]
+      const ballMoved = carrierId && !!stepMoves[carrierId]
+      const ballPassed = elems.some(e => e.type === 'pass' && (e.step ?? 0) === s)
+      if (!attMoved && !ballMoved && !ballPassed) continue
+      const ideal = computeSmartDefPos(playerPos[att.id], ballPos, courtType, courtH)
+      playerPos[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
     }
   }
 
@@ -966,7 +1022,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setPhases(p => p.map((ph,i) => i!==cur ? ph : { ...ph, elements: ph.elements.filter(e => e.id!==id) }))
   }
   function hitTest(x, y) {
-    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH).playerPos
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType).playerPos
     const r = [...(phases[cur]?.elements||[])].reverse()
     for (const el of r) {
       if (ARROW_TYPES.includes(el.type)) continue
@@ -1006,7 +1062,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setSelId(null)
   }
   function nearestPlayer(x, y) {
-    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH).playerPos
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType).playerPos
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
       if (!PLAYER_TYPES.includes(el.type)) continue
       const p = accPos[el.id] || el
@@ -1132,7 +1188,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function advancePhase() {
     const currentElems = phases[cur].elements
     const numSteps = getNumSteps(currentElems)
-    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType))
+    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType), courtType)
 
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))

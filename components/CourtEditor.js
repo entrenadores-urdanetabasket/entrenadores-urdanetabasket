@@ -415,7 +415,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
   /* ─────────── EDIT MODE ─────────── */
   if (isEditing) {
-    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep)
+    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep, H)
 
     // Draw arrows — current step at full opacity, others dimmed
     for (const el of elems) {
@@ -482,7 +482,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   }
 
   /* ─────────── ANIMATION MODE ─────────── */
-  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx)
+  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx, H)
 
   // Targets for this step (only MOVE_ARROW_TYPES)
   const targets = {}
@@ -493,7 +493,9 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     targets[el.fromId] = { x: el.x2, y: el.y2 }
   }
 
-  // Auto-follow defenders
+  // Auto-follow defenders (clamped to court bounds)
+  const clampX = v => Math.max(PR + 4, Math.min(W - PR - 4, v))
+  const clampY = v => Math.max(PR + 4, Math.min(H - PR - 4, v))
   const attMoves = {}
   for (const el of elems) {
     if (el.type !== 'offense' || !el.num || !targets[el.id]) continue
@@ -504,7 +506,10 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     if (!['defense','xdefense'].includes(el.type) || !el.num || targets[el.id]) continue
     const base = basePos[el.id]
     if (!base || !attMoves[el.num]) continue
-    targets[el.id] = { x: base.x + attMoves[el.num].dx, y: base.y + attMoves[el.num].dy }
+    targets[el.id] = {
+      x: clampX(base.x + attMoves[el.num].dx),
+      y: clampY(base.y + attMoves[el.num].dy),
+    }
   }
 
   const et = easeInOut(stepT)
@@ -651,7 +656,10 @@ function getNumSteps(elems) {
  * Returns { playerPos: {id→{x,y}}, carrierId }
  * representing the state of the court AFTER steps 0 … throughStep-1 have played out.
  */
-function accumulateSteps(elems, throughStep) {
+function accumulateSteps(elems, throughStep, courtH = FULL_H) {
+  const clampX = v => Math.max(PR + 4, Math.min(CW - PR - 4, v))
+  const clampY = v => Math.max(PR + 4, Math.min(courtH - PR - 4, v))
+
   // Initialise positions from element data
   const playerPos = {}
   for (const el of elems) {
@@ -675,7 +683,7 @@ function accumulateSteps(elems, throughStep) {
       playerPos[el.fromId] = { x: el.x2, y: el.y2 }
     }
 
-    // Auto-follow: defenders mirror their matching attacker's displacement
+    // Auto-follow: defenders mirror their matching attacker's displacement, clamped to court
     for (const el of elems) {
       if (!['defense','xdefense'].includes(el.type) || !el.num) continue
       const hasManual = elems.some(e =>
@@ -685,8 +693,8 @@ function accumulateSteps(elems, throughStep) {
       const att = elems.find(e => e.type === 'offense' && e.num === el.num)
       if (att && stepMoves[att.id]) {
         playerPos[el.id] = {
-          x: playerPos[el.id].x + stepMoves[att.id].dx,
-          y: playerPos[el.id].y + stepMoves[att.id].dy,
+          x: clampX(playerPos[el.id].x + stepMoves[att.id].dx),
+          y: clampY(playerPos[el.id].y + stepMoves[att.id].dy),
         }
       }
     }
@@ -795,10 +803,12 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     setPhases(p => p.map((ph,i) => i!==cur ? ph : { ...ph, elements: ph.elements.filter(e => e.id!==id) }))
   }
   function hitTest(x, y) {
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH).playerPos
     const r = [...(phases[cur]?.elements||[])].reverse()
     for (const el of r) {
       if (ARROW_TYPES.includes(el.type)) continue
-      if (Math.hypot(x-el.x, y-el.y) < PR+6) return el
+      const p = accPos[el.id] || el
+      if (Math.hypot(x-p.x, y-p.y) < PR+6) return { ...el, x: p.x, y: p.y }
     }
     return null
   }
@@ -812,9 +822,11 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     return null
   }
   function nearestPlayer(x, y) {
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH).playerPos
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
       if (!PLAYER_TYPES.includes(el.type)) continue
-      if (Math.hypot(x-el.x, y-el.y) < PR+10) return el
+      const p = accPos[el.id] || el
+      if (Math.hypot(x-p.x, y-p.y) < PR+10) return { ...el, x: p.x, y: p.y }
     }
     return null
   }
@@ -916,7 +928,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function advancePhase() {
     const currentElems = phases[cur].elements
     const numSteps = getNumSteps(currentElems)
-    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps)
+    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType))
 
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))

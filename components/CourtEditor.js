@@ -503,6 +503,34 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     if (pid) targets[pid] = { x: el.x2, y: el.y2 }
   }
 
+  // Handoff targets: both players swap positions
+  for (const el of elems) {
+    if (el.type !== 'handoff') continue
+    if ((el.step ?? 0) !== animStepIdx) continue
+    let p1id = el.fromId && basePos[el.fromId] ? el.fromId : null
+    if (!p1id) {
+      let bestD = PR * 3, bestId = null
+      for (const pe of elems) {
+        if (!PLAYER_TYPES.includes(pe.type)) continue
+        const bp = basePos[pe.id]; if (!bp) continue
+        const d = Math.hypot(bp.x - el.x1, bp.y - el.y1)
+        if (d < bestD) { bestD = d; bestId = pe.id }
+      }
+      p1id = bestId
+    }
+    if (!p1id) continue
+    let p2id = null, bestD2 = PR * 3
+    for (const pe of elems) {
+      if (!PLAYER_TYPES.includes(pe.type) || pe.id === p1id) continue
+      const bp = basePos[pe.id]; if (!bp) continue
+      const d = Math.hypot(bp.x - el.x2, bp.y - el.y2)
+      if (d < bestD2) { bestD2 = d; p2id = pe.id }
+    }
+    if (!p2id) continue
+    targets[p1id] = { x: basePos[p2id].x, y: basePos[p2id].y }
+    targets[p2id] = { x: basePos[p1id].x, y: basePos[p1id].y }
+  }
+
   // Auto-follow defenders (clamped to court bounds)
   const clampX = v => Math.max(PR + 4, Math.min(W - PR - 4, v))
   const clampY = v => Math.max(PR + 4, Math.min(H - PR - 4, v))
@@ -524,35 +552,84 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
   const et = easeInOut(stepT)
 
-  // Ball transfer animation for this step
-  let ballAnimX = null, ballAnimY = null, ballReceiverId = null
+  // Ball animation for this step (pass / handoff swap / shot arc)
+  let ballAnimX = null, ballAnimY = null, ballReceiverId = null, ballAnimR = 8, isShotAnim = false
   const flyingCarrierId = baseCarrierId
 
   if (stepT > 0 && baseCarrierId) {
     const cBase = basePos[baseCarrierId]
-    const arrow = elems.find(el =>
-      BALL_TRANSFER_TYPES.includes(el.type) &&
-      (el.step ?? 0) === animStepIdx &&
-      el.fromId === baseCarrierId
+
+    // ── HANDOFF: ball follows p1 → midpoint, then p2 → final ──
+    const handoffEl = elems.find(el =>
+      el.type === 'handoff' && (el.step ?? 0) === animStepIdx &&
+      (targets[el.fromId] || /* p1 resolved via targets */ Object.keys(targets).some(k =>
+        basePos[k] && Math.hypot(basePos[k].x - el.x1, basePos[k].y - el.y1) < PR * 3
+      ))
     )
-    if (arrow && cBase) {
-      const cTgt = targets[baseCarrierId]
-      const cX = cTgt ? cBase.x + (cTgt.x - cBase.x) * et : cBase.x
-      const cY = cTgt ? cBase.y + (cTgt.y - cBase.y) * et : cBase.y
-      ballAnimX = cX + (arrow.x2 - cX) * et
-      ballAnimY = cY + (arrow.y2 - cY) * et
-      // Find receiver
-      let bestDist = PR + 30, bestId = null
-      for (const el of elems) {
-        if (!PLAYER_TYPES.includes(el.type) || el.id === baseCarrierId) continue
-        const ep = basePos[el.id] || { x: el.x, y: el.y }
-        const et2 = targets[el.id]
-        const fx = et2 ? ep.x + (et2.x - ep.x) : ep.x
-        const fy = et2 ? ep.y + (et2.y - ep.y) : ep.y
-        const d = Math.hypot(fx - arrow.x2, fy - arrow.y2)
-        if (d < bestDist) { bestDist = d; bestId = el.id }
+    const handoffP1 = handoffEl
+      ? (el => el)(elems.find(pe =>
+          PLAYER_TYPES.includes(pe.type) && targets[pe.id] &&
+          basePos[pe.id] && Math.hypot(basePos[pe.id].x - handoffEl.x1, basePos[pe.id].y - handoffEl.y1) < PR * 3
+        ))
+      : null
+    const handoffP2 = handoffEl && handoffP1
+      ? elems.find(pe =>
+          PLAYER_TYPES.includes(pe.type) && pe.id !== handoffP1.id &&
+          targets[pe.id] && basePos[pe.id] &&
+          Math.hypot(basePos[pe.id].x - handoffEl.x2, basePos[pe.id].y - handoffEl.y2) < PR * 3
+        )
+      : null
+
+    if (handoffEl && handoffP1 && handoffP2) {
+      const b1 = basePos[handoffP1.id], b2 = basePos[handoffP2.id]
+      if (et < 0.5) {
+        ballAnimX = b1.x + (b2.x - b1.x) * et
+        ballAnimY = b1.y + (b2.y - b1.y) * et
+      } else {
+        ballAnimX = b2.x + (b1.x - b2.x) * et
+        ballAnimY = b2.y + (b1.y - b2.y) * et
       }
-      ballReceiverId = bestId
+      ballReceiverId = handoffP2.id
+
+    // ── SHOT: ball flies in parabolic arc, shrinks into basket ──
+    } else {
+      const shotEl = elems.find(el =>
+        el.type === 'shot' && (el.step ?? 0) === animStepIdx &&
+        (el.fromId === baseCarrierId || !el.fromId)
+      )
+      if (shotEl && cBase) {
+        const dist = Math.hypot(shotEl.x2 - cBase.x, shotEl.y2 - cBase.y)
+        const arcH  = dist * 0.4
+        ballAnimX = cBase.x + (shotEl.x2 - cBase.x) * et
+        ballAnimY = cBase.y + (shotEl.y2 - cBase.y) * et - arcH * Math.sin(et * Math.PI)
+        ballAnimR = et > 0.75 ? Math.max(0, 8 * (1 - (et - 0.75) / 0.25)) : 8
+        isShotAnim = true
+        ballReceiverId = null
+
+      // ── PASS: ball flies straight from carrier to endpoint ──
+      } else {
+        const passEl = elems.find(el =>
+          el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === baseCarrierId
+        )
+        if (passEl && cBase) {
+          const cTgt = targets[baseCarrierId]
+          const cX = cTgt ? cBase.x + (cTgt.x - cBase.x) * et : cBase.x
+          const cY = cTgt ? cBase.y + (cTgt.y - cBase.y) * et : cBase.y
+          ballAnimX = cX + (passEl.x2 - cX) * et
+          ballAnimY = cY + (passEl.y2 - cY) * et
+          let bestDist = PR + 30, bestId = null
+          for (const el of elems) {
+            if (!PLAYER_TYPES.includes(el.type) || el.id === baseCarrierId) continue
+            const ep = basePos[el.id] || { x: el.x, y: el.y }
+            const et2 = targets[el.id]
+            const fx = et2 ? ep.x + (et2.x - ep.x) : ep.x
+            const fy = et2 ? ep.y + (et2.y - ep.y) : ep.y
+            const d = Math.hypot(fx - passEl.x2, fy - passEl.y2)
+            if (d < bestDist) { bestDist = d; bestId = el.id }
+          }
+          ballReceiverId = bestId
+        }
+      }
     }
   }
 
@@ -591,15 +668,32 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     drawEl(ctx, drawData, false)
   }
 
-  // Flying ball
-  if (ballAnimX !== null) {
-    const bR = 8
+  // Shot ring (expands + fades at basket)
+  if (isShotAnim && et > 0.65) {
+    const shotEl = elems.find(el => el.type === 'shot' && (el.step ?? 0) === animStepIdx)
+    if (shotEl) {
+      const rp = (et - 0.65) / 0.35
+      ctx.save()
+      ctx.globalAlpha = Math.sin(rp * Math.PI) * 0.9
+      ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2.5
+      ctx.beginPath(); ctx.arc(shotEl.x2, shotEl.y2, 10 + rp * 18, 0, Math.PI * 2); ctx.stroke()
+      if (rp > 0.4) {
+        ctx.globalAlpha = (1 - rp) * 0.6
+        ctx.beginPath(); ctx.arc(shotEl.x2, shotEl.y2, 5 + rp * 8, 0, Math.PI * 2); ctx.stroke()
+      }
+      ctx.restore()
+    }
+  }
+
+  // Flying ball (variable radius for shot)
+  if (ballAnimX !== null && ballAnimR > 0) {
+    const bR = ballAnimR
     ctx.save()
     ctx.fillStyle = '#f97316'
     ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.fill()
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1
     ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.stroke()
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';  ctx.lineWidth = 0.9
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.9
     ctx.beginPath(); ctx.moveTo(ballAnimX - bR, ballAnimY); ctx.lineTo(ballAnimX + bR, ballAnimY); ctx.stroke()
     ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR * 0.6, 0, Math.PI); ctx.stroke()
     ctx.restore()
@@ -637,9 +731,8 @@ function PhaseThumb({ elements, active, index, onClick, courtType }) {
 /* ── Type constants (module-level so renderPhaseFrame can use them) ── */
 const ARROW_TYPES        = ['dribble','pass','cut','shot','handoff','screen']
 const PLAYER_TYPES       = ['offense','defense','xdefense']
-const BALL_TRANSFER_TYPES = ['pass','handoff']   // actions that transfer the ball
+const BALL_TRANSFER_TYPES = ['pass']             // handoff is a swap — handled separately
 // Only these arrow types physically move the player to the endpoint
-// Pass / shot / handoff do NOT move the player — only the ball transfers
 const MOVE_ARROW_TYPES   = ['dribble','cut','screen']
 
 /* ── Sequential-step constants ───────────────────── */
@@ -705,11 +798,43 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H) {
       playerPos[pid] = { x: el.x2, y: el.y2 }
     }
 
+    // Handoff: swap positions of p1 ↔ p2 + add to stepMoves so defenders follow
+    for (const el of elems) {
+      if (el.type !== 'handoff') continue
+      if ((el.step ?? 0) !== s) continue
+      let p1id = el.fromId && playerPos[el.fromId] ? el.fromId : null
+      if (!p1id) {
+        let bestD = PR * 3, bestId = null
+        for (const pe of elems) {
+          if (!PLAYER_TYPES.includes(pe.type)) continue
+          const pp = playerPos[pe.id]; if (!pp) continue
+          const d = Math.hypot(pp.x - el.x1, pp.y - el.y1)
+          if (d < bestD) { bestD = d; bestId = pe.id }
+        }
+        p1id = bestId
+      }
+      if (!p1id) continue
+      let p2id = null, bestD2 = PR * 3
+      for (const pe of elems) {
+        if (!PLAYER_TYPES.includes(pe.type) || pe.id === p1id) continue
+        const pp = playerPos[pe.id]; if (!pp) continue
+        const d = Math.hypot(pp.x - el.x2, pp.y - el.y2)
+        if (d < bestD2) { bestD2 = d; p2id = pe.id }
+      }
+      if (!p2id) continue
+      const pos1 = { ...playerPos[p1id] }, pos2 = { ...playerPos[p2id] }
+      stepMoves[p1id] = { dx: pos2.x - pos1.x, dy: pos2.y - pos1.y }
+      stepMoves[p2id] = { dx: pos1.x - pos2.x, dy: pos1.y - pos2.y }
+      playerPos[p1id] = { x: pos2.x, y: pos2.y }
+      playerPos[p2id] = { x: pos1.x, y: pos1.y }
+      if (carrierId === p1id) carrierId = p2id
+    }
+
     // Auto-follow: defenders mirror their matching attacker's displacement, clamped to court
     for (const el of elems) {
       if (!['defense','xdefense'].includes(el.type) || !el.num) continue
       const hasManual = elems.some(e =>
-        MOVE_ARROW_TYPES.includes(e.type) && (e.step ?? 0) === s && e.fromId === el.id
+        (MOVE_ARROW_TYPES.includes(e.type) || e.type === 'handoff') && (e.step ?? 0) === s && e.fromId === el.id
       )
       if (hasManual || !playerPos[el.id]) continue
       const att = elems.find(e => e.type === 'offense' && e.num === el.num)
@@ -721,10 +846,10 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H) {
       }
     }
 
-    // Ball transfer
+    // Ball transfer (pass only — handoff handled above)
     if (carrierId) {
       const arr = elems.find(e =>
-        BALL_TRANSFER_TYPES.includes(e.type) && (e.step ?? 0) === s && e.fromId === carrierId
+        e.type === 'pass' && (e.step ?? 0) === s && e.fromId === carrierId
       )
       if (arr) {
         let bestDist = PR + 30, bestId = null

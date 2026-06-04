@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
+const Court3DView = dynamic(() => import('./Court3DView'), { ssr: false })
 
 /* ── Dimensions ─────────────────────────────────── */
 const CW     = 560
@@ -1436,6 +1438,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         <div style={{display:'flex',background:'#111827',borderRadius:8,padding:3,gap:1}}>
           {tabBtn('draw',    '✏️ Dibujar')}
           {tabBtn('animate', '▶ Animar')}
+          {tabBtn('3d',      '🎬 3D')}
           {tabBtn('notes',   '📝 Notas')}
           {tabBtn('output',  '📤 Exportar')}
         </div>
@@ -1455,7 +1458,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
 
         {/* ── LEFT: PHASES ── */}
-        <div style={{width:158,background:'#1f2937',borderRight:'1px solid #374151',display:'flex',flexDirection:'column',padding:'10px 8px',gap:6,overflowY:'auto',flexShrink:0}}>
+        <div style={{width:158,background:'#1f2937',borderRight:'1px solid #374151',display:tab==='3d'?'none':'flex',flexDirection:'column',padding:'10px 8px',gap:6,overflowY:'auto',flexShrink:0}}>
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
@@ -1485,7 +1488,14 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         </div>
 
         {/* ── CENTER: CANVAS ── */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0f172a',padding:12,gap:10,overflow:'hidden'}}>
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0f172a',padding:tab==='3d'?0:12,gap:10,overflow:'hidden'}}>
+
+          {/* 3D VIEW */}
+          {tab==='3d' && (
+            <div style={{width:'100%',height:'100%',position:'relative'}}>
+              <Court3DView phases={phases} courtType={courtType} />
+            </div>
+          )}
 
           {/* Phase indicator + action-step controls (draw mode) */}
           {tab==='draw' && !animating && (
@@ -1556,7 +1566,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
                 : tool==='giveball'? 'copy'
                 : 'crosshair',
               touchAction:'none',
-              display:(tab==='notes'||tab==='output')?'none':'block',
+              display:(tab==='notes'||tab==='output'||tab==='3d')?'none':'block',
               pointerEvents:tab==='animate'?'none':'auto',
             }}
             onDoubleClick={e => {

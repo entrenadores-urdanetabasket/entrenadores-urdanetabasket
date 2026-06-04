@@ -906,6 +906,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   const [courtType,  setCourtType]   = useState(initialData?.courtType||'half')
   const [draggingCP, setDraggingCP]  = useState(null)  // { id, ox, oy }
   const [hoverCP,    setHoverCP]     = useState(false)
+  const [draggingEP, setDraggingEP]  = useState(null)  // { id, which:'start'|'end' }
+  const [hoverEP,    setHoverEP]     = useState(false)
   const [drawStep,   setDrawStep]    = useState(0)     // which action-step new arrows go to
   const drawStepRef  = useRef(0)
 
@@ -934,7 +936,21 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
       drawArrowLine(ctx, tool, aSt.x, aSt.y, aCur.x, aCur.y)
       ctx.restore()
     }
-  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep])
+    // Arrow endpoint handles (start = green square, end = red square)
+    for (const el of elems) {
+      if (!ARROW_TYPES.includes(el.type)) continue
+      ;[[el.x1, el.y1, 'start'], [el.x2, el.y2, 'end']].forEach(([x, y, which]) => {
+        const active = draggingEP?.id === el.id && draggingEP?.which === which
+        const sz = 5
+        ctx.save()
+        ctx.fillStyle   = active ? '#3b82f6' : which === 'start' ? '#10b981' : '#ef4444'
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
+        ctx.fillRect(x - sz, y - sz, sz*2, sz*2)
+        ctx.strokeRect(x - sz, y - sz, sz*2, sz*2)
+        ctx.restore()
+      })
+    }
+  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep, draggingEP])
 
   useEffect(() => { render() }, [render])
 
@@ -968,6 +984,27 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     }
     return null
   }
+  function findArrowEPHit(x, y) {
+    const HIT = 9
+    for (const el of [...(phases[cur]?.elements||[])].reverse()) {
+      if (!ARROW_TYPES.includes(el.type)) continue
+      if (Math.hypot(x-el.x1, y-el.y1) < HIT) return { id:el.id, which:'start' }
+      if (Math.hypot(x-el.x2, y-el.y2) < HIT) return { id:el.id, which:'end'   }
+    }
+    return null
+  }
+  function undoLastArrow() {
+    setPhases(prev => prev.map((ph, i) => {
+      if (i !== cur) return ph
+      const els = ph.elements
+      for (let j = els.length - 1; j >= 0; j--) {
+        if (ARROW_TYPES.includes(els[j].type))
+          return { ...ph, elements: els.filter((_, k) => k !== j) }
+      }
+      return ph
+    }))
+    setSelId(null)
+  }
   function nearestPlayer(x, y) {
     const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH).playerPos
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
@@ -988,7 +1025,10 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     if (animating || tab!=='draw') return
     const p = pos(e)
 
-    // ── CP handles always take priority, regardless of active tool ──
+    // ── EP and CP handles always take priority ──
+    const epHit = findArrowEPHit(p.x, p.y)
+    if (epHit) { setDraggingEP(epHit); setSelId(null); return }
+
     const cpHit = findArrowCPHit(p.x, p.y)
     if (cpHit) {
       setDraggingCP({ id:cpHit.id, ox:p.x-cpHit.cpx, oy:p.y-cpHit.cpy })
@@ -1034,14 +1074,31 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
   function onMove(e) {
     if (animating) return
     const p = pos(e)
+    if (draggingEP) {
+      if (draggingEP.which === 'start') updEl(draggingEP.id, { x1:p.x, y1:p.y })
+      else                              updEl(draggingEP.id, { x2:p.x, y2:p.y })
+      return
+    }
     if (draggingCP) { updEl(draggingCP.id, { cx:p.x-draggingCP.ox, cy:p.y-draggingCP.oy }); return }
     if (dragging)   { updEl(dragging.id, {x:p.x-dragging.ox, y:p.y-dragging.oy}); return }
     if (aSt) { setACur(p); return }
-    // Update hover-CP indicator (always, regardless of tool)
-    setHoverCP(!!findArrowCPHit(p.x, p.y))
+    // Update hover indicators
+    const hasEP = !!findArrowEPHit(p.x, p.y)
+    setHoverEP(hasEP)
+    if (!hasEP) setHoverCP(!!findArrowCPHit(p.x, p.y))
+    else setHoverCP(false)
   }
   function onUp(e) {
     if (animating) return
+    if (draggingEP) {
+      if (draggingEP.which === 'start') {
+        const p = pos(e)
+        const near = nearestPlayer(p.x, p.y)
+        if (near) updEl(draggingEP.id, { x1:near.x, y1:near.y, fromId:near.id })
+        else      updEl(draggingEP.id, { fromId:null })
+      }
+      setDraggingEP(null); return
+    }
     if (draggingCP) { setDraggingCP(null); return }
     if (dragging)   { setDragging(null); return }
     if (aSt) {
@@ -1245,6 +1302,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
     function onKey(e) {
       if (['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) return
       if ((e.key==='Delete'||e.key==='Backspace') && selId) { delEl(selId); setSelId(null) }
+      if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); undoLastArrow() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1416,6 +1474,15 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
                   + Acción {drawStep+2}
                 </button>
               </div>
+
+              {/* Separator */}
+              <div style={{width:1,height:22,background:'#374151'}} />
+
+              {/* Undo last arrow */}
+              <button onClick={undoLastArrow} title="Deshacer última flecha (Ctrl+Z)"
+                style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:'#1f2937',color:'#9ca3af',cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>
+                ↩ Deshacer
+              </button>
             </div>
           )}
 
@@ -1426,7 +1493,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
               maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
-              cursor: (hoverCP||draggingCP) ? 'grab'
+              cursor: (hoverEP||draggingEP) ? 'move'
+                : (hoverCP||draggingCP) ? 'grab'
                 : tool==='select'  ? 'default'
                 : tool==='erase'   ? 'cell'
                 : tool==='giveball'? 'copy'

@@ -302,8 +302,8 @@ export default function Court3DView({ phases, courtType }) {
       ;[[0,13,H_m*0.15],[-W_m*0.4,11,H_m*0.5],[W_m*0.4,11,H_m*0.5],[0,13,H_m*0.85]].forEach(([x,y,z])=>{
         const dl=new THREE.DirectionalLight(0xfff8e0,0.65); dl.position.set(x,y,z); dl.castShadow=true; dl.shadow.mapSize.set(512,512); scene.add(dl)
       })
-      scene.add(Object.assign(new THREE.PointLight(0x223355,0.4,40),{position:new THREE.Vector3(-W_m,1.5,H_m/2)}))
-      scene.add(Object.assign(new THREE.PointLight(0x223355,0.4,40),{position:new THREE.Vector3( W_m,1.5,H_m/2)}))
+      const pl1=new THREE.PointLight(0x223355,0.4,40); pl1.position.set(-W_m,1.5,H_m/2); scene.add(pl1)
+      const pl2=new THREE.PointLight(0x223355,0.4,40); pl2.position.set( W_m,1.5,H_m/2); scene.add(pl2)
 
       buildCourt(scene, courtType)
 

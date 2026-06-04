@@ -489,8 +489,18 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   for (const el of elems) {
     if (!MOVE_ARROW_TYPES.includes(el.type)) continue
     if ((el.step ?? 0) !== animStepIdx) continue
-    if (!el.fromId || !basePos[el.fromId]) continue
-    targets[el.fromId] = { x: el.x2, y: el.y2 }
+    let pid = el.fromId && basePos[el.fromId] ? el.fromId : null
+    if (!pid) {
+      let bestD = PR * 3, bestId = null
+      for (const pe of elems) {
+        if (!PLAYER_TYPES.includes(pe.type)) continue
+        const bp = basePos[pe.id]; if (!bp) continue
+        const d = Math.hypot(bp.x - el.x1, bp.y - el.y1)
+        if (d < bestD) { bestD = d; bestId = pe.id }
+      }
+      pid = bestId
+    }
+    if (pid) targets[pid] = { x: el.x2, y: el.y2 }
   }
 
   // Auto-follow defenders (clamped to court bounds)
@@ -677,10 +687,22 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H) {
     for (const el of elems) {
       if (!MOVE_ARROW_TYPES.includes(el.type)) continue
       if ((el.step ?? 0) !== s) continue
-      if (!el.fromId || !playerPos[el.fromId]) continue
-      const base = playerPos[el.fromId]
-      stepMoves[el.fromId] = { dx: el.x2 - base.x, dy: el.y2 - base.y }
-      playerPos[el.fromId] = { x: el.x2, y: el.y2 }
+      // Resolve player: prefer fromId, fallback to nearest by arrow start position
+      let pid = el.fromId && playerPos[el.fromId] ? el.fromId : null
+      if (!pid) {
+        let bestD = PR * 3, bestId = null
+        for (const pe of elems) {
+          if (!PLAYER_TYPES.includes(pe.type)) continue
+          const pp = playerPos[pe.id]; if (!pp) continue
+          const d = Math.hypot(pp.x - el.x1, pp.y - el.y1)
+          if (d < bestD) { bestD = d; bestId = pe.id }
+        }
+        pid = bestId
+      }
+      if (!pid || !playerPos[pid]) continue
+      const base = playerPos[pid]
+      stepMoves[pid] = { dx: el.x2 - base.x, dy: el.y2 - base.y }
+      playerPos[pid] = { x: el.x2, y: el.y2 }
     }
 
     // Auto-follow: defenders mirror their matching attacker's displacement, clamped to court
@@ -904,7 +926,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           type:tool, x1:aSt.x,y1:aSt.y, x2:p.x,y2:p.y,
           x:(aSt.x+p.x)/2, y:(aSt.y+p.y)/2,
           fromId: aSt.fromId || null,
-          step: drawStepRef.current,
+          step: drawStep,
         })
       }
       setASt(null); setACur(null)

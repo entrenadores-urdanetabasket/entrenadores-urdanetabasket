@@ -1,8 +1,32 @@
 'use client'
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-const Court3DView = dynamic(() => import('./Court3DView'), { ssr: false })
+const Court3DView = dynamic(() => import('./Court3DView'), { ssr: false, loading: () => (
+  <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#6b7280',fontSize:14}}>
+    Cargando vista 3D…
+  </div>
+)})
+
+class Court3DErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null } }
+  static getDerivedStateFromError(e) { return { err: e } }
+  render() {
+    if (this.state.err) return (
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:16,color:'#e5e7eb',background:'#0f172a'}}>
+        <div style={{fontSize:40}}>⚠️</div>
+        <p style={{fontSize:14,color:'#9ca3af',margin:0,textAlign:'center',maxWidth:320}}>
+          Error al cargar la vista 3D. Tu jugada sigue intacta en la pizarra.
+        </p>
+        <p style={{fontSize:11,color:'#4b5563',margin:0}}>{this.state.err?.message}</p>
+        <button onClick={()=>this.setState({err:null})} style={{padding:'8px 20px',borderRadius:8,border:'none',background:'#3b82f6',color:'#fff',cursor:'pointer',fontWeight:600}}>
+          Reintentar
+        </button>
+      </div>
+    )
+    return this.props.children
+  }
+}
 
 /* ── Dimensions ─────────────────────────────────── */
 const CW     = 560
@@ -1493,7 +1517,9 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           {/* 3D VIEW */}
           {tab==='3d' && (
             <div style={{width:'100%',height:'100%',position:'relative'}}>
-              <Court3DView phases={phases} courtType={courtType} />
+              <Court3DErrorBoundary>
+                <Court3DView phases={phases} courtType={courtType} />
+              </Court3DErrorBoundary>
             </div>
           )}
 

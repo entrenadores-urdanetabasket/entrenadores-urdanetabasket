@@ -337,8 +337,7 @@ function applyCamera(cam,mode,H_m,W_m){
 
 /* ── main component ──────────────────────────────────────────── */
 export default function Court3DView({phases,courtType}){
-  const wrapRef   =useRef(null)   // container div — used for dimensions
-  const canvasRef =useRef(null)
+  const mountRef  =useRef(null)   // div where Three.js mounts its own canvas
   const stateRef  =useRef(null)
   const animRef   =useRef(null)
   const [playing,  setPlaying] =useState(false)
@@ -350,16 +349,18 @@ export default function Court3DView({phases,courtType}){
 
   /* ── init ──────────────────────────────────────────────────── */
   useEffect(()=>{
-    const wrap=wrapRef.current; const canvas=canvasRef.current
-    if(!wrap||!canvas)return
+    const mount=mountRef.current; if(!mount)return
     let renderer,ro
     try{
-      // Read size from wrapper, not canvas (canvas has no intrinsic CSS size yet)
-      const W=wrap.clientWidth||900,H=wrap.clientHeight||540
-      renderer=new THREE.WebGLRenderer({canvas,antialias:true})
-      // setSize WITHOUT false → Three.js controls canvas width/height attributes AND CSS
-      renderer.setSize(W,H)
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.5))
+      // getBoundingClientRect forces layout computation — accurate even before first paint
+      const rect=mount.getBoundingClientRect()
+      const W=rect.width||900,H=rect.height||540
+
+      // Three.js creates its own canvas and appends it to the mount div
+      renderer=new THREE.WebGLRenderer({antialias:true})
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio,2))
+      renderer.setSize(W,H)   // sets canvas attributes correctly
+      mount.appendChild(renderer.domElement)
       renderer.shadowMap.enabled=true
       renderer.shadowMap.type=THREE.PCFSoftShadowMap
       renderer.toneMapping=THREE.ACESFilmicToneMapping
@@ -418,13 +419,18 @@ export default function Court3DView({phases,courtType}){
       setInitError(null)
 
       ro=new ResizeObserver(()=>{
-        const w=wrap.clientWidth,h=wrap.clientHeight
+        const w=mount.clientWidth,h=mount.clientHeight
         if(!w||!h)return
-        renderer.setSize(w,h)   // Three.js updates both buffer and CSS
+        renderer.setSize(w,h)
         camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera)
-      });ro.observe(wrap)
+      });ro.observe(mount)
     }catch(e){console.error('3D init:',e);setInitError(e.message||String(e))}
-    return()=>{cancelAnimationFrame(animRef.current);ro?.disconnect();try{renderer?.dispose()}catch(_){};stateRef.current=null}
+    return()=>{
+      cancelAnimationFrame(animRef.current)
+      ro?.disconnect()
+      try{if(renderer){mount.removeChild(renderer.domElement);renderer.dispose()}}catch(_){}
+      stateRef.current=null
+    }
   },[phases,courtType]) // eslint-disable-line
 
   /* ── animation ─────────────────────────────────────────────── */
@@ -567,7 +573,7 @@ export default function Court3DView({phases,courtType}){
     setCamMode(mode)
     const s=stateRef.current;if(!s)return
     applyCamera(s.camera,mode,H_m,W_m)
-    s.camera.aspect=(wrapRef.current?.clientWidth||900)/(wrapRef.current?.clientHeight||540)
+    s.camera.aspect=(mountRef.current?.clientWidth||900)/(mountRef.current?.clientHeight||540)
     s.camera.updateProjectionMatrix()
     if(!playing)s.renderer.render(s.scene,s.camera)
   }
@@ -593,9 +599,8 @@ export default function Court3DView({phases,courtType}){
   const btn=a=>({padding:'7px 14px',borderRadius:8,cursor:'pointer',fontWeight:600,fontSize:12,border:`1px solid ${a?'rgba(255,255,255,0.3)':'rgba(255,255,255,0.07)'}`,background:a?'rgba(255,255,255,0.12)':'rgba(255,255,255,0.03)',color:a?'#fff':'rgba(255,255,255,0.4)',transition:'all 0.15s'})
 
   return(
-    <div ref={wrapRef} style={{position:'relative',width:'100%',height:'100%',background:'#080b14',overflow:'hidden'}}>
-      {/* canvas: no CSS width/height — Three.js controls its size via setSize() */}
-      <canvas ref={canvasRef} style={{display:'block',position:'absolute',top:0,left:0}}/>
+    <div ref={mountRef} style={{position:'relative',width:'100%',height:'100%',background:'#080b14',overflow:'hidden'}}>
+      {/* Three.js appends its own canvas here via mount.appendChild(renderer.domElement) */}
       {/* Subtle vignette */}
       <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 48%,transparent 52%,rgba(0,0,0,0.45) 100%)',pointerEvents:'none'}}/>
       {/* Controls */}

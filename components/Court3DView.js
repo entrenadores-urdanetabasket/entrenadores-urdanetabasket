@@ -193,34 +193,34 @@ function makeNumSprite(num,isOffense){
   return sprite
 }
 
-/* aplica colores de equipo al clon GLTF */
+/* aplica colores de equipo al clon GLTF
+   Reemplazamos TODO el material por MeshStandardMaterial fresco —
+   el Soldier usa MeshPhongMaterial que no soporta emissive igual */
 function colorizePlayer(model,type,skinIdx){
-  const colors=TEAM_COLORS[type]||TEAM_COLORS.offense
-  const jC=new THREE.Color(colors.jersey)
-  const aC=new THREE.Color(colors.accent)
-  const sC=new THREE.Color(SKINS[skinIdx%SKINS.length])
-  let meshCount=0
-  model.traverse(child=>{
-    if(!child.isMesh)return
-    meshCount++
-    if(Array.isArray(child.material)){child.material=child.material.map(m=>m.clone())}
-    else{child.material=child.material.clone()}
-    const mat=Array.isArray(child.material)?child.material[0]:child.material
-    if(!mat)return
-    if(meshCount===1){
-      mat.color.set(colors.jersey);mat.emissive=jC.clone();mat.emissiveIntensity=0.18
-      mat.roughness=0.72;mat.metalness=0
-    } else if(meshCount===2){
-      mat.color.set(colors.shorts||colors.jersey)
-      mat.emissive=new THREE.Color(colors.shorts||colors.jersey)
-      mat.emissiveIntensity=0.14;mat.roughness=0.75
-    } else if(meshCount===3){
-      mat.color.set(SKINS[skinIdx%SKINS.length])
-      mat.emissive=sC.clone();mat.emissiveIntensity=0.10;mat.roughness=0.65
-    } else {
-      mat.color.set(colors.accent);mat.emissive=aC.clone()
-      mat.emissiveIntensity=0.22;mat.roughness=0.55
-    }
+  const isOff=type==='offense'
+  // Paleta clara: jerseys vibrantes, piel visible, zapatillas contrastadas
+  const jerseyHex=isOff?0x1535a0:0xf5f5f5
+  const shortsHex=isOff?0x0e2270:0xd8d8d8
+  const skinHex  =SKINS[skinIdx%SKINS.length]
+  const accentHex=isOff?0xf5c518:0xdd2222
+  const shoeHex  =isOff?0x0a0a0a:0xffffff
+  const meshes=[]
+  model.traverse(c=>{if(c.isMesh)meshes.push(c)})
+  // El Soldier.glb tiene 4 meshes en orden: cuerpo, piernas, manos, cabeza
+  const palette=[jerseyHex,shortsHex,skinHex,accentHex]
+  meshes.forEach((c,i)=>{
+    const hex=palette[Math.min(i,palette.length-1)]
+    const col=new THREE.Color(hex)
+    const mat=new THREE.MeshStandardMaterial({
+      color:col,roughness:i===2?0.65:0.72,metalness:0,
+      emissive:col.clone(),emissiveIntensity:i===2?0.08:0.20
+    })
+    c.material=mat;c.castShadow=true;c.receiveShadow=true
+  })
+  // sombra en suelo
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.40,20),
+    new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.35}))
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=0.01;model.add(shadow)
     child.castShadow=true;child.receiveShadow=true
   })
 }
@@ -425,33 +425,51 @@ export default function Court3DView({phases,courtType}){
 
         // ── Crear jugadores desde GLTF ────────────────────────
         const playerMeshes={},mixers={},clocks={}
+        // posición del aro para rotaciones inteligentes
+        const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
+        const rimWorldZ=(_mg2+1.575*_sy2)*S   // Z del aro en coords 3D
         const e0=phases[0]?.elements||[]
         let pIdx=0
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
           const clone=skeletonClone(template)
           colorizePlayer(clone,el.type,pIdx)
-          // Soldier.glb ≈ 1.8m → escalar para pista en unidades metros
           clone.scale.setScalar(1.0)
-          clone.castShadow=true
 
           const{x,z}=p3(el.x,el.y)
           clone.position.set(x,0,z)
+          // Rotación inicial inteligente según rol
+          if(el.type==='offense'){
+            // Ataque mira hacia el aro
+            clone.rotation.y=Math.atan2(0-x,rimWorldZ-z)
+          } else {
+            // Defensa mira hacia el centro de la pista (hacia el balón)
+            clone.rotation.y=Math.atan2(0-x,(H_m/2)-z)
+          }
           scene.add(clone)
 
-          // Sprite número encima
+          // Sprite número encima — más grande y claro
           const sprite=makeNumSprite(el.num??'?',el.type==='offense')
-          sprite.position.set(x,2.6,z)
+          sprite.position.set(x,2.8,z)
           scene.add(sprite)
           clone.userData.numSprite=sprite
 
-          // AnimationMixer — empieza con Idle
+          // AnimationMixer con preload de ambas acciones
           const mixer=new THREE.AnimationMixer(clone)
           const idleClip=THREE.AnimationClip.findByName(anims,'Idle')
-          if(idleClip)mixer.clipAction(idleClip).play()
-          mixers[el.id]={mixer,anims,current:'Idle',actions:{}}
-          if(idleClip)mixers[el.id].actions['Idle']=mixer.clipAction(idleClip)
-          clocks[el.id]=new THREE.Clock()
+          const runClip =THREE.AnimationClip.findByName(anims,'Run')
+          const mixData={mixer,anims,current:'Idle',actions:{}}
+          if(idleClip){
+            const a=mixer.clipAction(idleClip);a.play();mixData.actions['Idle']=a
+          }
+          if(runClip){
+            // Precargar Run a speed x2.2 para movimiento baloncestístico real
+            const a=mixer.clipAction(runClip);a.timeScale=2.2;a.enabled=true
+            mixData.actions['Run']=a
+          }
+          mixers[el.id]=mixData
+          // Primiamos el clock para evitar primer delta enorme
+          const clk=new THREE.Clock(true);clk.getDelta();clocks[el.id]=clk
 
           playerMeshes[el.id]=clone
           pIdx++
@@ -568,7 +586,12 @@ export default function Court3DView({phases,courtType}){
         tg[e.id]={x:Math.max(PR+4,Math.min(CW-PR-4,id2.x)),y:Math.max(PR+4,Math.min(H_px-PR-4,id2.y))}
       }
 
-      // ══ POSICIÓN Y ANIMACIÓN GLTF ════════════════════════════
+      // ══ POSICIÓN, ROTACIÓN Y ANIMACIÓN GLTF ═════════════════
+      const carrierPos2D=bc?bp[bc]:null
+      // Aro en coordenadas 2D de la pizarra
+      const _mg=22,_sy=(getH(courtType)-2*_mg)/14
+      const rimX2D=CW/2,rimY2D=_mg+1.575*_sy
+
       for(const e of elems){
         if(!PLAYER_TYPES.includes(e.type))continue
         const m=playerMeshes[e.id];if(!m)continue
@@ -578,19 +601,40 @@ export default function Court3DView({phases,courtType}){
         m.position.x=lerp(bp2.x,tp2.x,et)
         m.position.z=lerp(bp2.z,tp2.z,et)
         const dx=tp2.x-bp2.x,dz=tp2.z-bp2.z,dist=Math.hypot(dx,dz)
-        // Cara hacia dirección de movimiento
-        if(dist>0.02)m.rotation.y=Math.atan2(dx,dz)
-        // Actualizar sprite de número
-        if(m.userData.numSprite){
-          m.userData.numSprite.position.set(m.position.x,2.6,m.position.z)
+        const isMoving=!!tg[e.id]&&dist>0.05&&st>0
+
+        // ── ROTACIÓN INTELIGENTE (baloncesto) ──────────────────
+        if(isMoving){
+          // Cara hacia dirección de carrera
+          m.rotation.y=Math.atan2(dx,dz)
+        } else if(e.type==='offense'||e.id===bc){
+          // Ataque estático: mira hacia el aro
+          const rimP=p3(rimX2D,rimY2D)
+          m.rotation.y=Math.atan2(rimP.x-m.position.x,rimP.z-m.position.z)
+        } else if(['defense','xdefense'].includes(e.type)){
+          // Defensa: mira hacia el portador del balón
+          if(carrierPos2D){
+            const cp=p3(carrierPos2D.x,carrierPos2D.y)
+            m.rotation.y=Math.atan2(cp.x-m.position.x,cp.z-m.position.z)
+          }
         }
-        // Switch Run ↔ Idle según si hay movimiento
+
+        // Sprite número sigue al jugador
+        if(m.userData.numSprite){
+          m.userData.numSprite.position.set(m.position.x,2.8,m.position.z)
+        }
+
+        // ── ANIMACIÓN GLTF ──────────────────────────────────────
         const mixData=mixers?.[e.id]
         if(mixData){
-          const isMoving=!!tg[e.id]&&dist>0.04&&st>0
+          // timeScale: carrera NBA ~5 m/s, animación base ~1 m/s → x2.2
+          // Ajustamos dinámicamente según velocidad de desplazamiento
+          if(mixData.actions['Run']){
+            const speed=isMoving?Math.min(3.0,2.0+dist*0.8):2.2
+            mixData.actions['Run'].timeScale=speed
+          }
           switchAnim(mixData,isMoving?'Run':'Idle')
-          // Update mixer con delta real
-          const delta=clocks?.[e.id]?.getDelta()??0.016
+          const delta=Math.min(clocks?.[e.id]?.getDelta()??0.016, 0.05) // cap 50ms
           mixData.mixer.update(delta)
         }
       }

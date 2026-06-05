@@ -75,16 +75,17 @@ function makeCourtTex(courtType){
   const H_px=getH(courtType),TW=2048,TH=Math.round(2048*H_px/CW)
   const c=document.createElement('canvas');c.width=TW;c.height=TH
   const ctx=c.getContext('2d')
-  // Rich hardwood parquet
-  const n=28
+  // Parquet de arce claro — pabellón bien iluminado
+  const n=24
   for(let i=0;i<n;i++){
-    const r=175+Math.sin(i*1.3)*6|0,g=103+Math.sin(i*0.9)*4|0,b=37+Math.sin(i*1.7)*3|0
+    const r=218+Math.sin(i*1.3)*8|0,g=148+Math.sin(i*0.9)*6|0,b=62+Math.sin(i*1.7)*5|0
     ctx.fillStyle=`rgb(${r},${g},${b})`;ctx.fillRect(i*TW/n,0,TW/n+1,TH)
   }
-  // Grain
-  ctx.globalAlpha=0.05;ctx.strokeStyle='#000';ctx.lineWidth=1
-  for(let y=0;y<TH;y+=TH/70){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(TW,y);ctx.stroke()}
-  ctx.globalAlpha=0.12;ctx.lineWidth=1.6
+  // Veta de madera horizontal
+  ctx.globalAlpha=0.04;ctx.strokeStyle='#5a3010';ctx.lineWidth=1.2
+  for(let y=0;y<TH;y+=TH/80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(TW,y);ctx.stroke()}
+  // Separadores entre tablones
+  ctx.globalAlpha=0.18;ctx.lineWidth=2
   for(let i=0;i<=n;i++){ctx.beginPath();ctx.moveTo(i*TW/n,0);ctx.lineTo(i*TW/n,TH);ctx.stroke()}
   ctx.globalAlpha=1
   // Court lines
@@ -153,122 +154,194 @@ function addHoop(scene,courtType,H_m,flipped){
   net.position.set(0,RH-0.22,rimZ);scene.add(net)
 }
 
-/* ── realistic player ────────────────────────────────────────── */
-const SKIN_PALETTE=[0x7a4f3a,0xc68642,0xedc9a0,0x5c3520,0xd4956a,0x3d2010]
-const HAIR_PALETTE=[0x0d0400,0x1a0800,0x241005,0x0a0300,0x180a04,0x100602]
+/* ══════════════════════════════════════════════════════════════
+   CEL-SHADING + OUTLINE helpers
+══════════════════════════════════════════════════════════════ */
+let _toonGrad=null
+function getToonGrad(){
+  if(_toonGrad)return _toonGrad
+  const c=document.createElement('canvas');c.width=4;c.height=1
+  const ctx=c.getContext('2d')
+  ;['#222222','#666666','#bbbbbb','#ffffff'].forEach((col,i)=>{ctx.fillStyle=col;ctx.fillRect(i,0,1,1)})
+  _toonGrad=new THREE.CanvasTexture(c)
+  _toonGrad.magFilter=THREE.NearestFilter;_toonGrad.minFilter=THREE.NearestFilter
+  return _toonGrad
+}
+// Toon material factory
+function tm(col){return new THREE.MeshToonMaterial({color:col,gradientMap:getToonGrad()})}
+// Cartoon outline: renders back faces slightly enlarged in black
+function ol(mesh,sc=1.06){
+  const m=new THREE.Mesh(mesh.geometry,new THREE.MeshBasicMaterial({color:0x080808,side:THREE.BackSide}))
+  m.scale.setScalar(sc);mesh.add(m)
+}
+// Mesh helpers
+function cyl(r1,r2,h,seg,mat){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg),mat);m.castShadow=true;return m}
+function sph(r,ws,hs,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r,ws,hs),mat);m.castShadow=true;return m}
+function bx(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
 
+/* ── skin & hair palettes ──────────────────────────────────── */
+const SKINS=[0x7a4f3a,0xc07840,0xedc9a0,0x5c3520,0xd4956a,0x3d2010]
+const HAIRS=[0x0d0400,0x1e0e04,0x241005,0x100804,0x180a03,0x4a3020]
+
+/* ══════════════════════════════════════════════════════════════
+   ARTICULATED PLAYER
+   Estructura jerárquica con joints reales para animación:
+     G (root)
+     ├── leftHipG → leftKneeG (pierna izq)
+     ├── rightHipG → rightKneeG (pierna der)
+     ├── torsoG
+     │   ├── leftShG → leftElG (brazo izq)
+     │   └── rightShG → rightElG (brazo der)
+     ├── headG
+══════════════════════════════════════════════════════════════ */
 function createPlayer(isOffense,num,idx=0){
-  const group=new THREE.Group()
+  const G=new THREE.Group()
+  const jC=isOffense?0x1a3a8a:0xf2f2f2   // jersey
+  const sC=isOffense?0x112060:0xdadada   // shorts (ligeramente más oscuro)
+  const aC=isOffense?0xf5c518:0xcc2222   // acento
+  const skC=SKINS[idx%SKINS.length]
+  const hC=HAIRS[idx%HAIRS.length]
+  const shC=isOffense?0x111111:0xeeeeee
 
-  // Colores de equipo
-  const jerseyC=isOffense?0x1a3a8a:0xf2f2f2
-  const shortsC=isOffense?0x1a3a8a:0xf2f2f2
-  const accentC=isOffense?0xf5c518:0xcc2222
-  const skinC  =SKIN_PALETTE[idx%SKIN_PALETTE.length]
-  const hairC  =HAIR_PALETTE[idx%HAIR_PALETTE.length]
-  const shoeC  =isOffense?0x111111:0xdddddd
+  const J=tm(jC),S=tm(sC),SK=tm(skC),AC=tm(aC),SH=tm(shC),BLK=tm(0x111111)
 
-  const jMat=new THREE.MeshStandardMaterial({color:jerseyC,roughness:0.85,metalness:0})
-  const sMat=new THREE.MeshStandardMaterial({color:shortsC,roughness:0.85,metalness:0})
-  const aMat=new THREE.MeshStandardMaterial({color:accentC,roughness:0.8,metalness:0})
-  const skMat=new THREE.MeshStandardMaterial({color:skinC,roughness:0.8,metalness:0})
-  const shMat=new THREE.MeshStandardMaterial({color:shoeC,roughness:0.7,metalness:0.1})
+  // ── sombra en suelo ──
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.40,24),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.40}))
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=0.002;G.add(shadow)
 
-  // Floor shadow
-  const sh=new THREE.Mesh(new THREE.CircleGeometry(0.38,20),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.4}))
-  sh.rotation.x=-Math.PI/2;sh.position.set(0,0.002,0);group.add(sh)
+  // ══ PIERNAS ══════════════════════════════════════════════
+  function makeLeg(sx){
+    // HIP GROUP — gira la pierna completa hacia delante/atrás
+    const hipG=new THREE.Group()
+    hipG.position.set(sx*0.118,0.88,0)
 
-  // Shoes (left / right)
-  ;[[-0.1,0],[0.1,0]].forEach(([ox])=>{
-    const shoe=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.10,0.31),shMat)
-    shoe.position.set(ox,0.05,0.02);group.add(shoe)
-    // sole stripe
-    const sole=new THREE.Mesh(new THREE.BoxGeometry(0.195,0.03,0.315),aMat)
-    sole.position.set(ox,0.015,0.02);group.add(sole)
+    // muslo (shorts)
+    const thigh=cyl(0.105,0.090,0.48,12,S)
+    thigh.position.y=-0.24;ol(thigh,1.05);hipG.add(thigh)
+
+    // KNEE GROUP — gira la rodilla
+    const kneeG=new THREE.Group();kneeG.position.y=-0.48
+
+    // espinilla (piel)
+    const shin=cyl(0.075,0.060,0.46,10,SK)
+    shin.position.y=-0.23;ol(shin,1.05);kneeG.add(shin)
+
+    // calcetín blanco (acento)
+    const sock=cyl(0.076,0.072,0.14,10,tm(0xffffff))
+    sock.position.y=-0.43;kneeG.add(sock)
+
+    // zapatilla
+    const shoe=bx(0.195,0.092,0.32,SH)
+    shoe.position.set(0,-0.505,0.04);ol(shoe,1.04);kneeG.add(shoe)
+    // suela de color
+    const sole=bx(0.200,0.026,0.325,AC)
+    sole.position.set(0,-0.558,0.04);kneeG.add(sole)
+
+    hipG.add(kneeG);G.add(hipG)
+    return{hipG,kneeG}
+  }
+  const LL=makeLeg(-1),RL=makeLeg(1)
+
+  // ══ TORSO GROUP ══════════════════════════════════════════
+  const torsoG=new THREE.Group();torsoG.position.y=0.88
+
+  // cinturilla shorts
+  const waist=cyl(0.250,0.230,0.11,14,AC);waist.position.y=0.06;torsoG.add(waist)
+
+  // cuerpo jersey
+  const body=cyl(0.275,0.228,0.75,14,J);body.position.y=0.435;ol(body,1.04);torsoG.add(body)
+
+  // cuello/collar
+  const collar=cyl(0.150,0.148,0.06,12,AC);collar.position.y=0.82;torsoG.add(collar)
+
+  G.add(torsoG)
+
+  // ══ BRAZOS ═══════════════════════════════════════════════
+  // Pivot del hombro en posición de hombro del torso
+  function makeArm(sx){
+    // SHOULDER GROUP — pivota en el hombro
+    const shG=new THREE.Group()
+    shG.position.set(sx*0.300,0.435+0.88,0)
+
+    // brazo superior (jersey)
+    const ua=cyl(0.088,0.075,0.40,10,J);ua.position.y=-0.20;ol(ua,1.05);shG.add(ua)
+
+    // ELBOW GROUP — pivota en el codo
+    const elG=new THREE.Group();elG.position.y=-0.40
+
+    // antebrazo (piel)
+    const fa=cyl(0.070,0.058,0.36,10,SK);fa.position.y=-0.18;ol(fa,1.05);elG.add(fa)
+
+    // mano
+    const hand=sph(0.072,10,10,SK);hand.position.y=-0.39;ol(hand,1.06);elG.add(hand)
+
+    shG.add(elG);torsoG.add(shG)
+    return{shG,elG,hand}
+  }
+  const LA=makeArm(-1),RA=makeArm(1)
+
+  // ══ CUELLO + CABEZA ══════════════════════════════════════
+  const neck=cyl(0.105,0.115,0.19,10,SK)
+  neck.position.set(0,0.88+0.79+0.08,0);ol(neck);G.add(neck)
+
+  const headG=new THREE.Group()
+  headG.position.set(0,0.88+0.79+0.22,0)
+
+  // cabeza con forma cartoon (ligeramente grande)
+  const head=sph(0.225,18,15,SK);head.scale.set(1,1.06,1);ol(head,1.04);headG.add(head)
+
+  // ojos
+  const eyeM=tm(0x1a1a2e)
+  ;[[-0.085,0.04,0.20],[0.085,0.04,0.20]].forEach(([ex,ey,ez])=>{
+    const eye=sph(0.032,8,8,eyeM);eye.position.set(ex,ey,ez);headG.add(eye)
+    // brillo del ojo
+    const shine=new THREE.Mesh(new THREE.SphereGeometry(0.012,6,6),tm(0xffffff))
+    shine.position.set(ex+0.012,ey+0.012,ez+0.024);headG.add(shine)
   })
-
-  // Lower legs (calves)
-  ;[[-0.11,0],[0.11,0]].forEach(([ox])=>{
-    const calf=new THREE.Mesh(new THREE.CylinderGeometry(0.072,0.065,0.45,9),skMat)
-    calf.position.set(ox,0.275,0);group.add(calf)
+  // cejas
+  ;[[-0.085,0.11,0.20],[0.085,0.11,0.20]].forEach(([ex,ey,ez])=>{
+    const brow=bx(0.055,0.016,0.04,tm(hC));brow.position.set(ex,ey,ez);headG.add(brow)
   })
+  // pelo
+  const hair=new THREE.Mesh(new THREE.SphereGeometry(0.228,14,9,0,Math.PI*2,0,Math.PI*0.46),tm(hC))
+  hair.position.set(0,0,0);headG.add(hair)
+  // contorno cabeza
+  const hairLine=new THREE.Mesh(new THREE.SphereGeometry(0.232,14,9,0,Math.PI*2,0,Math.PI*0.46),BLK)
+  hairLine.position.set(0,0,0);headG.add(hairLine)
 
-  // Shorts (thighs) — team color
-  ;[[-0.11,0],[0.11,0]].forEach(([ox])=>{
-    const thigh=new THREE.Mesh(new THREE.CylinderGeometry(0.098,0.09,0.44,9),sMat)
-    thigh.position.set(ox,0.62,0);group.add(thigh)
-  })
-  // Shorts waistband accent
-  const waist=new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.22,0.07,10),aMat)
-  waist.position.set(0,0.88,0);group.add(waist)
+  G.add(headG)
 
-  // Torso — jersey
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.22,0.68,10),jMat)
-  torso.position.set(0,1.23,0);torso.castShadow=true;group.add(torso)
-  // Collar
-  const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.09,10),aMat)
-  collar.position.set(0,1.6,0);group.add(collar)
-  // Shoulder stripes
-  ;[[-0.22,1.52],[0.22,1.52]].forEach(([ox,oy])=>{
-    const stripe=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.28,8),aMat)
-    stripe.rotation.z=ox<0?0.6:-0.6;stripe.position.set(ox,oy,0);group.add(stripe)
-  })
-
-  // Arms — upper (jersey) + forearm (skin)
-  ;[[-1,1],[1,1]].forEach(([sx])=>{
-    // Upper arm
-    const upper=new THREE.Mesh(new THREE.CylinderGeometry(0.088,0.082,0.40,8),jMat)
-    upper.rotation.z=sx*0.55;upper.position.set(sx*0.38,1.21,0);group.add(upper)
-    // Forearm
-    const fore=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.065,0.34,8),skMat)
-    fore.rotation.z=sx*0.48;fore.position.set(sx*0.58,0.98,0);group.add(fore)
-    // Hand
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.075,8,8),skMat)
-    hand.position.set(sx*0.70,0.82,0);group.add(hand)
-    // Store for animation
-    if(sx<0) group.userData.leftArm=upper; else group.userData.rightArm=upper
-    if(sx<0) group.userData.leftFore=fore; else group.userData.rightFore=fore
-  })
-
-  // Neck
-  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.10,0.11,0.17,9),skMat)
-  neck.position.set(0,1.67,0);group.add(neck)
-
-  // Head — realistic proportions
-  const head=new THREE.Mesh(new THREE.SphereGeometry(0.21,14,14),skMat)
-  head.scale.set(1,1.12,1);head.position.set(0,1.93,0);head.castShadow=true;group.add(head)
-
-  // Hair cap / hair (flat dark sphere top)
-  const hair=new THREE.Mesh(
-    new THREE.SphereGeometry(0.215,14,8,0,Math.PI*2,0,Math.PI*0.48),
-    new THREE.MeshStandardMaterial({color:hairC,roughness:1,metalness:0})
-  )
-  hair.position.set(0,1.93,0);group.add(hair)
-
-  // ── Number textures ──────────────────────────────────────
-  function numTex(size,bg,fg,txt){
+  // ══ NÚMEROS ══════════════════════════════════════════════
+  function numTex(size,bgCol,fgCol,txt){
     const cv=document.createElement('canvas');cv.width=size;cv.height=size
     const cx=cv.getContext('2d')
-    cx.fillStyle=bg;cx.fillRect(0,0,size,size)
-    cx.fillStyle=fg;cx.font=`bold ${Math.round(size*0.52)}px Arial,sans-serif`
-    cx.textAlign='center';cx.textBaseline='middle'
-    cx.fillText(txt,size/2,size/2+size*0.03)
+    cx.fillStyle=bgCol;cx.fillRect(0,0,size,size)
+    cx.fillStyle=fgCol;cx.font=`bold ${Math.round(size*0.50)}px Arial`
+    cx.textAlign='center';cx.textBaseline='middle';cx.fillText(txt,size/2,size/2+size*0.03)
     return new THREE.CanvasTexture(cv)
   }
-  const bg=isOffense?'#1a3a8a':'#f0f0f0', fg=isOffense?'#f5c518':'#1a3a8a'
-  const t=String(num??'')
+  const nbg=isOffense?'#1a3a8a':'#f2f2f2',nfg=isOffense?'#f5c518':'#1a3a8a'
+  const nStr=String(num??'')
+  // número cenital (vista overhead)
+  const topN=new THREE.Mesh(new THREE.CircleGeometry(0.23,20),new THREE.MeshBasicMaterial({map:numTex(160,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  topN.rotation.x=-Math.PI/2;topN.position.set(0,2.25,0);G.add(topN)
+  // número pecho
+  const chN=new THREE.Mesh(new THREE.PlaneGeometry(0.28,0.22),new THREE.MeshBasicMaterial({map:numTex(120,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  chN.position.set(0,0.88+0.52,0.285);G.add(chN)
 
-  // Top number (visible from overhead camera — most important)
-  const topNum=new THREE.Mesh(new THREE.CircleGeometry(0.22,20),new THREE.MeshBasicMaterial({map:numTex(160,bg,fg,t),transparent:true,depthWrite:false}))
-  topNum.rotation.x=-Math.PI/2;topNum.position.set(0,2.16,0);group.add(topNum)
-  // Chest number (side views)
-  const chestNum=new THREE.Mesh(new THREE.PlaneGeometry(0.30,0.24),new THREE.MeshBasicMaterial({map:numTex(120,bg,fg,t),transparent:true,depthWrite:false}))
-  chestNum.position.set(0,1.23,0.28);group.add(chestNum)
-  // Back number
-  const backNum=new THREE.Mesh(new THREE.PlaneGeometry(0.30,0.24),new THREE.MeshBasicMaterial({map:numTex(120,bg,fg,t),transparent:true,depthWrite:false}))
-  backNum.rotation.y=Math.PI;backNum.position.set(0,1.23,-0.28);group.add(backNum)
-
-  return group
+  // ══ GUARDAR JOINTS PARA ANIMACIÓN ════════════════════════
+  G.userData={
+    leftHipG:LL.hipG,  rightHipG:RL.hipG,
+    leftKneeG:LL.kneeG, rightKneeG:RL.kneeG,
+    leftShG:LA.shG,    rightShG:RA.shG,
+    leftElG:LA.elG,    rightElG:RA.elG,
+    rightHand:RA.hand, leftHand:LA.hand,
+    torsoG,headG,
+    // aliases legacy
+    leftArm:LA.shG,rightArm:RA.shG,
+    leftFore:LA.elG,rightFore:RA.elG,
+  }
+  return G
 }
 
 /* ── basketball canvas texture (costura figure-8 real) ────────── */
@@ -430,37 +503,42 @@ export default function Court3DView({phases,courtType}){
       scene.background=new THREE.Color(0x080b14)
       scene.fog=new THREE.Fog(0x080b14,45,90)
 
-      // ── Arena lighting — SpotLights de pabellón ───────────────
-      scene.add(new THREE.AmbientLight(0xfff0d8,0.38))
-      // 4 focos cenital de techo — conos visibles con penumbra suave
-      const spotDist=full?55:38
+      // ── Pabellón bien iluminado ────────────────────────────────
+      // Luz ambiental alta — pabellón moderno con LED
+      scene.add(new THREE.AmbientLight(0xfff8f0,0.90))
+      // 6 focos cenital de techo — cuadriculados como en un pabellón real
+      const spotDist=full?65:45
       ;[
-        [0,          full?32:26, H_m*0.12],
-        [0,          full?32:26, H_m*0.88],
-        [-W_m*0.42,  full?26:20, H_m/2  ],
-        [ W_m*0.42,  full?26:20, H_m/2  ],
+        [0,          full?34:28, H_m*0.10],
+        [0,          full?34:28, H_m*0.90],
+        [-W_m*0.38,  full?28:22, H_m*0.28],
+        [ W_m*0.38,  full?28:22, H_m*0.28],
+        [-W_m*0.38,  full?28:22, H_m*0.72],
+        [ W_m*0.38,  full?28:22, H_m*0.72],
       ].forEach(([x,y,z])=>{
-        const sp=new THREE.SpotLight(0xfff5e0,full?2.0:2.5)
+        const sp=new THREE.SpotLight(0xfffaf0,full?2.8:3.2)
         sp.position.set(x,y,z)
-        sp.target.position.set(x*0.25,0,z)
-        sp.angle=Math.PI/6
-        sp.penumbra=0.55
-        sp.decay=1.4
+        sp.target.position.set(x*0.15,0,z)
+        sp.angle=Math.PI/5.5
+        sp.penumbra=0.45
+        sp.decay=1.2
         sp.distance=spotDist
         sp.castShadow=true
-        sp.shadow.mapSize.set(1024,1024)
+        sp.shadow.mapSize.set(512,512)
         sp.shadow.camera.near=1;sp.shadow.camera.far=spotDist+5
         scene.add(sp);scene.add(sp.target)
       })
-      // Luces de relleno laterales frías (simulan rebote desde graderías)
-      const fillRange=full?60:40
-      const fill1=new THREE.PointLight(0xb8c8e0,0.35,fillRange);fill1.position.set(-W_m*1.2,3,H_m/2);scene.add(fill1)
-      const fill2=new THREE.PointLight(0xb8c8e0,0.35,fillRange);fill2.position.set( W_m*1.2,3,H_m/2);scene.add(fill2)
+      // Luces de relleno laterales cálidas (rebote desde graderías)
+      const fillRange=full?70:48
+      const fill1=new THREE.PointLight(0xffe8c8,0.55,fillRange);fill1.position.set(-W_m*1.3,4,H_m/2);scene.add(fill1)
+      const fill2=new THREE.PointLight(0xffe8c8,0.55,fillRange);fill2.position.set( W_m*1.3,4,H_m/2);scene.add(fill2)
+      // Luz desde debajo de cámara para eliminar sombras duras en vista cenital
+      const fillBot=new THREE.DirectionalLight(0xffffff,0.30);fillBot.position.set(0,5,H_m*1.5);scene.add(fillBot)
 
-      // Court floor — parquet brillante (roughness bajo = reflejos suaves)
+      // Court floor — parquet brillante
       const floor=new THREE.Mesh(
         new THREE.PlaneGeometry(W_m,H_m),
-        new THREE.MeshStandardMaterial({map:makeCourtTex(courtType),roughness:0.18,metalness:0.05})
+        new THREE.MeshStandardMaterial({map:makeCourtTex(courtType),roughness:0.15,metalness:0.04})
       )
       floor.rotation.x=-Math.PI/2;floor.position.set(0,0,H_m/2);floor.receiveShadow=true;scene.add(floor)
 
@@ -570,32 +648,142 @@ export default function Court3DView({phases,courtType}){
         tg[e.id]={x:Math.max(PR+4,Math.min(CW-PR-4,id2.x)),y:Math.max(PR+4,Math.min(H_px-PR-4,id2.y))}
       }
 
-      // update player positions + realistic movement animations
+      // ══ ANIMACIÓN DE JUGADORES ════════════════════════════════
+      // Detectar acciones del paso actual para cada jugador
+      const passingId  =elems.find(e=>e.type==='pass'  &&(e.step??0)===si)?.fromId||null
+      const shootingId =elems.find(e=>e.type==='shot'  &&(e.step??0)===si)?.fromId||null
+      const handoffIds =elems.find(e=>e.type==='handoff'&&(e.step??0)===si)?.fromId||null
+      const screenIds  =elems.filter(e=>e.type==='screen'&&(e.step??0)===si).map(e=>e.fromId||'')
+
+      // Función que resetea todos los joints a posición neutral
+      function resetJoints(ud){
+        if(!ud)return
+        ;['leftHipG','rightHipG','leftKneeG','rightKneeG'].forEach(k=>{if(ud[k]){ud[k].rotation.x=0;ud[k].rotation.z=0}})
+        ;['leftShG','rightShG','leftElG','rightElG'].forEach(k=>{if(ud[k]){ud[k].rotation.x=0;ud[k].rotation.z=0}})
+        if(ud.torsoG){ud.torsoG.rotation.x=0;ud.torsoG.rotation.z=0}
+      }
+
       for(const e of elems){
         if(!PLAYER_TYPES.includes(e.type))continue
         const m=playerMeshes[e.id];if(!m)continue
         const b=bp[e.id];if(!b)continue
-        const t=tg[e.id]||b
-        const bp2=p3(b.x,b.y),tp2=p3(t.x,t.y)
+        const target=tg[e.id]||b
+        const bp2=p3(b.x,b.y),tp2=p3(target.x,target.y)
         m.position.x=lerp(bp2.x,tp2.x,et);m.position.z=lerp(bp2.z,tp2.z,et)
         const dx=tp2.x-bp2.x,dz=tp2.z-bp2.z,dist=Math.hypot(dx,dz)
-        // cara hacia dirección de movimiento
+        const ud=m.userData
+        const isMoving=!!tg[e.id]&&dist>0.04
+
+        // ── CARA HACIA DIRECCIÓN ──
         if(dist>0.02)m.rotation.y=Math.atan2(dx,dz)
-        // carrera: bob vertical + balanceo de brazos + inclinación hacia delante
-        if(tg[e.id]&&st>0&&dist>0.05){
-          const speed=Math.min(1,dist*1.8)
-          const phase=et*Math.PI*5
-          m.position.y=Math.abs(Math.sin(phase))*0.07*speed
-          // inclinación hacia delante al correr
-          m.rotation.x=-Math.sin(et*Math.PI)*0.14*speed
-          if(m.userData.leftArm&&m.userData.rightArm){
-            const sw=Math.sin(phase)*0.42*speed
-            m.userData.leftArm.rotation.x=sw;m.userData.rightArm.rotation.x=-sw
-            if(m.userData.leftFore){m.userData.leftFore.rotation.x=sw*0.55;m.userData.rightFore.rotation.x=-sw*0.55}
-          }
+
+        // ── CARRERA ARTICULADA ────────────────────────────────
+        if(isMoving&&st>0){
+          const speed=Math.min(1,dist*2.2)
+          // ciclo de marcha: 4.5 ciclos en STEP_MOVE_DUR para velocidad realista
+          const cycle=et*Math.PI*9.0*speed
+          // Bob vertical (rebote al correr)
+          m.position.y=Math.abs(Math.sin(cycle*0.5))*0.08*speed
+          // Inclinación del torso hacia delante
+          if(ud.torsoG)ud.torsoG.rotation.x=-0.18*speed*Math.sin(et*Math.PI)
+
+          // PIERNAS — cadera y rodilla alternadas
+          if(ud.leftHipG)  ud.leftHipG.rotation.x  = Math.sin(cycle)*0.65*speed
+          if(ud.rightHipG) ud.rightHipG.rotation.x  =-Math.sin(cycle)*0.65*speed
+          // Rodilla se dobla en la fase de retroceso
+          if(ud.leftKneeG)  ud.leftKneeG.rotation.x  = Math.max(0,-Math.sin(cycle))*0.80*speed
+          if(ud.rightKneeG) ud.rightKneeG.rotation.x  = Math.max(0, Math.sin(cycle))*0.80*speed
+          // Separación lateral de piernas al correr
+          if(ud.leftHipG)  ud.leftHipG.rotation.z  = 0.04*speed
+          if(ud.rightHipG) ud.rightHipG.rotation.z  =-0.04*speed
+
+          // BRAZOS — patrón cruzado (brazo izq ↔ pierna der)
+          if(ud.leftShG)  ud.leftShG.rotation.x  =-Math.sin(cycle)*0.50*speed
+          if(ud.rightShG) ud.rightShG.rotation.x  = Math.sin(cycle)*0.50*speed
+          // Codo doblado en el swing
+          if(ud.leftElG)  ud.leftElG.rotation.x  = 0.55+Math.cos(cycle)*0.25*speed
+          if(ud.rightElG) ud.rightElG.rotation.x  = 0.55-Math.cos(cycle)*0.25*speed
+
+        // ── GESTO: PASE ──────────────────────────────────────
+        } else if(e.id===passingId&&st>0){
+          resetJoints(ud)
+          // Wind-up → lanzamiento
+          const t2=et<0.4?et/0.4:1-(et-0.4)/0.6
+          if(ud.rightShG){ud.rightShG.rotation.x=-0.6+t2*1.2;ud.rightShG.rotation.z=0.2-t2*0.35}
+          if(ud.rightElG) ud.rightElG.rotation.x=0.3+t2*0.3
+          if(ud.leftShG)  {ud.leftShG.rotation.x=-0.2;ud.leftShG.rotation.z=0.25}
+          if(ud.leftElG)  ud.leftElG.rotation.x=0.5
+          if(ud.torsoG)   ud.torsoG.rotation.x=-0.12*et
+          m.position.y=0
+
+        // ── GESTO: TIRO ──────────────────────────────────────
+        } else if(e.id===shootingId&&st>0){
+          resetJoints(ud)
+          // Brazos suben → extensión en el tiro
+          const rise=Math.min(1,et*1.5)
+          if(ud.rightShG){ud.rightShG.rotation.x=-rise*1.1;ud.rightShG.rotation.z=-0.15}
+          if(ud.rightElG) ud.rightElG.rotation.x=Math.max(0,0.7-rise*0.9)
+          if(ud.leftShG)  {ud.leftShG.rotation.x=-rise*0.9;ud.leftShG.rotation.z=0.15}
+          if(ud.leftElG)  ud.leftElG.rotation.x=Math.max(0,0.6-rise*0.8)
+          // Ligera inclinación atrás al cargar, adelante al soltar
+          if(ud.torsoG)   ud.torsoG.rotation.x=et<0.5?0.08:-0.05
+          m.position.y=rise*0.10
+
+        // ── GESTO: HANDOFF ───────────────────────────────────
+        } else if(e.id===handoffIds&&st>0){
+          resetJoints(ud)
+          // Brazo extendido con el balón hacia el compañero
+          if(ud.rightShG){ud.rightShG.rotation.x=-0.4;ud.rightShG.rotation.z=-0.2}
+          if(ud.rightElG) ud.rightElG.rotation.x=0.3
+          if(ud.leftShG)  {ud.leftShG.rotation.x=-0.1;ud.leftShG.rotation.z=0.20}
+          if(ud.torsoG)   ud.torsoG.rotation.x=-0.08
+          m.position.y=0
+
+        // ── GESTO: BLOQUEO (SCREEN) ──────────────────────────
+        } else if(screenIds.includes(e.id)){
+          resetJoints(ud)
+          // Posición de bloqueo: pies separados, brazos cruzados en pecho
+          if(ud.leftHipG)  {ud.leftHipG.rotation.z=0.12}
+          if(ud.rightHipG) {ud.rightHipG.rotation.z=-0.12}
+          if(ud.leftShG)   {ud.leftShG.rotation.x=-0.15;ud.leftShG.rotation.z=0.55}
+          if(ud.rightShG)  {ud.rightShG.rotation.x=-0.15;ud.rightShG.rotation.z=-0.55}
+          if(ud.leftElG)   ud.leftElG.rotation.x=1.0
+          if(ud.rightElG)  ud.rightElG.rotation.x=1.0
+          m.position.y=0
+
+        // ── POSTURA: PORTADOR DEL BALÓN (estático) ───────────
+        } else if(e.id===bc&&!isMoving){
+          resetJoints(ud)
+          // Botea: brazo derecho bajo, ligeramente extendido
+          if(ud.rightShG){ud.rightShG.rotation.x=0.10;ud.rightShG.rotation.z=-0.22}
+          if(ud.rightElG) ud.rightElG.rotation.x=0.55
+          if(ud.leftShG)  {ud.leftShG.rotation.x=-0.08;ud.leftShG.rotation.z=0.30}
+          if(ud.leftElG)  ud.leftElG.rotation.x=0.40
+          // Flexión ligera de rodillas (postura de baloncesto)
+          if(ud.leftHipG)  ud.leftHipG.rotation.x=0.12
+          if(ud.rightHipG) ud.rightHipG.rotation.x=0.12
+          if(ud.leftKneeG)  ud.leftKneeG.rotation.x=0.18
+          if(ud.rightKneeG) ud.rightKneeG.rotation.x=0.18
+          m.position.y=0
+
+        // ── POSTURA: DEFENSA (estático) ──────────────────────
+        } else if(['defense','xdefense'].includes(e.type)&&!isMoving){
+          resetJoints(ud)
+          // Postura defensiva: rodillas flexionadas, brazos abiertos
+          if(ud.leftHipG)  ud.leftHipG.rotation.x=0.20
+          if(ud.rightHipG) ud.rightHipG.rotation.x=0.20
+          if(ud.leftKneeG)  ud.leftKneeG.rotation.x=0.30
+          if(ud.rightKneeG) ud.rightKneeG.rotation.x=0.30
+          if(ud.leftShG)   {ud.leftShG.rotation.x=-0.05;ud.leftShG.rotation.z=0.55}
+          if(ud.rightShG)  {ud.rightShG.rotation.x=-0.05;ud.rightShG.rotation.z=-0.55}
+          if(ud.leftElG)   ud.leftElG.rotation.x=0.45
+          if(ud.rightElG)  ud.rightElG.rotation.x=0.45
+          m.position.y=0
+
         } else {
-          m.position.y=0;m.rotation.x=0
-          if(m.userData.leftArm){m.userData.leftArm.rotation.x=0;m.userData.rightArm.rotation.x=0}
+          // Idle genérico
+          resetJoints(ud)
+          m.position.y=0
         }
       }
 

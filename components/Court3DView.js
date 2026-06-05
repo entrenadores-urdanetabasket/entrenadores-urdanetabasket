@@ -276,11 +276,19 @@ function makeBallTex(){
 }
 
 function createBall(scene){
+  // Radio x1.8 más grande que la realidad para mejor visibilidad en la pista
+  const R=0.22
   const ball=new THREE.Mesh(
-    new THREE.SphereGeometry(0.122,36,28),
-    new THREE.MeshStandardMaterial({map:makeBallTex(),roughness:0.78,metalness:0.0})
+    new THREE.SphereGeometry(R,36,28),
+    new THREE.MeshStandardMaterial({
+      map:makeBallTex(),roughness:0.70,metalness:0.0,
+      emissive:new THREE.Color(0xd05010),emissiveIntensity:0.30  // glow naranja
+    })
   )
   ball.castShadow=true
+  // Point light dentro del balón para que brille y sea siempre visible
+  const glow=new THREE.PointLight(0xff6a00,1.2,3.5)
+  glow.position.set(0,0,0);ball.add(glow)
   scene.add(ball);return ball
 }
 
@@ -438,13 +446,11 @@ export default function Court3DView({phases,courtType}){
 
           const{x,z}=p3(el.x,el.y)
           clone.position.set(x,0,z)
-          // Rotación inicial inteligente según rol
+          // Rotación inicial: Soldier mira -Z → +π en todas las rotaciones
           if(el.type==='offense'){
-            // Ataque mira hacia el aro
-            clone.rotation.y=Math.atan2(0-x,rimWorldZ-z)
+            clone.rotation.y=Math.atan2(0-x,rimWorldZ-z)+Math.PI
           } else {
-            // Defensa mira hacia el centro de la pista (hacia el balón)
-            clone.rotation.y=Math.atan2(0-x,(H_m/2)-z)
+            clone.rotation.y=Math.atan2(0-x,(H_m/2)-z)+Math.PI
           }
           scene.add(clone)
 
@@ -587,10 +593,28 @@ export default function Court3DView({phases,courtType}){
       }
 
       // ══ POSICIÓN, ROTACIÓN Y ANIMACIÓN GLTF ═════════════════
+      // NOTA: Soldier.glb tiene frente hacia -Z → offset +π en TODAS las rotaciones
+      const ROT_OFFSET=Math.PI
       const carrierPos2D=bc?bp[bc]:null
-      // Aro en coordenadas 2D de la pizarra
       const _mg=22,_sy=(getH(courtType)-2*_mg)/14
       const rimX2D=CW/2,rimY2D=_mg+1.575*_sy
+      const rimP3=p3(rimX2D,rimY2D)
+
+      // Mapa de qué acción está haciendo cada jugador en este paso
+      const playerAction={}  // id → 'cut'|'dribble'|'screen'|'handoff'|'pass'|'shot'|'replace'|'idle'
+      for(const e of elems){
+        if(!ARROW_TYPES.includes(e.type)||(e.step??0)!==si)continue
+        const pid=e.fromId
+        if(!pid)continue
+        if(e.type==='pass')    playerAction[pid]='pass'
+        if(e.type==='shot')    playerAction[pid]='shot'
+        if(e.type==='handoff') playerAction[pid]='handoff'
+        if(e.type==='screen')  playerAction[pid]='screen'
+        if(e.type==='cut')     playerAction[pid]='cut'
+        if(e.type==='dribble') playerAction[pid]='dribble'
+      }
+      // Jugadores con target pero sin acción explícita → reemplazar posición
+      for(const id of Object.keys(tg)){if(!playerAction[id])playerAction[id]='replace'}
 
       for(const e of elems){
         if(!PLAYER_TYPES.includes(e.type))continue
@@ -601,87 +625,165 @@ export default function Court3DView({phases,courtType}){
         m.position.x=lerp(bp2.x,tp2.x,et)
         m.position.z=lerp(bp2.z,tp2.z,et)
         const dx=tp2.x-bp2.x,dz=tp2.z-bp2.z,dist=Math.hypot(dx,dz)
-        const isMoving=!!tg[e.id]&&dist>0.05&&st>0
+        const action=playerAction[e.id]||'idle'
+        const isMoving=!!tg[e.id]&&dist>0.04&&st>0
 
-        // ── ROTACIÓN INTELIGENTE (baloncesto) ──────────────────
+        // ── ROTACIÓN BALONCESTÍSTICA (+ ROT_OFFSET por modelo -Z) ─
+        let targetRot=m.rotation.y  // mantener si no hay criterio
         if(isMoving){
-          // Cara hacia dirección de carrera
-          m.rotation.y=Math.atan2(dx,dz)
-        } else if(e.type==='offense'||e.id===bc){
-          // Ataque estático: mira hacia el aro
-          const rimP=p3(rimX2D,rimY2D)
-          m.rotation.y=Math.atan2(rimP.x-m.position.x,rimP.z-m.position.z)
+          // Cara hacia dirección de carrera — siempre
+          targetRot=Math.atan2(dx,dz)+ROT_OFFSET
+        } else if(action==='pass'||action==='shot'){
+          // Jugador que pasa/tira: mira hacia el objetivo de la acción
+          const actionEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
+          if(actionEl){
+            const ep=p3(actionEl.x2,actionEl.y2)
+            targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)+ROT_OFFSET
+          }
+        } else if(action==='screen'||action==='handoff'){
+          // Bloqueo/handoff: mira al compañero receptor
+          const actionEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
+          if(actionEl){
+            const ep=p3(actionEl.x2,actionEl.y2)
+            targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)+ROT_OFFSET
+          }
+        } else if(e.type==='offense'){
+          // Ataque estático: triple amenaza mirando al aro
+          targetRot=Math.atan2(rimP3.x-m.position.x,rimP3.z-m.position.z)+ROT_OFFSET
         } else if(['defense','xdefense'].includes(e.type)){
-          // Defensa: mira hacia el portador del balón
+          // Defensa: stance mirando al portador del balón
           if(carrierPos2D){
             const cp=p3(carrierPos2D.x,carrierPos2D.y)
-            m.rotation.y=Math.atan2(cp.x-m.position.x,cp.z-m.position.z)
+            targetRot=Math.atan2(cp.x-m.position.x,cp.z-m.position.z)+ROT_OFFSET
           }
         }
+        // Interpolación suave de rotación (sin giros bruscos)
+        let dr=targetRot-m.rotation.y
+        while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
+        m.rotation.y+=dr*Math.min(1,8*0.016)  // 8 rad/s velocidad de giro
 
-        // Sprite número sigue al jugador
+        // Sprite número
         if(m.userData.numSprite){
           m.userData.numSprite.position.set(m.position.x,2.8,m.position.z)
         }
 
-        // ── ANIMACIÓN GLTF ──────────────────────────────────────
+        // ── ANIMACIÓN GLTF según acción baloncestística ──────────
         const mixData=mixers?.[e.id]
         if(mixData){
-          // timeScale: carrera NBA ~5 m/s, animación base ~1 m/s → x2.2
-          // Ajustamos dinámicamente según velocidad de desplazamiento
-          if(mixData.actions['Run']){
-            const speed=isMoving?Math.min(3.0,2.0+dist*0.8):2.2
-            mixData.actions['Run'].timeScale=speed
+          let animName='Idle',runScale=2.2
+          if(isMoving){
+            animName='Run'
+            if(action==='cut')     runScale=2.8   // corte: explosivo
+            else if(action==='dribble') runScale=2.5  // drive: rápido
+            else if(action==='screen') runScale=1.2  // a bloquear: pausado
+            else if(action==='handoff') runScale=1.6  // handoff: camina
+            else if(action==='replace') runScale=1.8  // reemplazar: trote
+            else runScale=2.2
           }
-          switchAnim(mixData,isMoving?'Run':'Idle')
-          const delta=Math.min(clocks?.[e.id]?.getDelta()??0.016, 0.05) // cap 50ms
+          if(mixData.actions['Run'])mixData.actions['Run'].timeScale=runScale
+          switchAnim(mixData,animName)
+          const delta=Math.min(clocks?.[e.id]?.getDelta()??0.016,0.05)
           mixData.mixer.update(delta)
         }
       }
 
-      // ball animation — balón a altura de cintura cuando está en manos
-      let bx=null,by=0.95,bz=null;ball.scale.setScalar(1)
-      if(st>0&&bc){
+      // ══ BALÓN — posición, física y tamaño ══════════════════════
+      // El balón siempre visible: más grande + glow
+      ball.scale.setScalar(1)
+      let bx=null,by=1.0,bz=null
+
+      // Helper: posición de la mano del portador (estimada en 3D)
+      function carrierHandPos(carrierId,handSide='right'){
+        const cm=playerMeshes[carrierId];if(!cm)return null
+        const ry=cm.rotation.y
+        // Mano está a ~0.4m al lado del cuerpo y ~0.6m de altura desde el suelo
+        const sx=handSide==='right'?-1:1
+        return{
+          x:cm.position.x+Math.sin(ry-sx*0.35)*0.40,
+          y:1.0,
+          z:cm.position.z+Math.cos(ry-sx*0.35)*0.40
+        }
+      }
+
+      if(bc){
         const cB=bp[bc]
-        // handoff
-        const ho=elems.find(e=>e.type==='handoff'&&(e.step??0)===si&&tg[e.fromId||''])
-        if(ho&&cB&&tg[ho.fromId]){
+        const curAction=playerAction[bc]||'idle'
+
+        // ── HANDOFF: balón viaja de mano a mano ──
+        const ho=elems.find(e=>e.type==='handoff'&&(e.step??0)===si&&e.fromId===bc)
+        if(ho&&cB&&st>0){
           const p1b=p3(bp[ho.fromId]?.x??cB.x,bp[ho.fromId]?.y??cB.y)
           const p2k=Object.keys(tg).find(k=>k!==ho.fromId&&bp[k]&&Math.hypot(bp[k].x-ho.x2,bp[k].y-ho.y2)<PR*3)
-          if(p2k){const p2b=p3(bp[p2k].x,bp[p2k].y);if(et<0.5){bx=lerp(p1b.x,p2b.x,et);bz=lerp(p1b.z,p2b.z,et)}else{bx=lerp(p2b.x,p1b.x,et);bz=lerp(p2b.z,p1b.z,et)};by=0.9+Math.abs(Math.sin(et*Math.PI*2))*0.15}
+          if(p2k){
+            const p2b=p3(bp[p2k].x,bp[p2k].y)
+            // Arco suave a altura de pecho
+            bx=lerp(p1b.x,p2b.x,et);bz=lerp(p1b.z,p2b.z,et)
+            by=1.1+Math.sin(et*Math.PI)*0.25
+          }
         }
-        // shot — realistic parabolic arc
-        if(bx===null){
+
+        // ── TIRO: arco parabólico alto hacia el aro ──
+        if(bx===null&&st>0){
           const sh=elems.find(e=>e.type==='shot'&&(e.step??0)===si&&(e.fromId===bc||!e.fromId))
           if(sh&&cB){
-            const sp=p3(cB.x,cB.y),ep=p3(sh.x2,sh.y2),dist2=Math.hypot(ep.x-sp.x,ep.z-sp.z)
-            bx=lerp(sp.x,ep.x,et);bz=lerp(sp.z,ep.z,et)
-            by=0.95+dist2*0.55*Math.sin(et*Math.PI)   // high arc
-            const sc=et>0.8?Math.max(0.01,1-(et-0.8)/0.2):1;ball.scale.setScalar(sc)
+            const sp=p3(cB.x,cB.y),ep=p3(sh.x2,sh.y2)
+            const dist2=Math.hypot(ep.x-sp.x,ep.z-sp.z)
+            // Wind-up: balón sube antes de soltar (et < 0.25)
+            if(et<0.20){
+              // Carga: balón sube al pecho/frente
+              bx=sp.x;bz=sp.z;by=1.0+et*3.0
+            } else {
+              const t2=(et-0.20)/0.80
+              bx=lerp(sp.x,ep.x,t2);bz=lerp(sp.z,ep.z,t2)
+              by=1.55+dist2*0.50*Math.sin(t2*Math.PI)  // arco alto
+              if(t2>0.85)ball.scale.setScalar(Math.max(0.1,1-(t2-0.85)/0.15))
+            }
           }
         }
-        // pass — chest-pass height with slight arc
-        if(bx===null){
+
+        // ── PASE: pecho a pecho con arco bajo ──
+        if(bx===null&&st>0){
           const pa=elems.find(e=>e.type==='pass'&&(e.step??0)===si&&e.fromId===bc)
           if(pa&&cB){
-            const ct=tg[bc],cx2=ct?lerp(cB.x,ct.x,et):cB.x,cy2=ct?lerp(cB.y,ct.y,et):cB.y
-            const cp=p3(cx2,cy2),ep=p3(pa.x2,pa.y2),pDist=Math.hypot(ep.x-cp.x,ep.z-cp.z)
-            bx=lerp(cp.x,ep.x,et);bz=lerp(cp.z,ep.z,et)
-            by=0.95+pDist*0.12*Math.sin(et*Math.PI)   // slight arc on pass
+            const hand=carrierHandPos(bc)
+            const sp=hand?{x:hand.x,z:hand.z}:p3(cB.x,cB.y)
+            const ep=p3(pa.x2,pa.y2)
+            const pDist=Math.hypot(ep.x-sp.x,ep.z-sp.z)
+            bx=lerp(sp.x,ep.x,et);bz=lerp(sp.z,ep.z,et)
+            by=1.1+pDist*0.10*Math.sin(et*Math.PI)  // arco bajo de pase
           }
         }
-        // dribble — rebote real: va al suelo y vuelve a la mano (0.95m)
-        if(bx===null&&tg[bc]){
+
+        // ── DRIBBLE: bota cerca de la mano ──
+        if(bx===null&&tg[bc]&&st>0){
+          const hand=carrierHandPos(bc)
           const bp3=p3(cB.x,cB.y),tp3=p3(tg[bc].x,tg[bc].y)
           bx=lerp(bp3.x,tp3.x,et);bz=lerp(bp3.z,tp3.z,et)
-          // parábola: 0.95 → 0.08 → 0.95 (mano→suelo→mano)
-          const bounce=Math.abs(Math.cos(et*Math.PI*3.5))
-          by=0.08+bounce*0.87
+          if(hand){bx=lerp(bx,hand.x,0.5);bz=lerp(bz,hand.z,0.5)}
+          // Bote rápido al correr: 4 ciclos por paso
+          const bounce=Math.abs(Math.cos(et*Math.PI*4))
+          by=0.08+bounce*(curAction==='cut'?1.05:0.88)
         }
-        // estático con balón: a altura de cintura
-        if(bx===null){const cp=p3(cB.x,cB.y);bx=cp.x;bz=cp.z;by=0.95}
+
+        // ── TRIPLE AMENAZA (portador estático) ──
+        if(bx===null){
+          const hand=carrierHandPos(bc,'right')
+          const cp=p3(cB.x,cB.y)
+          bx=hand?.x??cp.x;bz=hand?.z??cp.z
+          by=1.0+Math.sin(ts*0.002)*0.04  // micro-movimiento
+        }
       }
-      if(bx!==null)ball.position.set(bx,by,bz)
+
+      // Sin portador: balón en el suelo/centro
+      if(bx===null){
+        const cp=phases[pi]?.elements?.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
+        if(cp){const pp=bp[cp.id];if(pp){const p3c=p3(pp.x,pp.y);bx=p3c.x;bz=p3c.z;by=1.0}}
+        if(bx===null){const ctr=p3(CW/2,H_px*0.4);bx=ctr.x;bz=ctr.z;by=0.20}
+      }
+      ball.position.set(bx,by,bz)
+      // Hacer girar el balón (más realista)
+      ball.rotation.y+=0.06
+      ball.rotation.x+=0.02
 
       // follow-ball camera
       if(camMode==='follow'&&bx!==null){camera.position.set(bx,10,bz-5);camera.lookAt(bx,0,bz+2)}

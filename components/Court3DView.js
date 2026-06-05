@@ -288,49 +288,61 @@ function createBall(scene){
   scene.add(ball);return ball
 }
 
-/* ── simple arena surround ───────────────────────────────────── */
+/* ── arena surround (bleachers OUTSIDE court boundaries) ─────── */
 function buildSurround(scene,W_m,H_m){
-  // Dark floor outside court
-  const mat=new THREE.MeshStandardMaterial({color:0x0a0a12,roughness:0.9})
-  const s=new THREE.Mesh(new THREE.PlaneGeometry(W_m+24,H_m+24),mat)
-  s.rotation.x=-Math.PI/2;s.position.set(0,-0.006,H_m/2);scene.add(s)
-  // Simple dark bleachers — just neutral rows, no glowing
-  const rowM=new THREE.MeshStandardMaterial({color:0x0d0d1a,roughness:0.9})
-  ;[  // [w, h, depth, x, y, z, rotY]
-    [W_m+10,5,4,  0,2.5,H_m/2, Math.PI/2],
-    [W_m+10,5,4,  0,2.5,H_m/2,-Math.PI/2],
-    [H_m+10,5,4,  0,2.5,H_m/2+0.5,0],
-    [H_m+10,5,4,  0,2.5,H_m/2-0.5,Math.PI],
-  ].forEach(([w,h,d,x,y,z,ry])=>{
-    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),rowM)
-    m.rotation.y=ry;m.position.set(x,y,z);scene.add(m)
+  // Dark arena floor (below and outside court)
+  const floorMat=new THREE.MeshStandardMaterial({color:0x080a12,roughness:0.95})
+  const arena=new THREE.Mesh(new THREE.PlaneGeometry(W_m+30,H_m+30),floorMat)
+  arena.rotation.x=-Math.PI/2;arena.position.set(0,-0.01,H_m/2);scene.add(arena)
+
+  // Court boundary strips (white)
+  const eMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.4})
+  ;[
+    [W_m+0.08, 0.025, 0.08,  0,       0.012, 0      ],  // baseline near
+    [W_m+0.08, 0.025, 0.08,  0,       0.012, H_m    ],  // baseline far
+    [0.08, 0.025, H_m,       -W_m/2,  0.012, H_m/2  ],  // sideline left
+    [0.08, 0.025, H_m,        W_m/2,  0.012, H_m/2  ],  // sideline right
+  ].forEach(([w,h,d,x,y,z])=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),eMat)
+    m.position.set(x,y,z);scene.add(m)
   })
-  // Court edge white strips
-  const eM=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.5})
-  ;[[W_m+0.06,0.02,0.06,0,0.01,0],[W_m+0.06,0.02,0.06,0,0.01,H_m],[0.06,0.02,H_m,-W_m/2,0.01,H_m/2],[0.06,0.02,H_m,W_m/2,0.01,H_m/2]]
-    .forEach(([w,h,d,x,y,z])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),eM);m.position.set(x,y,z);scene.add(m)})
+
+  // Bleachers — positioned OUTSIDE the court (beyond boundary lines)
+  const blMat=new THREE.MeshStandardMaterial({color:0x0c0d1a,roughness:0.9})
+  const gap=1.5  // distance from court edge to bleacher
+  ;[
+    // Long sides (parallel to court length, outside left/right)
+    [4.5, 4, H_m+4,  -(W_m/2+gap+2.25), 2, H_m/2],
+    [4.5, 4, H_m+4,   (W_m/2+gap+2.25), 2, H_m/2],
+    // Short ends (parallel to court width, outside baselines)
+    [W_m+12, 4, 4,   0, 2, -(gap+2)   ],
+    [W_m+12, 4, 4,   0, 2,  H_m+gap+2 ],
+  ].forEach(([w,h,d,x,y,z])=>{
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),blMat)
+    m.position.set(x,y,z);scene.add(m)
+  })
 }
 
 /* ── camera presets ──────────────────────────────────────────── */
 function applyCamera(cam,mode,H_m,W_m){
+  const full=H_m>20
   if(mode==='overhead'){
-    // Techo del pabellón — toda la pista visible, FOV calibrado para 15×14m
-    cam.fov=42;cam.updateProjectionMatrix()
-    cam.position.set(0,26,H_m/2)
+    // Pista completa necesita más altura — a h=26 solo cubre ~20m, la pista mide 26m
+    cam.fov=full?54:44;cam.updateProjectionMatrix()
+    cam.position.set(0,full?38:26,H_m/2)
     cam.lookAt(0,0,H_m/2)
   } else if(mode==='angled'){
-    // Vista ligeramente inclinada (muestra algo de profundidad 3D)
-    cam.fov=46;cam.updateProjectionMatrix()
-    cam.position.set(0,18,H_m+2)
+    cam.fov=48;cam.updateProjectionMatrix()
+    cam.position.set(0,full?22:18,H_m+(full?H_m*0.15:4))
     cam.lookAt(0,0,H_m/2)
   } else if(mode==='follow'){
-    cam.fov=55;cam.updateProjectionMatrix()
+    cam.fov=58;cam.updateProjectionMatrix()
     cam.position.set(0,9,H_m*0.55)
     cam.lookAt(0,0,H_m*0.25)
   } else {
     // lateral
-    cam.fov=50;cam.updateProjectionMatrix()
-    cam.position.set(W_m*0.75,8,H_m/2)
+    cam.fov=full?58:52;cam.updateProjectionMatrix()
+    cam.position.set(full?W_m*1.1:W_m*0.85,full?12:8,H_m/2)
     cam.lookAt(0,1,H_m/2)
   }
 }
@@ -352,14 +364,18 @@ export default function Court3DView({phases,courtType}){
     const mount=mountRef.current; if(!mount)return
     let renderer,ro
     try{
-      // getBoundingClientRect forces layout computation — accurate even before first paint
+      // Leer dimensiones después de que el layout está pintado
       const rect=mount.getBoundingClientRect()
-      const W=rect.width||900,H=rect.height||540
+      const W=Math.max(rect.width,400)||900
+      const H=Math.max(rect.height,300)||540
 
       // Three.js creates its own canvas and appends it to the mount div
-      renderer=new THREE.WebGLRenderer({antialias:true})
+      renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'})
       renderer.setPixelRatio(Math.min(window.devicePixelRatio,2))
       renderer.setSize(W,H)   // sets canvas attributes correctly
+      renderer.domElement.style.width='100%'
+      renderer.domElement.style.height='100%'
+      renderer.domElement.style.display='block'
       mount.appendChild(renderer.domElement)
       renderer.shadowMap.enabled=true
       renderer.shadowMap.type=THREE.PCFSoftShadowMap
@@ -367,24 +383,26 @@ export default function Court3DView({phases,courtType}){
       renderer.toneMappingExposure=1.05
       renderer.outputColorSpace=THREE.SRGBColorSpace
 
+      const full=H_m>20
       const scene=new THREE.Scene()
       scene.background=new THREE.Color(0x080b14)
-      scene.fog=new THREE.Fog(0x080b14,30,55)
+      scene.fog=new THREE.Fog(0x080b14,45,90)
 
       // ── Natural arena lighting ─────────────────────────────
-      // Main overhead light (simulates arena ceiling lights)
-      scene.add(new THREE.AmbientLight(0xfff0d8,0.45))
-      // 4 overhead directional lights (arena spotlights) — no glowing bulbs, just light
-      ;[[0,22,H_m*0.1],[0,22,H_m*0.9],[-W_m*0.35,18,H_m/2],[W_m*0.35,18,H_m/2]].forEach(([x,y,z])=>{
-        const dl=new THREE.DirectionalLight(0xfff8e8,0.72)
+      scene.add(new THREE.AmbientLight(0xfff0d8,0.60))
+      // 4 overhead directional lights con sombras más amplias para pista completa
+      const shadowSz=full?22:14
+      ;[[0,26,H_m*0.1],[0,26,H_m*0.9],[-W_m*0.35,20,H_m/2],[W_m*0.35,20,H_m/2]].forEach(([x,y,z])=>{
+        const dl=new THREE.DirectionalLight(0xfff8e8,0.78)
         dl.position.set(x,y,z);dl.castShadow=true
-        dl.shadow.mapSize.set(1024,1024);dl.shadow.camera.near=1;dl.shadow.camera.far=50
-        ;['left','right','top','bottom'].forEach((k,i)=>(dl.shadow.camera[k]=[-14,14,12,-12][i]))
+        dl.shadow.mapSize.set(1024,1024);dl.shadow.camera.near=1;dl.shadow.camera.far=60
+        ;['left','right','top','bottom'].forEach((k,i)=>(dl.shadow.camera[k]=[-shadowSz,shadowSz,shadowSz,-shadowSz][i]))
         scene.add(dl)
       })
-      // Soft fill from sides (no colored tints — natural grey fill)
-      const fill1=new THREE.PointLight(0xc8d0e0,0.35,35);fill1.position.set(-W_m,3,H_m/2);scene.add(fill1)
-      const fill2=new THREE.PointLight(0xc8d0e0,0.35,35);fill2.position.set( W_m,3,H_m/2);scene.add(fill2)
+      // Soft fill from sides — mayor rango para pista completa
+      const fillRange=full?55:35
+      const fill1=new THREE.PointLight(0xc8d0e0,0.40,fillRange);fill1.position.set(-W_m,4,H_m/2);scene.add(fill1)
+      const fill2=new THREE.PointLight(0xc8d0e0,0.40,fillRange);fill2.position.set( W_m,4,H_m/2);scene.add(fill2)
 
       // Court floor
       const floor=new THREE.Mesh(
@@ -418,12 +436,16 @@ export default function Court3DView({phases,courtType}){
       renderer.render(scene,camera)
       setInitError(null)
 
-      ro=new ResizeObserver(()=>{
+      function resize(){
         const w=mount.clientWidth,h=mount.clientHeight
         if(!w||!h)return
-        renderer.setSize(w,h)
-        camera.aspect=w/h;camera.updateProjectionMatrix();renderer.render(scene,camera)
-      });ro.observe(mount)
+        renderer.setSize(w,h,false)
+        camera.aspect=w/h;camera.updateProjectionMatrix()
+        renderer.render(scene,camera)
+      }
+      ro=new ResizeObserver(resize);ro.observe(mount)
+      // Forzar resize en el siguiente frame por si el layout no estaba listo
+      requestAnimationFrame(resize)
     }catch(e){console.error('3D init:',e);setInitError(e.message||String(e))}
     return()=>{
       cancelAnimationFrame(animRef.current)

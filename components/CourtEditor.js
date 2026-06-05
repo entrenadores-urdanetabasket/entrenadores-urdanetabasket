@@ -1512,11 +1512,11 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
         </div>
 
         {/* ── CENTER: CANVAS ── */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0f172a',padding:tab==='3d'?0:12,gap:10,overflow:'hidden'}}>
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:tab==='3d'?'stretch':'center',justifyContent:tab==='3d'?'flex-start':'center',background:'#0f172a',padding:tab==='3d'?0:12,gap:10,overflow:'hidden',minHeight:0}}>
 
           {/* 3D VIEW */}
           {tab==='3d' && (
-            <div style={{width:'100%',height:'100%',position:'relative'}}>
+            <div style={{flex:1,width:'100%',position:'relative',minHeight:0}}>
               <Court3DErrorBoundary>
                 <Court3DView phases={phases} courtType={courtType} />
               </Court3DErrorBoundary>

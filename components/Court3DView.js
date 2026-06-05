@@ -2,9 +2,6 @@
 
 import { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { FBXLoader }  from 'three/examples/jsm/loaders/FBXLoader.js'
-import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 /* ── constants ───────────────────────────────────────────────── */
 const CW=560,HALF_H=520,FULL_H=970,PR=20
@@ -583,7 +580,7 @@ export default function Court3DView({phases,courtType}){
     const mount=mountRef.current; if(!mount)return
     let renderer,ro,canceled=false
 
-    async function init(){
+    function init(){
       try{
         const rect=mount.getBoundingClientRect()
         const W=Math.max(rect.width,400)||900
@@ -639,156 +636,20 @@ export default function Court3DView({phases,courtType}){
         const camera=new THREE.PerspectiveCamera(44,W/H,0.1,150)
         applyCamera(camera,'overhead',H_m,W_m)
 
-        // ══ SISTEMA DE JUGADORES ════════════════════════════════════
-        // Prioridad: Mixamo FBX (usuario) > XBot+animaciones retargeted > Procedural
-        // XBot = personaje Mixamo estándar sin equipo militar, retargeting con Soldier
+        // ── Jugadores procedurales (estable, sin GLTF) ────────────
         const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
         const rimWorldZ=(_mg2+1.575*_sy2)*S
-        const playerMeshes={},mixerMap={},clockMap={}
-
-        // Función: textura canvas de camiseta con número real
-        function makeJerseyTex(isOff,num,aC){
-          const W=512,H=1024,cv=document.createElement('canvas');cv.width=W;cv.height=H
-          const ctx=cv.getContext('2d')
-          const jCol=isOff?'#1535a0':'#f2f2f2'
-          const aCol=isOff?'#f5c518':'#cc2222'
-          // Base jersey
-          ctx.fillStyle=jCol;ctx.fillRect(0,0,W,H)
-          // Franjas laterales de acento
-          ctx.fillStyle=aCol
-          ctx.fillRect(0,0,W*.11,H);ctx.fillRect(W*.89,0,W*.11,H)
-          // Franjas hombros
-          ctx.fillRect(0,0,W,H*.04);ctx.fillRect(0,H*.96,W,H*.04)
-          // Cuello
-          ctx.fillStyle=jCol;ctx.fillRect(W*.2,0,W*.6,H*.06)
-          ctx.fillStyle=aCol;ctx.strokeStyle=aCol;ctx.lineWidth=8
-          ctx.beginPath();ctx.arc(W/2,0,W*.20,0,Math.PI);ctx.stroke()
-          // Número grande y legible
-          ctx.fillStyle=aCol;ctx.font=`bold ${W*.55}px Arial,sans-serif`
-          ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(num??''),W/2,H*.48)
-          // Líneas de tejido suaves
-          ctx.globalAlpha=0.04;ctx.strokeStyle=isOff?'#ffffff':'#000000';ctx.lineWidth=1
-          for(let y=0;y<H;y+=6){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
-          ctx.globalAlpha=1
-          const tex=new THREE.CanvasTexture(cv);return tex
-        }
-
-        // Función: colorizar modelo GLTF con colores de equipo
-        function applyJerseyColors(model,isOff,num,idx){
-          const jC=new THREE.Color(isOff?0x1535a0:0xf2f2f2)
-          const aC=new THREE.Color(isOff?0xf5c518:0xcc2222)
-          const sC=new THREE.Color(SKINS[idx%SKINS.length])
-          const shC=new THREE.Color(isOff?0x111111:0xfafafa)
-          const jerseyTex=makeJerseyTex(isOff,num,aC)
-          let meshIdx=0
-          model.traverse(c=>{
-            if(!c.isMesh)return
-            const name=(c.name||'').toLowerCase()
-            // Identificar partes por nombre (Mixamo naming convention)
-            let col=jC,emissInt=0.20,rough=0.72,tex=null
-            if(name.includes('hand')||name.includes('finger')||name.includes('head')||name.includes('neck')){col=sC;emissInt=0.08;rough=0.65}
-            else if(name.includes('leg')||name.includes('foot')||name.includes('shoe')||name.includes('boot')){col=shC;emissInt=0.10}
-            else if(meshIdx===0){col=jC;tex=jerseyTex}  // primer mesh = torso/jersey
-            else if(meshIdx%4===2){col=sC;emissInt=0.08}  // skin
-            else if(meshIdx%4===3){col=shC;emissInt=0.10}  // shoes
-            const mat=new THREE.MeshStandardMaterial({color:col,roughness:rough,metalness:0,emissive:col.clone(),emissiveIntensity:emissInt})
-            if(tex)mat.map=tex
-            c.material=mat;c.castShadow=true;c.receiveShadow=true
-            meshIdx++
-          })
-        }
-
-        // Función: sprite número flotante
-        function makeNumSprite(num,isOff){
-          const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
-          const ctx=cv.getContext('2d')
-          const bg=isOff?'#1535a0':'#f2f2f2',fg=isOff?'#f5c518':'#1535a0'
-          ctx.fillStyle=bg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-1,0,Math.PI*2);ctx.fill()
-          ctx.strokeStyle=fg;ctx.lineWidth=5;ctx.beginPath();ctx.arc(S/2,S/2,S/2-4,0,Math.PI*2);ctx.stroke()
-          ctx.fillStyle=fg;ctx.font=`bold ${S*.52}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle'
-          ctx.fillText(String(num??''),S/2,S/2+3)
-          const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}))
-          sp.scale.set(0.60,0.60,1);return sp
-        }
-
-        // ── Cargar modelos con prioridad automática ──────────────
-        const gltfLoader=new GLTFLoader()
-        let xbotTemplate=null,animClips=null
-
-        try{
-          // Primero: intentar Mixamo FBX (si usuario los subió)
-          const fbxRunExists=await fetch('/models/player_run.fbx',{method:'HEAD'}).then(r=>r.ok).catch(()=>false)
-          if(fbxRunExists){
-            console.log('🏀 Cargando Mixamo FBX...')
-            const fbxLoader=new FBXLoader()
-            const runFbx=await new Promise((res,rej)=>fbxLoader.load('/models/player_run.fbx',res,null,rej))
-            xbotTemplate=runFbx;animClips=[...(runFbx.animations||[])]
-            const idleFbxExists=await fetch('/models/player_idle.fbx',{method:'HEAD'}).then(r=>r.ok).catch(()=>false)
-            if(idleFbxExists){const idleFbx=await new Promise((res,rej)=>fbxLoader.load('/models/player_idle.fbx',res,null,rej));animClips.push(...(idleFbx.animations||[]))}
-            animClips.forEach((c,i)=>{if(!c.name||c.name==='mixamo.com')c.name=i===0?'Run':'Idle'})
-          } else {
-            // Segundo: XBot (personaje Mixamo, sin equipo militar) + animaciones de Soldier retargeted
-            console.log('🏀 Cargando XBot + animaciones Soldier (retargeting)...')
-            const[xbotGltf,soldierGltf]=await Promise.all([
-              new Promise((res,rej)=>gltfLoader.load('/models/xbot.glb',res,null,rej)),
-              new Promise((res,rej)=>gltfLoader.load('/models/player.glb',res,null,rej)),
-            ])
-            xbotTemplate=xbotGltf.scene
-            // Retargeting: las animaciones de Soldier funcionan en XBot porque ambos
-            // usan el esqueleto Mixamo estándar (mismos nombres de huesos)
-            animClips=soldierGltf.animations||[]
-            console.log('✅ Clips disponibles:',animClips.map(a=>a.name))
-          }
-        }catch(err){
-          console.warn('No se pudo cargar GLTF, modo procedural:',err)
-        }
-
-        const hasGLTF=!!xbotTemplate
+        const playerMeshes={}
         const e0=phases[0]?.elements||[]
         let pIdx=0
-
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
-          const isOff=el.type==='offense'
-          let mesh
-
-          if(hasGLTF){
-            // ── Modo GLTF: XBot o Mixamo FBX ─────────────────────
-            mesh=skeletonClone(xbotTemplate)
-            // Escala: GLB en metros (scale 1), FBX Mixamo en cm (scale 0.02)
-            const isFBX=xbotTemplate.isGroup&&(xbotTemplate.userData?.fbx??false)
-            mesh.scale.setScalar(isFBX?0.020:1.05)  // XBot ligeramente más grande
-            applyJerseyColors(mesh,isOff,el.num??'?',pIdx)
-
-            // Número flotante encima — altura ajustada según escala
-            const sp=makeNumSprite(el.num??'?',isOff)
-            const spriteH=isFBX?110:2.9
-            sp.position.set(0,spriteH,0)
-            mesh.add(sp);mesh.userData.numSprite=sp
-
-            // AnimationMixer con Run y Idle
-            const mixer=new THREE.AnimationMixer(mesh)
-            const runClip=animClips.find(a=>a.name==='Run')||animClips[0]
-            const idleClip=animClips.find(a=>a.name==='Idle')||animClips[animClips.length-1]
-            const runAction=runClip?mixer.clipAction(runClip):null
-            const idleAction=idleClip?mixer.clipAction(idleClip):null
-            if(runAction){runAction.timeScale=2.2}
-            if(idleAction){idleAction.play()}
-            const mixData={mixer,runAction,idleAction,isRunning:false}
-            mixerMap[el.id]=mixData
-            const clk=new THREE.Clock(true);clk.getDelta();clockMap[el.id]=clk
-
-          } else {
-            // ── Modo procedural (fallback) ────────────────────────
-            mesh=createPlayer(isOff,el.num??'?',pIdx)
-          }
-
+          const mesh=createPlayer(el.type==='offense',el.num??'?',pIdx++)
           const{x,z}=p3(el.x,el.y)
           mesh.position.set(x,0,z)
-          mesh.rotation.y=isOff?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
+          mesh.rotation.y=el.type==='offense'?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
           scene.add(mesh)
           playerMeshes[el.id]=mesh
-          pIdx++
         }
 
         const ball=createBall(scene)
@@ -797,7 +658,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,clockMap,ball,hasGLTF}
+        stateRef.current={renderer,scene,camera,playerMeshes,ball}
         renderer.render(scene,camera)
         setInitError(null)
 
@@ -936,27 +797,7 @@ export default function Court3DView({phases,courtType}){
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
         m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        // ── Animación: GLTF mixer O procedural según modo ─────────
-        const mixData=s.mixerMap?.[e.id]
-        if(mixData){
-          // Modo GLTF: crossfade Run ↔ Idle
-          if(isMoving&&!mixData.isRunning){
-            if(mixData.idleAction)mixData.idleAction.crossFadeTo(mixData.runAction,0.25,true)
-            if(mixData.runAction){mixData.runAction.reset().play();mixData.runAction.timeScale=2.2}
-            mixData.isRunning=true
-          } else if(!isMoving&&mixData.isRunning){
-            if(mixData.runAction)mixData.runAction.crossFadeTo(mixData.idleAction,0.30,true)
-            if(mixData.idleAction)mixData.idleAction.reset().play()
-            mixData.isRunning=false
-          }
-          const dt=Math.min(s.clockMap?.[e.id]?.getDelta()??0.016,0.05)
-          mixData.mixer.update(dt)
-          // Sprite número sigue al root del modelo
-          if(m.userData.numSprite)m.userData.numSprite.visible=true
-        } else {
-          // Modo procedural
-          animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
-        }
+        animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
       }
 
       // ══ BALÓN ══════════════════════════════════════════════════

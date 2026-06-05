@@ -2,6 +2,9 @@
 
 import { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { FBXLoader }  from 'three/examples/jsm/loaders/FBXLoader.js'
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 /* ── constants ───────────────────────────────────────────────── */
 const CW=560,HALF_H=520,FULL_H=970,PR=20
@@ -580,7 +583,7 @@ export default function Court3DView({phases,courtType}){
     const mount=mountRef.current; if(!mount)return
     let renderer,ro,canceled=false
 
-    function init(){
+    async function init(){
       try{
         const rect=mount.getBoundingClientRect()
         const W=Math.max(rect.width,400)||900
@@ -636,21 +639,111 @@ export default function Court3DView({phases,courtType}){
         const camera=new THREE.PerspectiveCamera(44,W/H,0.1,150)
         applyCamera(camera,'overhead',H_m,W_m)
 
-        // ── Crear jugadores procedurales ───────────────────────
+        // ── Jugadores: Mixamo FBX > GLB fallback > Procedural ─────
         const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
         const rimWorldZ=(_mg2+1.575*_sy2)*S
-        const playerMeshes={}
+        const playerMeshes={},mixerMap={},clockMap={}
+        let gltfTemplate=null,gltfAnims=null,useMixamo=false
+
+        try{
+          // Intentar cargar Mixamo FBX (si el usuario los ha subido)
+          const runExists=await fetch('/models/player_run.fbx',{method:'HEAD'}).then(r=>r.ok).catch(()=>false)
+          if(runExists){
+            useMixamo=true
+            const fbxLoader=new FBXLoader()
+            const runFbx=await new Promise((res,rej)=>fbxLoader.load('/models/player_run.fbx',res,null,rej))
+            let idleFbx=null
+            const idleExists=await fetch('/models/player_idle.fbx',{method:'HEAD'}).then(r=>r.ok).catch(()=>false)
+            if(idleExists) idleFbx=await new Promise((res,rej)=>fbxLoader.load('/models/player_idle.fbx',res,null,rej))
+            gltfTemplate=runFbx
+            // Recopilar clips de animación de ambos archivos
+            gltfAnims=[...(runFbx.animations||[])]
+            if(idleFbx) gltfAnims.push(...(idleFbx.animations||[]))
+            // Normalizar nombres de clips
+            gltfAnims.forEach((c,i)=>{
+              if(!c.name||c.name==='mixamo.com') c.name=i===0?'Run':'Idle'
+            })
+          } else {
+            // Fallback: GLB (Michelle u otro)
+            const glbExists=await fetch('/models/player_fallback.glb',{method:'HEAD'}).then(r=>r.ok).catch(()=>false)
+            if(glbExists){
+              const gltfLoader=new GLTFLoader()
+              const gltf=await new Promise((res,rej)=>gltfLoader.load('/models/player_fallback.glb',res,null,rej))
+              gltfTemplate=gltf.scene; gltfAnims=gltf.animations||[]
+            }
+          }
+        }catch(loadErr){console.warn('3D model load failed, using procedural:',loadErr)}
+
+        const JERSEY_OFF=0x1535a0,JERSEY_DEF=0xf0f0f0
+        const ACCENT_OFF=0xf5c518,ACCENT_DEF=0xcc2222
+
+        function applyJerseyColors(model,isOff,idx){
+          const jC=new THREE.Color(isOff?JERSEY_OFF:JERSEY_DEF)
+          const aC=new THREE.Color(isOff?ACCENT_OFF:ACCENT_DEF)
+          const sC=new THREE.Color(SKINS[idx%SKINS.length])
+          let mi=0
+          model.traverse(c=>{
+            if(!c.isMesh)return;mi++
+            const newMat=new THREE.MeshStandardMaterial({
+              color:mi%3===0?sC:mi%3===1?jC:aC,
+              roughness:0.72,metalness:0,
+              emissive:(mi%3===0?sC:mi%3===1?jC:aC).clone(),
+              emissiveIntensity:mi%3===0?0.08:0.20
+            })
+            c.material=newMat;c.castShadow=true;c.receiveShadow=true
+          })
+        }
+
+        function makeNumSprite(num,isOff){
+          const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
+          const ctx=cv.getContext('2d')
+          const bg=isOff?'#1535a0':'#f0f0f0',fg=isOff?'#f5c518':'#1535a0'
+          ctx.fillStyle=bg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-2,0,Math.PI*2);ctx.fill()
+          ctx.strokeStyle=fg;ctx.lineWidth=4;ctx.beginPath();ctx.arc(S/2,S/2,S/2-3,0,Math.PI*2);ctx.stroke()
+          ctx.fillStyle=fg;ctx.font='bold 58px Arial';ctx.textAlign='center';ctx.textBaseline='middle'
+          ctx.fillText(String(num??''),S/2,S/2+3)
+          const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}))
+          sp.scale.set(0.58,0.58,1);return sp
+        }
+
         const e0=phases[0]?.elements||[]
         let pIdx=0
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
-          const mesh=createPlayer(el.type==='offense',el.num??'?',pIdx++)
+          const isOff=el.type==='offense'
+          let mesh
+
+          if(gltfTemplate){
+            // ── GLTF/FBX mode ──
+            mesh=skeletonClone(gltfTemplate)
+            // Escalar al tamaño correcto (Mixamo FBX = 1px=1cm, necesita /100)
+            const scale=useMixamo?0.020:1.0
+            mesh.scale.setScalar(scale)
+            applyJerseyColors(mesh,isOff,pIdx)
+            // Sprite número
+            const sp=makeNumSprite(el.num??'?',isOff)
+            sp.position.set(0,useMixamo?105:2.8,0)
+            mesh.add(sp);mesh.userData.numSprite=sp
+            // AnimationMixer
+            const mixer=new THREE.AnimationMixer(mesh)
+            const runClip=gltfAnims.find(a=>a.name.toLowerCase().includes('run'))
+            const idleClip=gltfAnims.find(a=>a.name.toLowerCase().includes('idle'))
+            const mixData={mixer,runAction:runClip?mixer.clipAction(runClip):null,idleAction:idleClip?mixer.clipAction(idleClip):null,isRunning:false}
+            if(mixData.idleAction){mixData.idleAction.play()}
+            mixerMap[el.id]=mixData
+            const clk=new THREE.Clock(true);clk.getDelta();clockMap[el.id]=clk
+          } else {
+            // ── Procedural mode ──
+            mesh=createPlayer(isOff,el.num??'?',pIdx)
+          }
+
           const{x,z}=p3(el.x,el.y)
           mesh.position.set(x,0,z)
-          if(el.type==='offense') mesh.rotation.y=Math.atan2(0-x,rimWorldZ-z)
+          if(isOff) mesh.rotation.y=Math.atan2(0-x,rimWorldZ-z)
           else mesh.rotation.y=Math.atan2(0-x,(H_m/2)-z)
           scene.add(mesh)
           playerMeshes[el.id]=mesh
+          pIdx++
         }
 
         const ball=createBall(scene)
@@ -659,7 +752,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,ball}
+        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,clockMap,ball,hasGLTF:!!gltfTemplate}
         renderer.render(scene,camera)
         setInitError(null)
 
@@ -798,8 +891,27 @@ export default function Court3DView({phases,courtType}){
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
         m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        // Animación por estado baloncestístico
-        animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
+        // ── Animación: GLTF mixer O procedural según modo ─────────
+        const mixData=s.mixerMap?.[e.id]
+        if(mixData){
+          // Modo GLTF: crossfade Run ↔ Idle
+          if(isMoving&&!mixData.isRunning){
+            if(mixData.idleAction)mixData.idleAction.crossFadeTo(mixData.runAction,0.25,true)
+            if(mixData.runAction){mixData.runAction.reset().play();mixData.runAction.timeScale=2.2}
+            mixData.isRunning=true
+          } else if(!isMoving&&mixData.isRunning){
+            if(mixData.runAction)mixData.runAction.crossFadeTo(mixData.idleAction,0.30,true)
+            if(mixData.idleAction)mixData.idleAction.reset().play()
+            mixData.isRunning=false
+          }
+          const dt=Math.min(s.clockMap?.[e.id]?.getDelta()??0.016,0.05)
+          mixData.mixer.update(dt)
+          // Sprite número sigue al root del modelo
+          if(m.userData.numSprite)m.userData.numSprite.visible=true
+        } else {
+          // Modo procedural
+          animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
+        }
       }
 
       // ══ BALÓN ══════════════════════════════════════════════════

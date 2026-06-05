@@ -155,189 +155,413 @@ function addHoop(scene,courtType,H_m,flipped){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   CEL-SHADING + OUTLINE helpers
+   HELPERS: materials + outline
 ══════════════════════════════════════════════════════════════ */
 let _toonGrad=null
 function getToonGrad(){
   if(_toonGrad)return _toonGrad
   const c=document.createElement('canvas');c.width=4;c.height=1
   const ctx=c.getContext('2d')
-  ;['#222222','#666666','#bbbbbb','#ffffff'].forEach((col,i)=>{ctx.fillStyle=col;ctx.fillRect(i,0,1,1)})
+  ;['#1a1a1a','#606060','#c0c0c0','#ffffff'].forEach((col,i)=>{ctx.fillStyle=col;ctx.fillRect(i,0,1,1)})
   _toonGrad=new THREE.CanvasTexture(c)
   _toonGrad.magFilter=THREE.NearestFilter;_toonGrad.minFilter=THREE.NearestFilter
   return _toonGrad
 }
-// Toon material factory
 function tm(col){return new THREE.MeshToonMaterial({color:col,gradientMap:getToonGrad()})}
-// Cartoon outline: renders back faces slightly enlarged in black
-function ol(mesh,sc=1.06){
-  const m=new THREE.Mesh(mesh.geometry,new THREE.MeshBasicMaterial({color:0x080808,side:THREE.BackSide}))
+function smMat(col,rough=0.62){return new THREE.MeshStandardMaterial({color:col,roughness:rough,metalness:0})}
+function ol(mesh,sc=1.055){
+  const m=new THREE.Mesh(mesh.geometry,new THREE.MeshBasicMaterial({color:0x060606,side:THREE.BackSide}))
   m.scale.setScalar(sc);mesh.add(m)
 }
-// Mesh helpers
-function cyl(r1,r2,h,seg,mat){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg),mat);m.castShadow=true;return m}
-function sph(r,ws,hs,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r,ws,hs),mat);m.castShadow=true;return m}
-function bx(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
+// Lathe helper — profile points [r,y] → LatheGeometry
+function lathe(pts,seg=14){return new THREE.LatheGeometry(pts.map(([r,y])=>new THREE.Vector2(r,y)),seg)}
+function cylM(r1,r2,h,seg,mat){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg),mat);m.castShadow=true;return m}
+function sphM(r,ws,hs,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r,ws,hs),mat);m.castShadow=true;return m}
+function boxM(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
 
-/* ── skin & hair palettes ──────────────────────────────────── */
+/* ── palettes ──────────────────────────────────────────────── */
 const SKINS=[0x7a4f3a,0xc07840,0xedc9a0,0x5c3520,0xd4956a,0x3d2010]
 const HAIRS=[0x0d0400,0x1e0e04,0x241005,0x100804,0x180a03,0x4a3020]
 
 /* ══════════════════════════════════════════════════════════════
-   ARTICULATED PLAYER
-   Estructura jerárquica con joints reales para animación:
-     G (root)
-     ├── leftHipG → leftKneeG (pierna izq)
-     ├── rightHipG → rightKneeG (pierna der)
-     ├── torsoG
-     │   ├── leftShG → leftElG (brazo izq)
-     │   └── rightShG → rightElG (brazo der)
-     ├── headG
+   CARA DETALLADA — canvas 512x512 con ojos, nariz, boca, cejas
+   Se aplica como PlaneGeometry billboard delante de la cabeza
+══════════════════════════════════════════════════════════════ */
+function makeDetailFace(skinHex,hairHex){
+  const S=512,c=document.createElement('canvas');c.width=S;c.height=S
+  const ctx=c.getContext('2d')
+  const sr=(skinHex>>16)&0xff,sg=(skinHex>>8)&0xff,sb=skinHex&0xff
+
+  // ── Profundidad de piel: gradiente radial para dar volumen ──
+  const dg=ctx.createRadialGradient(S*.50,S*.42,S*.04,S*.50,S*.50,S*.47)
+  dg.addColorStop(0,`rgba(${Math.min(255,sr+32)},${Math.min(255,sg+24)},${Math.min(255,sb+18)},0.40)`)
+  dg.addColorStop(.65,`rgba(${sr},${sg},${sb},0.0)`)
+  dg.addColorStop(1,`rgba(0,0,0,0.28)`)
+  ctx.fillStyle=dg
+  ctx.beginPath();ctx.ellipse(S*.5,S*.50,S*.46,S*.48,0,0,Math.PI*2);ctx.fill()
+
+  // ── OJOS ──────────────────────────────────────────────────
+  const eyeY=S*.40,eX=S*.155
+  ;[S*.5-eX,S*.5+eX].forEach(ex=>{
+    // sombra ocular
+    ctx.fillStyle='rgba(0,0,0,0.12)'
+    ctx.beginPath();ctx.ellipse(ex,eyeY,S*.122,S*.085,0,0,Math.PI*2);ctx.fill()
+    // esclerótica
+    ctx.fillStyle='#f6f6f4'
+    ctx.beginPath();ctx.ellipse(ex,eyeY,S*.104,S*.070,0,0,Math.PI*2);ctx.fill()
+    // iris (color según tono de piel)
+    const irisC=sr<120?'#3d2205':'#284478'
+    ctx.fillStyle=irisC
+    ctx.beginPath();ctx.arc(ex,eyeY,S*.052,0,Math.PI*2);ctx.fill()
+    // degradado iris para profundidad
+    const ig=ctx.createRadialGradient(ex-S*.012,eyeY-S*.012,S*.005,ex,eyeY,S*.052)
+    ig.addColorStop(0,'rgba(255,255,255,0.10)');ig.addColorStop(1,'rgba(0,0,0,0.25)')
+    ctx.fillStyle=ig;ctx.beginPath();ctx.arc(ex,eyeY,S*.052,0,Math.PI*2);ctx.fill()
+    // pupila
+    ctx.fillStyle='#050505'
+    ctx.beginPath();ctx.arc(ex,eyeY,S*.029,0,Math.PI*2);ctx.fill()
+    // brillo principal
+    ctx.fillStyle='rgba(255,255,255,0.94)'
+    ctx.beginPath();ctx.arc(ex+S*.018,eyeY-S*.024,S*.018,0,Math.PI*2);ctx.fill()
+    // brillo secundario pequeño
+    ctx.fillStyle='rgba(255,255,255,0.58)'
+    ctx.beginPath();ctx.arc(ex-S*.032,eyeY+S*.024,S*.011,0,Math.PI*2);ctx.fill()
+    // párpado superior
+    ctx.strokeStyle='rgba(0,0,0,0.65)';ctx.lineWidth=S*.022
+    ctx.beginPath();ctx.arc(ex,eyeY,S*.100,Math.PI*1.08,Math.PI*1.92);ctx.stroke()
+    // línea inferior párpado
+    ctx.strokeStyle='rgba(0,0,0,0.22)';ctx.lineWidth=S*.012
+    ctx.beginPath();ctx.arc(ex,eyeY,S*.100,Math.PI*.06,Math.PI*.94);ctx.stroke()
+    // pestañas superiores (4 líneas cortas)
+    ctx.strokeStyle='rgba(0,0,0,0.70)';ctx.lineWidth=S*.014;ctx.lineCap='round'
+    for(let i=-2;i<=2;i++){
+      const a=Math.PI*1.5+i*0.18
+      ctx.beginPath()
+      ctx.moveTo(ex+Math.cos(a)*S*.100,eyeY+Math.sin(a)*S*.100)
+      ctx.lineTo(ex+Math.cos(a)*S*.124,eyeY+Math.sin(a)*S*.124-S*.010)
+      ctx.stroke()
+    }
+  })
+
+  // ── CEJAS ─────────────────────────────────────────────────
+  const browY=eyeY-S*.096
+  const browDark=`rgba(${Math.max(0,sr-82)},${Math.max(0,sg-66)},${Math.max(0,sb-56)},0.94)`
+  ;[[S*.5-eX,-1],[S*.5+eX,1]].forEach(([bx,sign])=>{
+    ctx.save()
+    ctx.strokeStyle=browDark;ctx.lineWidth=S*.052;ctx.lineCap='round';ctx.lineJoin='round'
+    ctx.beginPath()
+    ctx.moveTo(bx-S*.106,browY+S*.030*sign*.4)
+    ctx.quadraticCurveTo(bx,browY-S*.016,bx+S*.106,browY+S*.022*sign)
+    ctx.stroke()
+    // relleno más oscuro en borde inferior
+    ctx.strokeStyle=browDark.replace('0.94','0.40');ctx.lineWidth=S*.020
+    ctx.beginPath()
+    ctx.moveTo(bx-S*.100,browY+S*.042*sign*.4)
+    ctx.quadraticCurveTo(bx,browY,bx+S*.100,browY+S*.036*sign)
+    ctx.stroke()
+    ctx.restore()
+  })
+
+  // ── NARIZ ─────────────────────────────────────────────────
+  const noseY=S*.585
+  // puente nasal
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-58)},${Math.max(0,sg-48)},${Math.max(0,sb-40)},0.48)`
+  ctx.lineWidth=S*.026;ctx.lineCap='round'
+  ctx.beginPath();ctx.moveTo(S*.5,eyeY+S*.06);ctx.lineTo(S*.5,noseY);ctx.stroke()
+  // alas nasales
+  ctx.fillStyle=`rgba(${Math.max(0,sr-48)},${Math.max(0,sg-40)},${Math.max(0,sb-34)},0.45)`
+  ;[-S*.060,S*.060].forEach(ox=>{
+    ctx.beginPath();ctx.ellipse(S*.5+ox,noseY+S*.022,S*.042,S*.032,0,0,Math.PI*2);ctx.fill()
+  })
+  // punta nasal — sombra
+  ctx.fillStyle=`rgba(${Math.max(0,sr-38)},${Math.max(0,sg-30)},${Math.max(0,sb-25)},0.30)`
+  ctx.beginPath();ctx.arc(S*.5,noseY,S*.028,0,Math.PI*2);ctx.fill()
+
+  // ── BOCA ──────────────────────────────────────────────────
+  const mY=S*.735
+  // labio superior (arco de cupido)
+  ctx.fillStyle=`rgba(${Math.max(0,sr-52)},${Math.max(0,sg-44)},${Math.max(0,sb-40)},0.82)`
+  ctx.beginPath()
+  ctx.moveTo(S*.368,mY+S*.010)
+  ctx.quadraticCurveTo(S*.428,mY-S*.028,S*.500,mY+S*.002)
+  ctx.quadraticCurveTo(S*.572,mY-S*.028,S*.632,mY+S*.010)
+  ctx.quadraticCurveTo(S*.568,mY+S*.044,S*.500,mY+S*.040)
+  ctx.quadraticCurveTo(S*.432,mY+S*.044,S*.368,mY+S*.010)
+  ctx.fill()
+  // labio inferior
+  ctx.fillStyle=`rgba(${Math.max(0,sr-36)},${Math.max(0,sg-30)},${Math.max(0,sb-26)},0.72)`
+  ctx.beginPath();ctx.ellipse(S*.5,mY+S*.062,S*.085,S*.040,0,0,Math.PI*2);ctx.fill()
+  // brillo labio inferior
+  ctx.fillStyle='rgba(255,255,255,0.15)'
+  ctx.beginPath();ctx.ellipse(S*.5,mY+S*.055,S*.048,S*.018,0,0,Math.PI*2);ctx.fill()
+  // línea intermedia boca
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-78)},${Math.max(0,sg-62)},${Math.max(0,sb-54)},0.72)`
+  ctx.lineWidth=S*.015;ctx.lineCap='round'
+  ctx.beginPath();ctx.moveTo(S*.368,mY+S*.014);ctx.lineTo(S*.632,mY+S*.014);ctx.stroke()
+  // comisuras
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-45)},${Math.max(0,sg-36)},${Math.max(0,sb-30)},0.35)`
+  ctx.lineWidth=S*.018;ctx.lineCap='round'
+  ;[-S*.075,S*.075].forEach(ox=>{
+    ctx.beginPath();ctx.arc(S*.5+ox,mY-S*.072,S*.098,Math.PI*.52,Math.PI*.95);ctx.stroke()
+  })
+
+  // ── MENTÓN ────────────────────────────────────────────────
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-28)},${Math.max(0,sg-22)},${Math.max(0,sb-18)},0.20)`
+  ctx.lineWidth=S*.034;ctx.lineCap='round'
+  ctx.beginPath();ctx.arc(S*.5,mY+S*.195,S*.136,Math.PI*.12,Math.PI*.88);ctx.stroke()
+
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=16;return tex
+}
+
+/* ══════════════════════════════════════════════════════════════
+   JERSEY TEXTURE — stripes, number area, subtle creases
+══════════════════════════════════════════════════════════════ */
+function makeJerseyTex(isOffense,accentHex){
+  const S=256,c=document.createElement('canvas');c.width=S;c.height=S
+  const ctx=c.getContext('2d')
+  const ar=(accentHex>>16)&0xff,ag=(accentHex>>8)&0xff,ab=accentHex&0xff
+  // bandas laterales del acento
+  ctx.fillStyle=`rgba(${ar},${ag},${ab},0.85)`
+  ctx.fillRect(0,0,S*.10,S);ctx.fillRect(S*.90,0,S*.10,S)
+  // arrugas sutiles del tejido
+  ctx.strokeStyle='rgba(0,0,0,0.07)';ctx.lineWidth=1.5
+  ;[S*.3,S*.5,S*.7].forEach(y=>{
+    ctx.beginPath();ctx.moveTo(S*.10,y);ctx.lineTo(S*.90,y);ctx.stroke()
+  })
+  // sombra bajo cuello
+  const ng=ctx.createLinearGradient(0,0,0,S*.18)
+  ng.addColorStop(0,'rgba(0,0,0,0.15)');ng.addColorStop(1,'rgba(0,0,0,0)')
+  ctx.fillStyle=ng;ctx.fillRect(S*.10,0,S*.80,S*.18)
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=8;return tex
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SHOE TEXTURE — cordones y logo
+══════════════════════════════════════════════════════════════ */
+function makeShoeTex(shoeHex,accentHex){
+  const S=128,c=document.createElement('canvas');c.width=S;c.height=S*.60|0
+  const ctx=c.getContext('2d')
+  const ar=(accentHex>>16)&0xff,ag=(accentHex>>8)&0xff,ab=accentHex&0xff
+  ctx.fillStyle=`rgb(${ar},${ag},${ab})`;ctx.fillRect(S*.20,0,S*.60,4)
+  // cordones
+  ctx.strokeStyle='rgba(255,255,255,0.70)';ctx.lineWidth=2
+  ;[.25,.35,.45,.55,.65,.75].forEach(y=>{
+    ctx.beginPath();ctx.moveTo(S*.28,S*.60*y);ctx.lineTo(S*.72,S*.60*y);ctx.stroke()
+  })
+  const tex=new THREE.CanvasTexture(c);return tex
+}
+
+/* ══════════════════════════════════════════════════════════════
+   JUGADOR ARTICULADO — NBA proportions + cara detallada
+   Altura ~2.05m. Joints para animación completa.
 ══════════════════════════════════════════════════════════════ */
 function createPlayer(isOffense,num,idx=0){
   const G=new THREE.Group()
-  const jC=isOffense?0x1a3a8a:0xf2f2f2   // jersey
-  const sC=isOffense?0x112060:0xdadada   // shorts (ligeramente más oscuro)
-  const aC=isOffense?0xf5c518:0xcc2222   // acento
+  const jC=isOffense?0x1a3a8a:0xf0f0f0
+  const sC=isOffense?0x0e1e55:0xd5d5d5
+  const aC=isOffense?0xf5c518:0xcc2222
   const skC=SKINS[idx%SKINS.length]
   const hC=HAIRS[idx%HAIRS.length]
-  const shC=isOffense?0x111111:0xeeeeee
+  const shC=isOffense?0x111111:0xf0f0f0
 
-  const J=tm(jC),S=tm(sC),SK=tm(skC),AC=tm(aC),SH=tm(shC),BLK=tm(0x111111)
+  // Jersey usa StandardMaterial con textura para mejor luz PBR
+  const jTex=makeJerseyTex(isOffense,aC)
+  const J=new THREE.MeshStandardMaterial({color:jC,map:jTex,roughness:0.80,metalness:0})
+  const S=new THREE.MeshStandardMaterial({color:sC,roughness:0.82,metalness:0})
+  const SK=smMat(skC,0.65)  // piel: Standard para SSS aproximado
+  const AC=tm(aC)
+  const SH=new THREE.MeshStandardMaterial({color:shC,roughness:0.55,metalness:0.05})
+  const WHT=smMat(0xfafafa,0.85)
 
-  // ── sombra en suelo ──
-  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.40,24),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.40}))
+  // ── Sombra suelo ──────────────────────────────────────────
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.42,24),
+    new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.38}))
   shadow.rotation.x=-Math.PI/2;shadow.position.y=0.002;G.add(shadow)
 
-  // ══ PIERNAS ══════════════════════════════════════════════
+  // ══ PIERNAS con LatheGeometry muscular ═══════════════════
   function makeLeg(sx){
-    // HIP GROUP — gira la pierna completa hacia delante/atrás
     const hipG=new THREE.Group()
-    hipG.position.set(sx*0.118,0.88,0)
+    hipG.position.set(sx*0.122,0.92,0)
 
-    // muslo (shorts)
-    const thigh=cyl(0.105,0.090,0.48,12,S)
-    thigh.position.y=-0.24;ol(thigh,1.05);hipG.add(thigh)
+    // MUSLO: LatheGeometry — quad y bíceps femoral
+    const thighGeo=lathe([
+      [0.00,  0.00], [0.092,0.02],[0.110,0.10],  // quad
+      [0.116,0.22],[0.112,0.34],[0.098,0.46],     // rodilla
+    ],13)
+    const thigh=new THREE.Mesh(thighGeo,S);thigh.castShadow=true
+    thigh.position.y=-0.46;ol(thigh,1.05);hipG.add(thigh)
 
-    // KNEE GROUP — gira la rodilla
-    const kneeG=new THREE.Group();kneeG.position.y=-0.48
+    const kneeG=new THREE.Group();kneeG.position.y=-0.46
 
-    // espinilla (piel)
-    const shin=cyl(0.075,0.060,0.46,10,SK)
-    shin.position.y=-0.23;ol(shin,1.05);kneeG.add(shin)
+    // PANTORRILLA: LatheGeometry — gemelo
+    const calfGeo=lathe([
+      [0.00,0.00],[0.065,0.02],[0.082,0.12],   // gemelo
+      [0.078,0.24],[0.064,0.38],[0.056,0.46],  // tobillo
+    ],12)
+    const calf=new THREE.Mesh(calfGeo,SK);calf.castShadow=true
+    calf.position.y=-0.46;ol(calf,1.05);kneeG.add(calf)
 
-    // calcetín blanco (acento)
-    const sock=cyl(0.076,0.072,0.14,10,tm(0xffffff))
-    sock.position.y=-0.43;kneeG.add(sock)
+    // CALCETÍN
+    const sockGeo=lathe([[0.00,0],[0.072,0.01],[0.074,0.14],[0.070,0.16]],12)
+    const sock=new THREE.Mesh(sockGeo,WHT);sock.position.y=-0.46;kneeG.add(sock)
 
-    // zapatilla
-    const shoe=bx(0.195,0.092,0.32,SH)
-    shoe.position.set(0,-0.505,0.04);ol(shoe,1.04);kneeG.add(shoe)
-    // suela de color
-    const sole=bx(0.200,0.026,0.325,AC)
-    sole.position.set(0,-0.558,0.04);kneeG.add(sole)
+    // ZAPATILLA con forma más realista
+    const shoeGrp=new THREE.Group();shoeGrp.position.set(0,-0.525,0.035)
+    // suela
+    const soleGeo=new THREE.BoxGeometry(0.205,0.038,0.330)
+    const soleMesh=new THREE.Mesh(soleGeo,new THREE.MeshStandardMaterial({color:aC,roughness:0.5}))
+    soleMesh.position.y=-0.022;shoeGrp.add(soleMesh)
+    // parte superior (forma ligeramente curvada)
+    const upperGeo=new THREE.BoxGeometry(0.192,0.098,0.318)
+    const upperMesh=new THREE.Mesh(upperGeo,SH);upperMesh.position.y=0.022
+    upperMesh.castShadow=true;ol(upperMesh,1.03);shoeGrp.add(upperMesh)
+    // lengüeta / cordones (plano con textura)
+    const laceTex=makeShoeTex(shC,aC)
+    const lacePlane=new THREE.Mesh(new THREE.PlaneGeometry(0.14,0.12),
+      new THREE.MeshBasicMaterial({map:laceTex,transparent:true,alphaTest:0.01}))
+    lacePlane.position.set(0,0.068,0.155);lacePlane.rotation.x=-0.22;shoeGrp.add(lacePlane)
+    kneeG.add(shoeGrp)
 
     hipG.add(kneeG);G.add(hipG)
     return{hipG,kneeG}
   }
   const LL=makeLeg(-1),RL=makeLeg(1)
 
-  // ══ TORSO GROUP ══════════════════════════════════════════
-  const torsoG=new THREE.Group();torsoG.position.y=0.88
+  // ══ TORSO GROUP — LatheGeometry trapezoidal (hombros anchos) ═
+  const torsoG=new THREE.Group();torsoG.position.y=0.92
 
-  // cinturilla shorts
-  const waist=cyl(0.250,0.230,0.11,14,AC);waist.position.y=0.06;torsoG.add(waist)
+  // cinturilla
+  const waistGeo=lathe([[0.00,0],[0.240,0.01],[0.252,0.10],[0.248,0.12]],16)
+  const waistM=new THREE.Mesh(waistGeo,AC);waistM.position.y=0;torsoG.add(waistM)
 
-  // cuerpo jersey
-  const body=cyl(0.275,0.228,0.75,14,J);body.position.y=0.435;ol(body,1.04);torsoG.add(body)
+  // torso: wide at shoulders, tapers at waist
+  const bodyGeo=lathe([
+    [0.00,0.00],[0.238,0.02],[0.252,0.10],  // cintura
+    [0.270,0.28],[0.295,0.48],               // pecho
+    [0.305,0.62],[0.298,0.72],               // pectoral
+    [0.268,0.76],[0.220,0.80],               // hombro
+  ],16)
+  const bodyM=new THREE.Mesh(bodyGeo,J);bodyM.castShadow=true
+  bodyM.position.y=0;ol(bodyM,1.035);torsoG.add(bodyM)
 
-  // cuello/collar
-  const collar=cyl(0.150,0.148,0.06,12,AC);collar.position.y=0.82;torsoG.add(collar)
+  // collar
+  const collarGeo=lathe([[0.00,0],[0.148,0.01],[0.152,0.07],[0.148,0.08]],14)
+  const collarM=new THREE.Mesh(collarGeo,AC);collarM.position.y=0.78;torsoG.add(collarM)
+
+  // caps de hombro esféricos
+  ;[-1,1].forEach(sx=>{
+    const cap=sphM(0.085,10,10,J);cap.castShadow=true
+    cap.position.set(sx*0.310,0.76,0);ol(cap,1.04);torsoG.add(cap)
+  })
 
   G.add(torsoG)
 
-  // ══ BRAZOS ═══════════════════════════════════════════════
-  // Pivot del hombro en posición de hombro del torso
+  // ══ BRAZOS con LatheGeometry muscular ════════════════════
   function makeArm(sx){
-    // SHOULDER GROUP — pivota en el hombro
     const shG=new THREE.Group()
-    shG.position.set(sx*0.300,0.435+0.88,0)
+    shG.position.set(sx*0.310,0.76+0.92,0)
 
-    // brazo superior (jersey)
-    const ua=cyl(0.088,0.075,0.40,10,J);ua.position.y=-0.20;ol(ua,1.05);shG.add(ua)
+    // BÍCEP: LatheGeometry
+    const bicepGeo=lathe([
+      [0.00,0.00],[0.088,0.01],[0.098,0.10],  // bicep pico
+      [0.090,0.22],[0.078,0.38],[0.072,0.42],
+    ],11)
+    const bicep=new THREE.Mesh(bicepGeo,J);bicep.castShadow=true
+    bicep.position.y=-0.42;ol(bicep,1.05);shG.add(bicep)
 
-    // ELBOW GROUP — pivota en el codo
-    const elG=new THREE.Group();elG.position.y=-0.40
+    const elG=new THREE.Group();elG.position.y=-0.42
 
-    // antebrazo (piel)
-    const fa=cyl(0.070,0.058,0.36,10,SK);fa.position.y=-0.18;ol(fa,1.05);elG.add(fa)
+    // ANTEBRAZO
+    const foreGeo=lathe([
+      [0.00,0.00],[0.070,0.01],[0.078,0.08],  // pico del antebrazo
+      [0.068,0.22],[0.055,0.36],[0.048,0.40],
+    ],11)
+    const fore=new THREE.Mesh(foreGeo,SK);fore.castShadow=true
+    fore.position.y=-0.40;ol(fore,1.05);elG.add(fore)
 
-    // mano
-    const hand=sph(0.072,10,10,SK);hand.position.y=-0.39;ol(hand,1.06);elG.add(hand)
+    // MANO — ligeramente aplanada para realismo
+    const handGeo=new THREE.SphereGeometry(0.072,12,10)
+    const hand=new THREE.Mesh(handGeo,SK);hand.castShadow=true
+    hand.scale.set(1.10,0.82,1.20);hand.position.y=-0.43
+    ol(hand,1.06);elG.add(hand)
+    // dedos simplificados (3 esferas pequeñas)
+    ;[-0.035,0,0.035].forEach((ox,i)=>{
+      const fing=new THREE.Mesh(new THREE.SphereGeometry(0.022,8,6),SK)
+      fing.scale.set(0.8,1,1.5);fing.position.set(ox,-0.50+i*0.003,0.040)
+      elG.add(fing)
+    })
 
     shG.add(elG);torsoG.add(shG)
     return{shG,elG,hand}
   }
   const LA=makeArm(-1),RA=makeArm(1)
 
-  // ══ CUELLO + CABEZA ══════════════════════════════════════
-  const neck=cyl(0.105,0.115,0.19,10,SK)
-  neck.position.set(0,0.88+0.79+0.08,0);ol(neck);G.add(neck)
+  // ══ CUELLO ════════════════════════════════════════════════
+  const neckGeo=lathe([[0.00,0],[0.112,0.01],[0.118,0.10],[0.108,0.20],[0.098,0.22]],12)
+  const neckM=new THREE.Mesh(neckGeo,SK);neckM.castShadow=true
+  neckM.position.set(0,0.92+0.82+0.02,0);ol(neckM);G.add(neckM)
 
+  // ══ CABEZA ════════════════════════════════════════════════
   const headG=new THREE.Group()
-  headG.position.set(0,0.88+0.79+0.22,0)
+  headG.position.set(0,0.92+0.82+0.26,0)
 
-  // cabeza con forma cartoon (ligeramente grande)
-  const head=sph(0.225,18,15,SK);head.scale.set(1,1.06,1);ol(head,1.04);headG.add(head)
+  // Cráneo con SphereGeometry alta resolución
+  const skull=sphM(0.228,22,18,SK);skull.scale.set(1.0,1.08,0.98)
+  skull.castShadow=true;ol(skull,1.038);headG.add(skull)
 
-  // ojos
-  const eyeM=tm(0x1a1a2e)
-  ;[[-0.085,0.04,0.20],[0.085,0.04,0.20]].forEach(([ex,ey,ez])=>{
-    const eye=sph(0.032,8,8,eyeM);eye.position.set(ex,ey,ez);headG.add(eye)
-    // brillo del ojo
-    const shine=new THREE.Mesh(new THREE.SphereGeometry(0.012,6,6),tm(0xffffff))
-    shine.position.set(ex+0.012,ey+0.012,ez+0.024);headG.add(shine)
+  // CARA DETALLADA — PlaneGeometry con canvas de cara
+  const faceTex=makeDetailFace(skC,hC)
+  const faceMat=new THREE.MeshBasicMaterial({map:faceTex,transparent:true,alphaTest:0.01,depthWrite:false})
+  const facePlane=new THREE.Mesh(new THREE.PlaneGeometry(0.44,0.44),faceMat)
+  facePlane.position.set(0,0.02,0.215)
+  headG.add(facePlane)
+
+  // PELO — varios volúmenes para más realismo
+  const hairMat=new THREE.MeshStandardMaterial({color:hC,roughness:0.95,metalness:0})
+  // capa base
+  const hairBase=new THREE.Mesh(new THREE.SphereGeometry(0.232,16,10,0,Math.PI*2,0,Math.PI*.47),hairMat)
+  headG.add(hairBase)
+  // volumen superior adicional
+  const hairTop=new THREE.Mesh(new THREE.SphereGeometry(0.225,14,8,0,Math.PI*2,0,Math.PI*.25),hairMat)
+  hairTop.position.y=0.06;headG.add(hairTop)
+  // contorno negro
+  const hairOL=new THREE.Mesh(new THREE.SphereGeometry(0.238,16,10,0,Math.PI*2,0,Math.PI*.47),
+    new THREE.MeshBasicMaterial({color:0x060606,side:THREE.BackSide}))
+  headG.add(hairOL)
+  // orejas
+  ;[-1,1].forEach(sx=>{
+    const earGeo=new THREE.SphereGeometry(0.038,8,8);earGeo.scale(1,1.4,0.5)
+    const ear=new THREE.Mesh(earGeo,SK);ear.position.set(sx*0.225,-0.02,0)
+    headG.add(ear)
   })
-  // cejas
-  ;[[-0.085,0.11,0.20],[0.085,0.11,0.20]].forEach(([ex,ey,ez])=>{
-    const brow=bx(0.055,0.016,0.04,tm(hC));brow.position.set(ex,ey,ez);headG.add(brow)
-  })
-  // pelo
-  const hair=new THREE.Mesh(new THREE.SphereGeometry(0.228,14,9,0,Math.PI*2,0,Math.PI*0.46),tm(hC))
-  hair.position.set(0,0,0);headG.add(hair)
-  // contorno cabeza
-  const hairLine=new THREE.Mesh(new THREE.SphereGeometry(0.232,14,9,0,Math.PI*2,0,Math.PI*0.46),BLK)
-  hairLine.position.set(0,0,0);headG.add(hairLine)
 
   G.add(headG)
 
   // ══ NÚMEROS ══════════════════════════════════════════════
-  function numTex(size,bgCol,fgCol,txt){
-    const cv=document.createElement('canvas');cv.width=size;cv.height=size
-    const cx=cv.getContext('2d')
-    cx.fillStyle=bgCol;cx.fillRect(0,0,size,size)
-    cx.fillStyle=fgCol;cx.font=`bold ${Math.round(size*0.50)}px Arial`
-    cx.textAlign='center';cx.textBaseline='middle';cx.fillText(txt,size/2,size/2+size*0.03)
+  function numTex(sz,bg,fg,t){
+    const cv=document.createElement('canvas');cv.width=sz;cv.height=sz
+    const cx=cv.getContext('2d');cx.fillStyle=bg;cx.fillRect(0,0,sz,sz)
+    cx.fillStyle=fg;cx.font=`bold ${Math.round(sz*.50)}px Arial,sans-serif`
+    cx.textAlign='center';cx.textBaseline='middle';cx.fillText(t,sz/2,sz/2+sz*.03)
     return new THREE.CanvasTexture(cv)
   }
-  const nbg=isOffense?'#1a3a8a':'#f2f2f2',nfg=isOffense?'#f5c518':'#1a3a8a'
+  const nbg=isOffense?'#1a3a8a':'#f0f0f0',nfg=isOffense?'#f5c518':'#1a3a8a'
   const nStr=String(num??'')
-  // número cenital (vista overhead)
-  const topN=new THREE.Mesh(new THREE.CircleGeometry(0.23,20),new THREE.MeshBasicMaterial({map:numTex(160,nbg,nfg,nStr),transparent:true,depthWrite:false}))
-  topN.rotation.x=-Math.PI/2;topN.position.set(0,2.25,0);G.add(topN)
-  // número pecho
-  const chN=new THREE.Mesh(new THREE.PlaneGeometry(0.28,0.22),new THREE.MeshBasicMaterial({map:numTex(120,nbg,nfg,nStr),transparent:true,depthWrite:false}))
-  chN.position.set(0,0.88+0.52,0.285);G.add(chN)
+  const topN=new THREE.Mesh(new THREE.CircleGeometry(0.24,22),
+    new THREE.MeshBasicMaterial({map:numTex(160,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  topN.rotation.x=-Math.PI/2;topN.position.set(0,2.28,0);G.add(topN)
+  const chN=new THREE.Mesh(new THREE.PlaneGeometry(0.30,0.24),
+    new THREE.MeshBasicMaterial({map:numTex(120,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  chN.position.set(0,0.92+0.55,0.306);G.add(chN)
 
-  // ══ GUARDAR JOINTS PARA ANIMACIÓN ════════════════════════
+  // ══ JOINTS PARA ANIMACIÓN ════════════════════════════════
   G.userData={
-    leftHipG:LL.hipG,  rightHipG:RL.hipG,
-    leftKneeG:LL.kneeG, rightKneeG:RL.kneeG,
-    leftShG:LA.shG,    rightShG:RA.shG,
-    leftElG:LA.elG,    rightElG:RA.elG,
-    rightHand:RA.hand, leftHand:LA.hand,
+    leftHipG:LL.hipG,rightHipG:RL.hipG,
+    leftKneeG:LL.kneeG,rightKneeG:RL.kneeG,
+    leftShG:LA.shG,rightShG:RA.shG,
+    leftElG:LA.elG,rightElG:RA.elG,
+    rightHand:RA.hand,leftHand:LA.hand,
     torsoG,headG,
-    // aliases legacy
     leftArm:LA.shG,rightArm:RA.shG,
     leftFore:LA.elG,rightFore:RA.elG,
   }

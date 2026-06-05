@@ -2,8 +2,6 @@
 
 import { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 /* ── constants ───────────────────────────────────────────────── */
 const CW=560,HALF_H=520,FULL_H=970,PR=20
@@ -157,72 +155,230 @@ function addHoop(scene,courtType,H_m,flipped){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   GLTF PLAYER SYSTEM — Soldier.glb con animaciones motion-capture
+   PROCEDURAL BASKETBALL PLAYER — limpio, sin outlines, NBA mobile style
 ══════════════════════════════════════════════════════════════ */
 
-const TEAM_COLORS = {
-  offense:  { jersey:0x1a3a8a, shorts:0x112060, accent:0xf5c518, shoe:0x111111 },
-  defense:  { jersey:0xf0f0f0, shorts:0xd0d0d0, accent:0xcc2222, shoe:0xeeeeee },
-  xdefense: { jersey:0xf0f0f0, shorts:0xd0d0d0, accent:0xcc2222, shoe:0xeeeeee },
-}
 const SKINS=[0x7a4f3a,0xc07840,0xedc9a0,0x5c3520,0xd4956a,0x3d2010]
+const HAIRS=[0x0d0400,0x1e0e04,0x241005,0x100804,0x180a03,0x4a3020]
 
-/* cache del modelo para no cargarlo N veces */
-let _gltfPromise=null
-function getGLTF(){
-  if(!_gltfPromise){
-    _gltfPromise=new Promise((resolve,reject)=>{
-      new GLTFLoader().load('/models/player.glb',resolve,undefined,reject)
-    })
+function pMat(hex,emissive=0.22,rough=0.72){
+  const c=new THREE.Color(hex)
+  return new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:0,emissive:c.clone(),emissiveIntensity:emissive})
+}
+
+/* ── Cara detallada en canvas ──────────────────────────────── */
+function makeDetailFace(skinHex){
+  const S=512,c=document.createElement('canvas');c.width=S;c.height=S
+  const ctx=c.getContext('2d')
+  const sr=(skinHex>>16)&0xff,sg=(skinHex>>8)&0xff,sb=skinHex&0xff
+  const dg=ctx.createRadialGradient(S*.50,S*.42,S*.04,S*.50,S*.50,S*.47)
+  dg.addColorStop(0,`rgba(${Math.min(255,sr+32)},${Math.min(255,sg+24)},${Math.min(255,sb+18)},0.40)`)
+  dg.addColorStop(.65,`rgba(${sr},${sg},${sb},0.0)`)
+  dg.addColorStop(1,`rgba(0,0,0,0.28)`)
+  ctx.fillStyle=dg;ctx.beginPath();ctx.ellipse(S*.5,S*.50,S*.46,S*.48,0,0,Math.PI*2);ctx.fill()
+  const eyeY=S*.40,eX=S*.155
+  ;[S*.5-eX,S*.5+eX].forEach(ex=>{
+    ctx.fillStyle='rgba(0,0,0,0.10)';ctx.beginPath();ctx.ellipse(ex,eyeY,S*.122,S*.085,0,0,Math.PI*2);ctx.fill()
+    ctx.fillStyle='#f6f6f4';ctx.beginPath();ctx.ellipse(ex,eyeY,S*.104,S*.070,0,0,Math.PI*2);ctx.fill()
+    ctx.fillStyle=sr<120?'#3d2205':'#284478';ctx.beginPath();ctx.arc(ex,eyeY,S*.052,0,Math.PI*2);ctx.fill()
+    ctx.fillStyle='#060606';ctx.beginPath();ctx.arc(ex,eyeY,S*.029,0,Math.PI*2);ctx.fill()
+    ctx.fillStyle='rgba(255,255,255,0.94)';ctx.beginPath();ctx.arc(ex+S*.018,eyeY-S*.024,S*.018,0,Math.PI*2);ctx.fill()
+    ctx.strokeStyle='rgba(0,0,0,0.65)';ctx.lineWidth=S*.022;ctx.beginPath();ctx.arc(ex,eyeY,S*.100,Math.PI*1.08,Math.PI*1.92);ctx.stroke()
+    ctx.strokeStyle='rgba(0,0,0,0.22)';ctx.lineWidth=S*.012;ctx.beginPath();ctx.arc(ex,eyeY,S*.100,Math.PI*.06,Math.PI*.94);ctx.stroke()
+  })
+  const browY=eyeY-S*.096
+  ;[[S*.5-eX,-1],[S*.5+eX,1]].forEach(([bx,sign])=>{
+    ctx.save();ctx.strokeStyle=`rgba(${Math.max(0,sr-82)},${Math.max(0,sg-66)},${Math.max(0,sb-56)},0.94)`
+    ctx.lineWidth=S*.052;ctx.lineCap='round';ctx.beginPath()
+    ctx.moveTo(bx-S*.106,browY+S*.030*sign*.4);ctx.quadraticCurveTo(bx,browY-S*.016,bx+S*.106,browY+S*.022*sign);ctx.stroke();ctx.restore()
+  })
+  const noseY=S*.585
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-58)},${Math.max(0,sg-48)},${Math.max(0,sb-40)},0.48)`;ctx.lineWidth=S*.026;ctx.lineCap='round'
+  ctx.beginPath();ctx.moveTo(S*.5,eyeY+S*.06);ctx.lineTo(S*.5,noseY);ctx.stroke()
+  ctx.fillStyle=`rgba(${Math.max(0,sr-48)},${Math.max(0,sg-40)},${Math.max(0,sb-34)},0.45)`
+  ;[-S*.060,S*.060].forEach(ox=>{ctx.beginPath();ctx.ellipse(S*.5+ox,noseY+S*.022,S*.042,S*.032,0,0,Math.PI*2);ctx.fill()})
+  const mY=S*.735
+  ctx.fillStyle=`rgba(${Math.max(0,sr-52)},${Math.max(0,sg-44)},${Math.max(0,sb-40)},0.82)`
+  ctx.beginPath();ctx.moveTo(S*.368,mY+S*.010);ctx.quadraticCurveTo(S*.428,mY-S*.028,S*.500,mY+S*.002);ctx.quadraticCurveTo(S*.572,mY-S*.028,S*.632,mY+S*.010);ctx.quadraticCurveTo(S*.568,mY+S*.044,S*.500,mY+S*.040);ctx.quadraticCurveTo(S*.432,mY+S*.044,S*.368,mY+S*.010);ctx.fill()
+  ctx.fillStyle=`rgba(${Math.max(0,sr-36)},${Math.max(0,sg-30)},${Math.max(0,sb-26)},0.72)`;ctx.beginPath();ctx.ellipse(S*.5,mY+S*.062,S*.085,S*.040,0,0,Math.PI*2);ctx.fill()
+  ctx.strokeStyle=`rgba(${Math.max(0,sr-78)},${Math.max(0,sg-62)},${Math.max(0,sb-54)},0.72)`;ctx.lineWidth=S*.015;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(S*.368,mY+S*.014);ctx.lineTo(S*.632,mY+S*.014);ctx.stroke()
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=16;return tex
+}
+
+/* ── Jugador articulado NBA-style ─────────────────────────── */
+function createPlayer(isOffense,num,idx=0){
+  const G=new THREE.Group()
+  const jC=isOffense?0x1535a0:0xf0f0f0
+  const sC=isOffense?0x0e2060:0xdadada
+  const aC=isOffense?0xf5c518:0xcc2222
+  const skC=SKINS[idx%SKINS.length]
+  const hC=HAIRS[idx%HAIRS.length]
+  const shC=isOffense?0x111111:0xfafafa
+
+  const J=pMat(jC,0.22);const S=pMat(sC,0.18);const SK=pMat(skC,0.08,0.65)
+  const AC=pMat(aC,0.32);const SH=pMat(shC,0.10);const WHT=pMat(0xffffff,0.20)
+
+  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.42,20),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.35}))
+  shadow.rotation.x=-Math.PI/2;shadow.position.y=0.01;G.add(shadow)
+
+  function makeLeg(sx){
+    const hipG=new THREE.Group();hipG.position.set(sx*0.116,0.90,0)
+    const thigh=new THREE.Mesh(new THREE.CylinderGeometry(0.100,0.086,0.46,13),S);thigh.position.y=-0.23;thigh.castShadow=true;hipG.add(thigh)
+    const kneeG=new THREE.Group();kneeG.position.y=-0.46
+    const calf=new THREE.Mesh(new THREE.CylinderGeometry(0.074,0.059,0.44,12),SK);calf.position.y=-0.22;calf.castShadow=true;kneeG.add(calf)
+    const sock=new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.072,0.13,12),WHT);sock.position.y=-0.42;kneeG.add(sock)
+    const shoe=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.092,0.32),SH);shoe.position.set(0,-0.508,0.03);shoe.castShadow=true;kneeG.add(shoe)
+    const sole=new THREE.Mesh(new THREE.BoxGeometry(0.195,0.026,0.325),AC);sole.position.set(0,-0.558,0.03);kneeG.add(sole)
+    hipG.add(kneeG);G.add(hipG)
+    return{hipG,kneeG}
   }
-  return _gltfPromise
+  const LL=makeLeg(-1),RL=makeLeg(1)
+
+  const torsoG=new THREE.Group();torsoG.position.y=0.90
+  const waist=new THREE.Mesh(new THREE.CylinderGeometry(0.248,0.230,0.10,14),AC);waist.position.y=0.06;torsoG.add(waist)
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(0.270,0.228,0.73,15),J);body.position.y=0.415;body.castShadow=true;torsoG.add(body)
+  ;[-1,1].forEach(sx=>{const pad=new THREE.Mesh(new THREE.SphereGeometry(0.092,10,10),J);pad.position.set(sx*0.290,0.76,0);pad.castShadow=true;torsoG.add(pad)})
+  const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.148,0.150,0.055,13),AC);collar.position.y=0.78;torsoG.add(collar)
+  G.add(torsoG)
+
+  function makeArm(sx){
+    const shG=new THREE.Group();shG.position.set(sx*0.295,0.76+0.90,0)
+    const ua=new THREE.Mesh(new THREE.CylinderGeometry(0.084,0.072,0.39,11),J);ua.position.y=-0.195;ua.castShadow=true;shG.add(ua)
+    const elG=new THREE.Group();elG.position.y=-0.39
+    const fa=new THREE.Mesh(new THREE.CylinderGeometry(0.066,0.056,0.35,11),SK);fa.position.y=-0.175;fa.castShadow=true;elG.add(fa)
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.070,10,10),SK);hand.position.y=-0.39;hand.scale.set(1.10,0.82,1.18);elG.add(hand)
+    shG.add(elG);torsoG.add(shG)
+    return{shG,elG}
+  }
+  const LA=makeArm(-1),RA=makeArm(1)
+
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.102,0.114,0.18,11),SK);neck.position.set(0,0.90+0.80+0.07,0);G.add(neck)
+
+  const headG=new THREE.Group();headG.position.set(0,0.90+0.80+0.25,0)
+  const skull=new THREE.Mesh(new THREE.SphereGeometry(0.226,22,18),SK);skull.scale.set(1,1.08,0.97);skull.castShadow=true;headG.add(skull)
+  const faceTex=makeDetailFace(skC)
+  const facePlane=new THREE.Mesh(new THREE.PlaneGeometry(0.43,0.43),new THREE.MeshBasicMaterial({map:faceTex,transparent:true,alphaTest:0.01,depthWrite:false}))
+  facePlane.position.set(0,0.02,0.213);headG.add(facePlane)
+  const hairMat=new THREE.MeshStandardMaterial({color:hC,roughness:0.92,emissive:new THREE.Color(hC),emissiveIntensity:0.06})
+  const hair=new THREE.Mesh(new THREE.SphereGeometry(0.231,16,10,0,Math.PI*2,0,Math.PI*.38),hairMat);headG.add(hair)
+  ;[-1,1].forEach(sx=>{const ear=new THREE.Mesh(new THREE.SphereGeometry(0.038,8,8),SK);ear.scale.set(1,1.3,0.5);ear.position.set(sx*0.224,-0.02,0);headG.add(ear)})
+  G.add(headG)
+
+  function numTex(sz,bg,fg,t){
+    const cv=document.createElement('canvas');cv.width=sz;cv.height=sz
+    const cx=cv.getContext('2d');cx.fillStyle=bg;cx.fillRect(0,0,sz,sz)
+    cx.fillStyle=fg;cx.font=`bold ${Math.round(sz*.50)}px Arial`;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(t,sz/2,sz/2+sz*.03)
+    return new THREE.CanvasTexture(cv)
+  }
+  const nbg=isOffense?'#1535a0':'#f0f0f0',nfg=isOffense?'#f5c518':'#1535a0'
+  const nStr=String(num??'')
+  const topN=new THREE.Mesh(new THREE.CircleGeometry(0.24,22),new THREE.MeshBasicMaterial({map:numTex(160,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  topN.rotation.x=-Math.PI/2;topN.position.set(0,2.30,0);G.add(topN)
+  const chN=new THREE.Mesh(new THREE.PlaneGeometry(0.28,0.22),new THREE.MeshBasicMaterial({map:numTex(120,nbg,nfg,nStr),transparent:true,depthWrite:false}))
+  chN.position.set(0,0.90+0.53,0.280);G.add(chN)
+
+  G.userData={
+    leftHipG:LL.hipG,rightHipG:RL.hipG,leftKneeG:LL.kneeG,rightKneeG:RL.kneeG,
+    leftShG:LA.shG,rightShG:RA.shG,leftElG:LA.elG,rightElG:RA.elG,
+    torsoG,headG,
+    leftArm:LA.shG,rightArm:RA.shG,leftFore:LA.elG,rightFore:RA.elG,
+  }
+  return G
 }
 
-/* número cenital sobre el jugador */
-function makeNumSprite(num,isOffense){
-  const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
-  const ctx=cv.getContext('2d')
-  const bg=isOffense?'#1a3a8a':'#f0f0f0',fg=isOffense?'#f5c518':'#1a3a8a'
-  ctx.fillStyle=bg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-2,0,Math.PI*2);ctx.fill()
-  ctx.strokeStyle=fg;ctx.lineWidth=4;ctx.beginPath();ctx.arc(S/2,S/2,S/2-4,0,Math.PI*2);ctx.stroke()
-  ctx.fillStyle=fg;ctx.font='bold 56px Arial,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle'
-  ctx.fillText(String(num??''),S/2,S/2+3)
-  const tex=new THREE.CanvasTexture(cv)
-  const mat=new THREE.SpriteMaterial({map:tex,depthWrite:false,transparent:true})
-  const sprite=new THREE.Sprite(mat);sprite.scale.set(0.55,0.55,1)
-  return sprite
-}
+/* ── Animación baloncestística por estado ──────────────────── */
+function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
+  const{leftHipG,rightHipG,leftKneeG,rightKneeG,leftShG,rightShG,leftElG,rightElG,torsoG}=ud
+  function rst(){
+    ;[leftHipG,rightHipG,leftKneeG,rightKneeG].forEach(j=>{if(j){j.rotation.x=0;j.rotation.z=0}})
+    ;[leftShG,rightShG,leftElG,rightElG].forEach(j=>{if(j){j.rotation.x=0;j.rotation.z=0}})
+    if(torsoG){torsoG.rotation.x=0;torsoG.rotation.z=0}
+    m.position.y=0
+  }
 
-/* aplica colores de equipo al clon GLTF
-   Reemplazamos TODO el material por MeshStandardMaterial fresco —
-   el Soldier usa MeshPhongMaterial que no soporta emissive igual */
-function colorizePlayer(model,type,skinIdx){
-  const isOff=type==='offense'
-  // Paleta clara: jerseys vibrantes, piel visible, zapatillas contrastadas
-  const jerseyHex=isOff?0x1535a0:0xf5f5f5
-  const shortsHex=isOff?0x0e2270:0xd8d8d8
-  const skinHex  =SKINS[skinIdx%SKINS.length]
-  const accentHex=isOff?0xf5c518:0xdd2222
-  const shoeHex  =isOff?0x0a0a0a:0xffffff
-  const meshes=[]
-  model.traverse(c=>{if(c.isMesh)meshes.push(c)})
-  // El Soldier.glb tiene 4 meshes en orden: cuerpo, piernas, manos, cabeza
-  const palette=[jerseyHex,shortsHex,skinHex,accentHex]
-  meshes.forEach((c,i)=>{
-    const hex=palette[Math.min(i,palette.length-1)]
-    const col=new THREE.Color(hex)
-    const mat=new THREE.MeshStandardMaterial({
-      color:col,roughness:i===2?0.65:0.72,metalness:0,
-      emissive:col.clone(),emissiveIntensity:i===2?0.08:0.20
-    })
-    c.material=mat;c.castShadow=true;c.receiveShadow=true
-  })
-  // sombra en suelo
-  const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.40,20),
-    new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0.35}))
-  shadow.rotation.x=-Math.PI/2;shadow.position.y=0.01;model.add(shadow)
-    child.castShadow=true;child.receiveShadow=true
-  })
+  if(isMoving&&st>0){
+    const spd={cut:2.8,dribble:2.5,replace:1.8,screen:1.1,handoff:1.5}[action]??2.2
+    const cyc=et*Math.PI*8.5*spd
+    if(leftHipG) leftHipG.rotation.x=Math.sin(cyc)*0.65
+    if(rightHipG)rightHipG.rotation.x=-Math.sin(cyc)*0.65
+    if(leftKneeG) leftKneeG.rotation.x=Math.max(0,-Math.sin(cyc-0.3))*0.78
+    if(rightKneeG)rightKneeG.rotation.x=Math.max(0,Math.sin(cyc-0.3))*0.78
+    if(leftHipG) leftHipG.rotation.z=0.04
+    if(rightHipG)rightHipG.rotation.z=-0.04
+    if(leftShG) leftShG.rotation.x=-Math.sin(cyc)*0.48
+    if(rightShG)rightShG.rotation.x=Math.sin(cyc)*0.48
+    if(leftElG) leftElG.rotation.x=0.52+Math.cos(cyc)*0.28
+    if(rightElG)rightElG.rotation.x=0.52-Math.cos(cyc)*0.28
+    if(torsoG){torsoG.rotation.x=-0.15*Math.sin(et*Math.PI);torsoG.rotation.z=Math.sin(cyc*.5)*0.05}
+    m.position.y=Math.abs(Math.sin(cyc*.5))*0.07
+
+  } else if(action==='shot'&&st>0){
+    rst()
+    const rise=Math.min(1,et*1.4)
+    if(rightShG){rightShG.rotation.x=-rise*1.05;rightShG.rotation.z=-0.12}
+    if(rightElG)rightElG.rotation.x=Math.max(0,0.65-rise*0.80)
+    if(leftShG){leftShG.rotation.x=-rise*0.85;leftShG.rotation.z=0.12}
+    if(leftElG)leftElG.rotation.x=Math.max(0,0.55-rise*0.70)
+    if(torsoG)torsoG.rotation.x=et<0.45?0.10:-0.06
+    m.position.y=rise*0.12
+
+  } else if(action==='pass'&&st>0){
+    rst()
+    const t2=et<0.35?et/0.35:1-(et-0.35)/0.65
+    if(rightShG){rightShG.rotation.x=-0.5+t2*1.1;rightShG.rotation.z=0.18-t2*0.30}
+    if(rightElG)rightElG.rotation.x=0.25+t2*0.30
+    if(leftShG){leftShG.rotation.x=-0.18;leftShG.rotation.z=0.22}
+    if(leftElG)leftElG.rotation.x=0.48
+    if(torsoG)torsoG.rotation.x=-0.10*et
+
+  } else if(action==='handoff'&&st>0){
+    rst()
+    if(rightShG){rightShG.rotation.x=-0.35;rightShG.rotation.z=-0.18}
+    if(rightElG)rightElG.rotation.x=0.28
+    if(leftShG){leftShG.rotation.x=-0.08;leftShG.rotation.z=0.22}
+    if(torsoG)torsoG.rotation.x=-0.08
+
+  } else if(action==='screen'){
+    rst()
+    if(leftHipG){leftHipG.rotation.x=0.08;leftHipG.rotation.z=0.14}
+    if(rightHipG){rightHipG.rotation.x=0.08;rightHipG.rotation.z=-0.14}
+    if(leftKneeG)leftKneeG.rotation.x=0.12
+    if(rightKneeG)rightKneeG.rotation.x=0.12
+    if(leftShG){leftShG.rotation.x=-0.12;leftShG.rotation.z=0.52}
+    if(rightShG){rightShG.rotation.x=-0.12;rightShG.rotation.z=-0.52}
+    if(leftElG)leftElG.rotation.x=0.95
+    if(rightElG)rightElG.rotation.x=0.95
+    if(torsoG)torsoG.rotation.x=0.08
+
+  } else if(e.id===bc){
+    rst()
+    if(leftHipG)leftHipG.rotation.x=0.12
+    if(rightHipG)rightHipG.rotation.x=0.12
+    if(leftKneeG)leftKneeG.rotation.x=0.18
+    if(rightKneeG)rightKneeG.rotation.x=0.18
+    if(rightShG){rightShG.rotation.x=0.08;rightShG.rotation.z=-0.25}
+    if(rightElG)rightElG.rotation.x=0.60
+    if(leftShG){leftShG.rotation.x=-0.05;leftShG.rotation.z=0.30}
+    if(leftElG)leftElG.rotation.x=0.55
+    if(torsoG)torsoG.rotation.x=Math.sin(ts*0.001)*0.04
+    m.position.y=Math.sin(ts*0.0008)*0.015
+
+  } else if(['defense','xdefense'].includes(e.type)){
+    rst()
+    if(leftHipG){leftHipG.rotation.x=0.22;leftHipG.rotation.z=0.10}
+    if(rightHipG){rightHipG.rotation.x=0.22;rightHipG.rotation.z=-0.10}
+    if(leftKneeG)leftKneeG.rotation.x=0.30
+    if(rightKneeG)rightKneeG.rotation.x=0.30
+    if(leftShG){leftShG.rotation.x=-0.05;leftShG.rotation.z=0.56}
+    if(rightShG){rightShG.rotation.x=-0.05;rightShG.rotation.z=-0.56}
+    if(leftElG)leftElG.rotation.x=0.46
+    if(rightElG)rightElG.rotation.x=0.46
+    if(torsoG)torsoG.rotation.x=0.14
+    m.position.y=-0.06
+
+  } else {
+    rst()
+  }
 }
 
 /* ── basketball canvas texture (costura figure-8 real) ────────── */
@@ -368,7 +524,7 @@ export default function Court3DView({phases,courtType}){
     const mount=mountRef.current; if(!mount)return
     let renderer,ro,canceled=false
 
-    async function init(){
+    function init(){
       try{
         const rect=mount.getBoundingClientRect()
         const W=Math.max(rect.width,400)||900
@@ -424,61 +580,21 @@ export default function Court3DView({phases,courtType}){
         const camera=new THREE.PerspectiveCamera(44,W/H,0.1,150)
         applyCamera(camera,'overhead',H_m,W_m)
 
-        // ── Cargar modelo GLTF ─────────────────────────────────
-        const gltf=await getGLTF()
-        if(canceled)return
-
-        const anims=gltf.animations  // Run, Walk, Idle, TPose
-        const template=gltf.scene
-
-        // ── Crear jugadores desde GLTF ────────────────────────
-        const playerMeshes={},mixers={},clocks={}
-        // posición del aro para rotaciones inteligentes
+        // ── Crear jugadores procedurales ───────────────────────
         const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
-        const rimWorldZ=(_mg2+1.575*_sy2)*S   // Z del aro en coords 3D
+        const rimWorldZ=(_mg2+1.575*_sy2)*S
+        const playerMeshes={}
         const e0=phases[0]?.elements||[]
         let pIdx=0
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
-          const clone=skeletonClone(template)
-          colorizePlayer(clone,el.type,pIdx)
-          clone.scale.setScalar(1.0)
-
+          const mesh=createPlayer(el.type==='offense',el.num??'?',pIdx++)
           const{x,z}=p3(el.x,el.y)
-          clone.position.set(x,0,z)
-          // Rotación inicial: Soldier mira -Z → +π en todas las rotaciones
-          if(el.type==='offense'){
-            clone.rotation.y=Math.atan2(0-x,rimWorldZ-z)+Math.PI
-          } else {
-            clone.rotation.y=Math.atan2(0-x,(H_m/2)-z)+Math.PI
-          }
-          scene.add(clone)
-
-          // Sprite número encima — más grande y claro
-          const sprite=makeNumSprite(el.num??'?',el.type==='offense')
-          sprite.position.set(x,2.8,z)
-          scene.add(sprite)
-          clone.userData.numSprite=sprite
-
-          // AnimationMixer con preload de ambas acciones
-          const mixer=new THREE.AnimationMixer(clone)
-          const idleClip=THREE.AnimationClip.findByName(anims,'Idle')
-          const runClip =THREE.AnimationClip.findByName(anims,'Run')
-          const mixData={mixer,anims,current:'Idle',actions:{}}
-          if(idleClip){
-            const a=mixer.clipAction(idleClip);a.play();mixData.actions['Idle']=a
-          }
-          if(runClip){
-            // Precargar Run a speed x2.2 para movimiento baloncestístico real
-            const a=mixer.clipAction(runClip);a.timeScale=2.2;a.enabled=true
-            mixData.actions['Run']=a
-          }
-          mixers[el.id]=mixData
-          // Primiamos el clock para evitar primer delta enorme
-          const clk=new THREE.Clock(true);clk.getDelta();clocks[el.id]=clk
-
-          playerMeshes[el.id]=clone
-          pIdx++
+          mesh.position.set(x,0,z)
+          if(el.type==='offense') mesh.rotation.y=Math.atan2(0-x,rimWorldZ-z)
+          else mesh.rotation.y=Math.atan2(0-x,(H_m/2)-z)
+          scene.add(mesh)
+          playerMeshes[el.id]=mesh
         }
 
         const ball=createBall(scene)
@@ -487,7 +603,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,mixers,clocks,ball,anims}
+        stateRef.current={renderer,scene,camera,playerMeshes,ball}
         renderer.render(scene,camera)
         setInitError(null)
 
@@ -516,22 +632,6 @@ export default function Court3DView({phases,courtType}){
   },[phases,courtType]) // eslint-disable-line
 
   /* ── animation ─────────────────────────────────────────────── */
-  /* helper: crossfade a animation on a player */
-  function switchAnim(mixerData,name){
-    const{mixer,anims,actions}=mixerData
-    if(mixerData.current===name)return
-    if(!actions[name]){
-      const clip=THREE.AnimationClip.findByName(anims,name)
-      if(!clip)return
-      actions[name]=mixer.clipAction(clip)
-    }
-    const prev=actions[mixerData.current]
-    const next=actions[name]
-    next.reset().play()
-    if(prev&&prev!==next)prev.crossFadeTo(next,0.25,true)
-    mixerData.current=name
-  }
-
   function stopAnim(){
     cancelAnimationFrame(animRef.current);setPlaying(false)
     const s=stateRef.current;if(!s)return
@@ -540,8 +640,6 @@ export default function Court3DView({phases,courtType}){
       if(!PLAYER_TYPES.includes(el.type))continue
       const m=s.playerMeshes[el.id];if(!m)continue
       const{x,z}=p3(el.x,el.y);m.position.set(x,0,z);m.rotation.set(0,0,0)
-      // Switch back to Idle
-      if(s.mixers?.[el.id])switchAnim(s.mixers[el.id],'Idle')
     }
     const ic=e0.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
     if(ic){const{x,z}=p3(ic.x,ic.y);s.ball.position.set(x,0.95,z)}
@@ -551,7 +649,7 @@ export default function Court3DView({phases,courtType}){
   function startAnim(){
     const s=stateRef.current;if(!s||playing)return
     setPlaying(true)
-    const{renderer,scene,camera,playerMeshes,mixers,clocks,ball}=s
+    const{renderer,scene,camera,playerMeshes,ball}=s
     const nP=phases.length
     const meta=phases.map(ph=>({n:getNumSteps(ph.elements||[]),get dur(){return this.n*STEP_DUR+PHASE_HOLD}}))
     const starts=[0];for(let i=0;i<nP;i++)starts.push(starts[i]+meta[i].dur)
@@ -592,20 +690,17 @@ export default function Court3DView({phases,courtType}){
         tg[e.id]={x:Math.max(PR+4,Math.min(CW-PR-4,id2.x)),y:Math.max(PR+4,Math.min(H_px-PR-4,id2.y))}
       }
 
-      // ══ POSICIÓN, ROTACIÓN Y ANIMACIÓN GLTF ═════════════════
-      // NOTA: Soldier.glb tiene frente hacia -Z → offset +π en TODAS las rotaciones
-      const ROT_OFFSET=Math.PI
+      // ══ POSICIÓN, ROTACIÓN Y ANIMACIÓN BALONCESTÍSTICA ════════
       const carrierPos2D=bc?bp[bc]:null
       const _mg=22,_sy=(getH(courtType)-2*_mg)/14
       const rimX2D=CW/2,rimY2D=_mg+1.575*_sy
       const rimP3=p3(rimX2D,rimY2D)
 
-      // Mapa de qué acción está haciendo cada jugador en este paso
-      const playerAction={}  // id → 'cut'|'dribble'|'screen'|'handoff'|'pass'|'shot'|'replace'|'idle'
+      // Acción por jugador en este paso
+      const playerAction={}
       for(const e of elems){
         if(!ARROW_TYPES.includes(e.type)||(e.step??0)!==si)continue
-        const pid=e.fromId
-        if(!pid)continue
+        const pid=e.fromId;if(!pid)continue
         if(e.type==='pass')    playerAction[pid]='pass'
         if(e.type==='shot')    playerAction[pid]='shot'
         if(e.type==='handoff') playerAction[pid]='handoff'
@@ -613,7 +708,6 @@ export default function Court3DView({phases,courtType}){
         if(e.type==='cut')     playerAction[pid]='cut'
         if(e.type==='dribble') playerAction[pid]='dribble'
       }
-      // Jugadores con target pero sin acción explícita → reemplazar posición
       for(const id of Object.keys(tg)){if(!playerAction[id])playerAction[id]='replace'}
 
       for(const e of elems){
@@ -628,162 +722,80 @@ export default function Court3DView({phases,courtType}){
         const action=playerAction[e.id]||'idle'
         const isMoving=!!tg[e.id]&&dist>0.04&&st>0
 
-        // ── ROTACIÓN BALONCESTÍSTICA (+ ROT_OFFSET por modelo -Z) ─
-        let targetRot=m.rotation.y  // mantener si no hay criterio
+        // Rotación inteligente
+        let targetRot=m.rotation.y
         if(isMoving){
-          // Cara hacia dirección de carrera — siempre
-          targetRot=Math.atan2(dx,dz)+ROT_OFFSET
+          targetRot=Math.atan2(dx,dz)
         } else if(action==='pass'||action==='shot'){
-          // Jugador que pasa/tira: mira hacia el objetivo de la acción
-          const actionEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
-          if(actionEl){
-            const ep=p3(actionEl.x2,actionEl.y2)
-            targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)+ROT_OFFSET
-          }
+          const aEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
+          if(aEl){const ep=p3(aEl.x2,aEl.y2);targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)}
         } else if(action==='screen'||action==='handoff'){
-          // Bloqueo/handoff: mira al compañero receptor
-          const actionEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
-          if(actionEl){
-            const ep=p3(actionEl.x2,actionEl.y2)
-            targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)+ROT_OFFSET
-          }
+          const aEl=elems.find(el=>el.type===action&&(el.step??0)===si&&el.fromId===e.id)
+          if(aEl){const ep=p3(aEl.x2,aEl.y2);targetRot=Math.atan2(ep.x-m.position.x,ep.z-m.position.z)}
         } else if(e.type==='offense'){
-          // Ataque estático: triple amenaza mirando al aro
-          targetRot=Math.atan2(rimP3.x-m.position.x,rimP3.z-m.position.z)+ROT_OFFSET
-        } else if(['defense','xdefense'].includes(e.type)){
-          // Defensa: stance mirando al portador del balón
-          if(carrierPos2D){
-            const cp=p3(carrierPos2D.x,carrierPos2D.y)
-            targetRot=Math.atan2(cp.x-m.position.x,cp.z-m.position.z)+ROT_OFFSET
-          }
+          targetRot=Math.atan2(rimP3.x-m.position.x,rimP3.z-m.position.z)
+        } else if(['defense','xdefense'].includes(e.type)&&carrierPos2D){
+          const cp=p3(carrierPos2D.x,carrierPos2D.y)
+          targetRot=Math.atan2(cp.x-m.position.x,cp.z-m.position.z)
         }
-        // Interpolación suave de rotación (sin giros bruscos)
         let dr=targetRot-m.rotation.y
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
-        m.rotation.y+=dr*Math.min(1,8*0.016)  // 8 rad/s velocidad de giro
+        m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        // Sprite número
-        if(m.userData.numSprite){
-          m.userData.numSprite.position.set(m.position.x,2.8,m.position.z)
-        }
-
-        // ── ANIMACIÓN GLTF según acción baloncestística ──────────
-        const mixData=mixers?.[e.id]
-        if(mixData){
-          let animName='Idle',runScale=2.2
-          if(isMoving){
-            animName='Run'
-            if(action==='cut')     runScale=2.8   // corte: explosivo
-            else if(action==='dribble') runScale=2.5  // drive: rápido
-            else if(action==='screen') runScale=1.2  // a bloquear: pausado
-            else if(action==='handoff') runScale=1.6  // handoff: camina
-            else if(action==='replace') runScale=1.8  // reemplazar: trote
-            else runScale=2.2
-          }
-          if(mixData.actions['Run'])mixData.actions['Run'].timeScale=runScale
-          switchAnim(mixData,animName)
-          const delta=Math.min(clocks?.[e.id]?.getDelta()??0.016,0.05)
-          mixData.mixer.update(delta)
-        }
+        // Animación por estado baloncestístico
+        animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
       }
 
-      // ══ BALÓN — posición, física y tamaño ══════════════════════
-      // El balón siempre visible: más grande + glow
+      // ══ BALÓN ══════════════════════════════════════════════════
       ball.scale.setScalar(1)
       let bx=null,by=1.0,bz=null
 
-      // Helper: posición de la mano del portador (estimada en 3D)
-      function carrierHandPos(carrierId,handSide='right'){
-        const cm=playerMeshes[carrierId];if(!cm)return null
+      function carrierHand(cid){
+        const cm=playerMeshes[cid];if(!cm)return null
         const ry=cm.rotation.y
-        // Mano está a ~0.4m al lado del cuerpo y ~0.6m de altura desde el suelo
-        const sx=handSide==='right'?-1:1
-        return{
-          x:cm.position.x+Math.sin(ry-sx*0.35)*0.40,
-          y:1.0,
-          z:cm.position.z+Math.cos(ry-sx*0.35)*0.40
-        }
+        return{x:cm.position.x+Math.sin(ry-0.30)*0.42,y:1.0,z:cm.position.z+Math.cos(ry-0.30)*0.42}
       }
 
       if(bc){
-        const cB=bp[bc]
-        const curAction=playerAction[bc]||'idle'
-
-        // ── HANDOFF: balón viaja de mano a mano ──
+        const cB=bp[bc];const curAction=playerAction[bc]||'idle'
         const ho=elems.find(e=>e.type==='handoff'&&(e.step??0)===si&&e.fromId===bc)
         if(ho&&cB&&st>0){
           const p1b=p3(bp[ho.fromId]?.x??cB.x,bp[ho.fromId]?.y??cB.y)
           const p2k=Object.keys(tg).find(k=>k!==ho.fromId&&bp[k]&&Math.hypot(bp[k].x-ho.x2,bp[k].y-ho.y2)<PR*3)
-          if(p2k){
-            const p2b=p3(bp[p2k].x,bp[p2k].y)
-            // Arco suave a altura de pecho
-            bx=lerp(p1b.x,p2b.x,et);bz=lerp(p1b.z,p2b.z,et)
-            by=1.1+Math.sin(et*Math.PI)*0.25
-          }
+          if(p2k){const p2b=p3(bp[p2k].x,bp[p2k].y);bx=lerp(p1b.x,p2b.x,et);bz=lerp(p1b.z,p2b.z,et);by=1.1+Math.sin(et*Math.PI)*0.25}
         }
-
-        // ── TIRO: arco parabólico alto hacia el aro ──
         if(bx===null&&st>0){
           const sh=elems.find(e=>e.type==='shot'&&(e.step??0)===si&&(e.fromId===bc||!e.fromId))
           if(sh&&cB){
-            const sp=p3(cB.x,cB.y),ep=p3(sh.x2,sh.y2)
-            const dist2=Math.hypot(ep.x-sp.x,ep.z-sp.z)
-            // Wind-up: balón sube antes de soltar (et < 0.25)
-            if(et<0.20){
-              // Carga: balón sube al pecho/frente
-              bx=sp.x;bz=sp.z;by=1.0+et*3.0
-            } else {
-              const t2=(et-0.20)/0.80
-              bx=lerp(sp.x,ep.x,t2);bz=lerp(sp.z,ep.z,t2)
-              by=1.55+dist2*0.50*Math.sin(t2*Math.PI)  // arco alto
-              if(t2>0.85)ball.scale.setScalar(Math.max(0.1,1-(t2-0.85)/0.15))
-            }
+            const sp=p3(cB.x,cB.y),ep=p3(sh.x2,sh.y2),dist2=Math.hypot(ep.x-sp.x,ep.z-sp.z)
+            if(et<0.20){bx=sp.x;bz=sp.z;by=1.0+et*3.0}
+            else{const t2=(et-0.20)/0.80;bx=lerp(sp.x,ep.x,t2);bz=lerp(sp.z,ep.z,t2);by=1.55+dist2*0.50*Math.sin(t2*Math.PI);if(t2>0.85)ball.scale.setScalar(Math.max(0.1,1-(t2-0.85)/0.15))}
           }
         }
-
-        // ── PASE: pecho a pecho con arco bajo ──
         if(bx===null&&st>0){
           const pa=elems.find(e=>e.type==='pass'&&(e.step??0)===si&&e.fromId===bc)
           if(pa&&cB){
-            const hand=carrierHandPos(bc)
-            const sp=hand?{x:hand.x,z:hand.z}:p3(cB.x,cB.y)
-            const ep=p3(pa.x2,pa.y2)
-            const pDist=Math.hypot(ep.x-sp.x,ep.z-sp.z)
-            bx=lerp(sp.x,ep.x,et);bz=lerp(sp.z,ep.z,et)
-            by=1.1+pDist*0.10*Math.sin(et*Math.PI)  // arco bajo de pase
+            const hand=carrierHand(bc);const sp=hand||p3(cB.x,cB.y)
+            const ep=p3(pa.x2,pa.y2);const pDist=Math.hypot(ep.x-sp.x,ep.z-sp.z)
+            bx=lerp(sp.x,ep.x,et);bz=lerp(sp.z,ep.z,et);by=1.1+pDist*0.10*Math.sin(et*Math.PI)
           }
         }
-
-        // ── DRIBBLE: bota cerca de la mano ──
         if(bx===null&&tg[bc]&&st>0){
-          const hand=carrierHandPos(bc)
+          const hand=carrierHand(bc)
           const bp3=p3(cB.x,cB.y),tp3=p3(tg[bc].x,tg[bc].y)
           bx=lerp(bp3.x,tp3.x,et);bz=lerp(bp3.z,tp3.z,et)
           if(hand){bx=lerp(bx,hand.x,0.5);bz=lerp(bz,hand.z,0.5)}
-          // Bote rápido al correr: 4 ciclos por paso
           const bounce=Math.abs(Math.cos(et*Math.PI*4))
           by=0.08+bounce*(curAction==='cut'?1.05:0.88)
         }
-
-        // ── TRIPLE AMENAZA (portador estático) ──
         if(bx===null){
-          const hand=carrierHandPos(bc,'right')
-          const cp=p3(cB.x,cB.y)
-          bx=hand?.x??cp.x;bz=hand?.z??cp.z
-          by=1.0+Math.sin(ts*0.002)*0.04  // micro-movimiento
+          const hand=carrierHand(bc);const cp=p3(cB.x,cB.y)
+          bx=hand?.x??cp.x;bz=hand?.z??cp.z;by=1.0+Math.sin(ts*0.002)*0.04
         }
       }
-
-      // Sin portador: balón en el suelo/centro
-      if(bx===null){
-        const cp=phases[pi]?.elements?.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
-        if(cp){const pp=bp[cp.id];if(pp){const p3c=p3(pp.x,pp.y);bx=p3c.x;bz=p3c.z;by=1.0}}
-        if(bx===null){const ctr=p3(CW/2,H_px*0.4);bx=ctr.x;bz=ctr.z;by=0.20}
-      }
+      if(bx===null){const ctr=p3(CW/2,H_px*0.4);bx=ctr.x;bz=ctr.z;by=0.20}
       ball.position.set(bx,by,bz)
-      // Hacer girar el balón (más realista)
-      ball.rotation.y+=0.06
-      ball.rotation.x+=0.02
+      ball.rotation.y+=0.06;ball.rotation.x+=0.02
 
       // follow-ball camera
       if(camMode==='follow'&&bx!==null){camera.position.set(bx,10,bz-5);camera.lookAt(bx,0,bz+2)}

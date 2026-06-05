@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
+import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 /* ── constants ───────────────────────────────────────────────── */
 const CW=560,HALF_H=520,FULL_H=970,PR=20
@@ -568,10 +570,11 @@ export default function Court3DView({phases,courtType}){
   const mountRef  =useRef(null)   // div where Three.js mounts its own canvas
   const stateRef  =useRef(null)
   const animRef   =useRef(null)
-  const [playing,  setPlaying] =useState(false)
-  const [recording,setRecording]=useState(false)
-  const [camMode,  setCamMode] =useState('overhead')
-  const [initError,setInitError]=useState(null)
+  const [playing,   setPlaying]  =useState(false)
+  const [recording, setRecording]=useState(false)
+  const [camMode,   setCamMode]  =useState('overhead')
+  const [initError, setInitError]=useState(null)
+  const [loadMsg,   setLoadMsg]  =useState('Cargando jugadores...')
 
   const H_px=getH(courtType),H_m=H_px*S,W_m=CW*S
 
@@ -580,7 +583,7 @@ export default function Court3DView({phases,courtType}){
     const mount=mountRef.current; if(!mount)return
     let renderer,ro,canceled=false
 
-    function init(){
+    async function init(){
       try{
         const rect=mount.getBoundingClientRect()
         const W=Math.max(rect.width,400)||900
@@ -636,20 +639,88 @@ export default function Court3DView({phases,courtType}){
         const camera=new THREE.PerspectiveCamera(44,W/H,0.1,150)
         applyCamera(camera,'overhead',H_m,W_m)
 
-        // ── Jugadores procedurales (estable, sin GLTF) ────────────
+        // ── Cargar Mixamo FBX ─────────────────────────────────────
         const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
         const rimWorldZ=(_mg2+1.575*_sy2)*S
-        const playerMeshes={}
+        const playerMeshes={},mixerMap={},globalClock=new THREE.Clock(true)
+
+        setLoadMsg('Cargando personaje Mixamo… (puede tardar 1 min)')
+        const fbxLoader=new FBXLoader()
+
+        // Cargar ambos FBX en paralelo
+        const [runFbx,idleFbx]=await Promise.all([
+          new Promise((res,rej)=>fbxLoader.load('/models/player_run.fbx',res,xhr=>{
+            if(xhr.total)setLoadMsg(`Cargando run… ${Math.round(xhr.loaded/xhr.total*100)}%`)
+          },rej)),
+          new Promise((res,rej)=>fbxLoader.load('/models/player_idle.fbx',res,xhr=>{
+            if(xhr.total)setLoadMsg(`Cargando idle… ${Math.round(xhr.loaded/xhr.total*100)}%`)
+          },rej)),
+        ])
+        if(canceled)return
+        setLoadMsg('')
+
+        const runClip =runFbx.animations[0]
+        const idleClip=idleFbx.animations[0]
+        // Normalizamos nombres de clips
+        if(runClip)  runClip.name ='Run'
+        if(idleClip) idleClip.name='Idle'
+
+        // Colorizar personaje según equipo
+        function colorizePlayer(model,isOff,num){
+          const jC=new THREE.Color(isOff?0x1535a0:0xf5f5f5)
+          const aC=new THREE.Color(isOff?0xf5c518:0xcc2222)
+          const nbg=isOff?'#1535a0':'#f5f5f5',nfg=isOff?'#f5c518':'#1535a0'
+
+          model.traverse(child=>{
+            if(!child.isMesh&&!child.isSkinnedMesh)return
+            child.castShadow=true;child.receiveShadow=true
+            // Material fresco con color de equipo
+            child.material=new THREE.MeshStandardMaterial({
+              color:jC.clone(),roughness:0.72,metalness:0,
+              emissive:jC.clone(),emissiveIntensity:0.22
+            })
+          })
+
+          // Sprite número flotante
+          const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
+          const ctx=cv.getContext('2d')
+          ctx.fillStyle=nbg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-1,0,Math.PI*2);ctx.fill()
+          ctx.strokeStyle=nfg;ctx.lineWidth=6;ctx.beginPath();ctx.arc(S/2,S/2,S/2-5,0,Math.PI*2);ctx.stroke()
+          ctx.fillStyle=nfg;ctx.font=`bold ${S*.52}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle'
+          ctx.fillText(String(num??''),S/2,S/2+3)
+          const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}))
+          // Mixamo FBX escala: 1 unidad = 1cm. Altura ≈ 170-190cm
+          sp.scale.set(20,20,1)  // 20 unidades = 20cm ≈ el tamaño de la cabeza
+          sp.position.set(0,210,0)  // 210cm ≈ por encima de la cabeza
+          model.add(sp)
+        }
+
         const e0=phases[0]?.elements||[]
         let pIdx=0
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
-          const mesh=createPlayer(el.type==='offense',el.num??'?',pIdx++)
+          const isOff=el.type==='offense'
+
+          // Clonar personaje correctamente (respeta el esqueleto)
+          const clone=skeletonClone(runFbx)
+          // Escala Mixamo FBX → metros Three.js (1cm = 0.01m)
+          clone.scale.setScalar(0.010)
+          colorizePlayer(clone,isOff,el.num??'?')
+
           const{x,z}=p3(el.x,el.y)
-          mesh.position.set(x,0,z)
-          mesh.rotation.y=el.type==='offense'?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
-          scene.add(mesh)
-          playerMeshes[el.id]=mesh
+          clone.position.set(x,0,z)
+          clone.rotation.y=isOff?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
+          scene.add(clone)
+          playerMeshes[el.id]=clone
+
+          // AnimationMixer — empieza con Idle
+          const mixer=new THREE.AnimationMixer(clone)
+          const runAct =runClip ?mixer.clipAction(runClip) :null
+          const idleAct=idleClip?mixer.clipAction(idleClip):null
+          if(runAct)  runAct.timeScale=2.2   // velocidad NBA
+          if(idleAct) idleAct.play()
+          mixerMap[el.id]={mixer,runAct,idleAct,running:false}
+          pIdx++
         }
 
         const ball=createBall(scene)
@@ -658,7 +729,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,ball}
+        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,globalClock,ball}
         renderer.render(scene,camera)
         setInitError(null)
 
@@ -797,7 +868,21 @@ export default function Court3DView({phases,courtType}){
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
         m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
+        // Mixer Mixamo: crossfade Run ↔ Idle según movimiento
+        const md=s.mixerMap?.[e.id]
+        if(md){
+          if(isMoving&&!md.running){
+            if(md.idleAct)md.idleAct.crossFadeTo(md.runAct,0.25,true)
+            if(md.runAct){md.runAct.reset().play();md.runAct.timeScale=2.2}
+            md.running=true
+          }else if(!isMoving&&md.running){
+            if(md.runAct)md.runAct.crossFadeTo(md.idleAct,0.30,true)
+            if(md.idleAct)md.idleAct.reset().play()
+            md.running=false
+          }
+        }else{
+          animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
+        }
       }
 
       // ══ BALÓN ══════════════════════════════════════════════════
@@ -854,6 +939,12 @@ export default function Court3DView({phases,courtType}){
       // follow-ball camera
       if(camMode==='follow'&&bx!==null){camera.position.set(bx,10,bz-5);camera.lookAt(bx,0,bz+2)}
 
+      // Actualizar todos los AnimationMixers Mixamo
+      if(s.mixerMap&&s.globalClock){
+        const dt=Math.min(s.globalClock.getDelta(),0.05)
+        Object.values(s.mixerMap).forEach(md=>md.mixer.update(dt))
+      }
+
       renderer.render(scene,camera)
       animRef.current=requestAnimationFrame(frame)
     }
@@ -891,6 +982,17 @@ export default function Court3DView({phases,courtType}){
 
   return(
     <div ref={mountRef} style={{position:'relative',width:'100%',height:'100%',background:'#080b14',overflow:'hidden'}}>
+      {/* Pantalla de carga Mixamo */}
+      {loadMsg&&(
+        <div style={{position:'absolute',inset:0,zIndex:50,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,20,0.95)',gap:16}}>
+          <div style={{fontSize:48}}>🏀</div>
+          <div style={{color:'#fff',fontSize:16,fontWeight:700}}>{loadMsg}</div>
+          <div style={{color:'#6b7280',fontSize:12,textAlign:'center',maxWidth:280}}>Primera carga: los modelos Mixamo son pesados.<br/>Las siguientes cargas serán instantáneas (caché).</div>
+          <div style={{width:200,height:4,background:'#1f2937',borderRadius:2,overflow:'hidden',marginTop:8}}>
+            <div style={{height:'100%',background:'linear-gradient(90deg,#1d4ed8,#3b82f6)',borderRadius:2,animation:'pulse 1.5s ease-in-out infinite'}}/>
+          </div>
+        </div>
+      )}
       {/* Three.js appends its own canvas here via mount.appendChild(renderer.domElement) */}
       {/* Subtle vignette */}
       <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 48%,transparent 52%,rgba(0,0,0,0.45) 100%)',pointerEvents:'none'}}/>

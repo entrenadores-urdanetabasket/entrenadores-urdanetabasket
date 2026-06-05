@@ -287,97 +287,153 @@ function createPlayer(isOffense,num,idx=0){
 }
 
 /* ── Animación baloncestística por estado ──────────────────── */
+/* ── Convenciones de rotación en nuestro rig ──────────────────
+   Hombro (shG, pivot EN el hombro, brazo cuelga hacia -Y):
+     rotation.x NEGATIVO  → brazo hacia DELANTE
+     rotation.x POSITIVO  → brazo hacia ATRÁS
+     rotation.z POSITIVO  → brazo hacia la IZQUIERDA (lejos del cuerpo para brazo izq)
+     rotation.z NEGATIVO  → brazo hacia la DERECHA  (lejos del cuerpo para brazo der)
+   Codo (elG, pivot EN el codo, antebrazo cuelga hacia -Y):
+     rotation.x POSITIVO  → antebrazo hacia DELANTE (doblar codo)
+   Cadera (hipG, pivot EN la cadera, pierna cuelga hacia -Y):
+     rotation.x POSITIVO  → pierna hacia ATRÁS
+     rotation.x NEGATIVO  → pierna hacia DELANTE
+──────────────────────────────────────────────────────────────── */
 function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
   const{leftHipG,rightHipG,leftKneeG,rightKneeG,leftShG,rightShG,leftElG,rightElG,torsoG}=ud
-  function rst(){
-    ;[leftHipG,rightHipG,leftKneeG,rightKneeG].forEach(j=>{if(j){j.rotation.x=0;j.rotation.z=0}})
-    ;[leftShG,rightShG,leftElG,rightElG].forEach(j=>{if(j){j.rotation.x=0;j.rotation.z=0}})
-    if(torsoG){torsoG.rotation.x=0;torsoG.rotation.z=0}
-    m.position.y=0
+
+  // Interpolación suave hacia target — elimina el efecto robot
+  const SPD=0.18  // velocidad de transición entre poses
+  function go(joint,x,z=0,speed=SPD){
+    if(!joint)return
+    joint.rotation.x+=((x)-joint.rotation.x)*speed
+    joint.rotation.z+=((z)-joint.rotation.z)*speed
   }
 
+  // Respiración base — todos los jugadores tienen micro-movimiento orgánico
+  const breath=Math.sin(ts*0.0014+e.id.charCodeAt(0)*0.5)*0.012
+
   if(isMoving&&st>0){
-    const spd={cut:2.8,dribble:2.5,replace:1.8,screen:1.1,handoff:1.5}[action]??2.2
-    const cyc=et*Math.PI*8.5*spd
-    if(leftHipG) leftHipG.rotation.x=Math.sin(cyc)*0.65
-    if(rightHipG)rightHipG.rotation.x=-Math.sin(cyc)*0.65
-    if(leftKneeG) leftKneeG.rotation.x=Math.max(0,-Math.sin(cyc-0.3))*0.78
-    if(rightKneeG)rightKneeG.rotation.x=Math.max(0,Math.sin(cyc-0.3))*0.78
-    if(leftHipG) leftHipG.rotation.z=0.04
-    if(rightHipG)rightHipG.rotation.z=-0.04
-    if(leftShG) leftShG.rotation.x=-Math.sin(cyc)*0.48
-    if(rightShG)rightShG.rotation.x=Math.sin(cyc)*0.48
-    if(leftElG) leftElG.rotation.x=0.52+Math.cos(cyc)*0.28
-    if(rightElG)rightElG.rotation.x=0.52-Math.cos(cyc)*0.28
-    if(torsoG){torsoG.rotation.x=-0.15*Math.sin(et*Math.PI);torsoG.rotation.z=Math.sin(cyc*.5)*0.05}
-    m.position.y=Math.abs(Math.sin(cyc*.5))*0.07
+    // ══ CARRERA REAL ══════════════════════════════════════════
+    const spd={cut:2.6,dribble:2.3,replace:1.7,screen:1.0,handoff:1.4}[action]??2.0
+    const cyc=et*Math.PI*7.5*spd
+    // Piernas — ciclo alterno natural
+    go(leftHipG,  -Math.sin(cyc)*0.58, 0.03)   // negativo = pierna adelante ✓
+    go(rightHipG,  Math.sin(cyc)*0.58,-0.03)
+    // Rodillas — se doblan cuando la pierna va atrás
+    go(leftKneeG,  Math.max(0, Math.sin(cyc-0.4))*0.72)
+    go(rightKneeG, Math.max(0,-Math.sin(cyc-0.4))*0.72)
+    // Brazos — patrón cruzado, colgando hacia abajo, NO hacia arriba
+    // rotation.x negativo = brazo delante, positivo = brazo atrás
+    go(leftShG,   Math.sin(cyc)*0.40, 0.06)    // brazo iz: sube cuando pierna der adelanta
+    go(rightShG, -Math.sin(cyc)*0.40,-0.06)
+    // Codo — se dobla más cuando el brazo va hacia atrás (natural al correr)
+    go(leftElG,  0.35+Math.max(0, Math.sin(cyc))*0.30)
+    go(rightElG, 0.35+Math.max(0,-Math.sin(cyc))*0.30)
+    // Torso — inclinación frontal + leve torsión
+    if(torsoG){
+      torsoG.rotation.x+=((-0.12*Math.sin(et*Math.PI))-torsoG.rotation.x)*SPD
+      torsoG.rotation.z+=((Math.sin(cyc*0.5)*0.04)-torsoG.rotation.z)*SPD
+    }
+    m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.06-m.position.y)*0.25
 
   } else if(action==='shot'&&st>0){
-    rst()
-    const rise=Math.min(1,et*1.4)
-    if(rightShG){rightShG.rotation.x=-rise*1.05;rightShG.rotation.z=-0.12}
-    if(rightElG)rightElG.rotation.x=Math.max(0,0.65-rise*0.80)
-    if(leftShG){leftShG.rotation.x=-rise*0.85;leftShG.rotation.z=0.12}
-    if(leftElG)leftElG.rotation.x=Math.max(0,0.55-rise*0.70)
-    if(torsoG)torsoG.rotation.x=et<0.45?0.10:-0.06
-    m.position.y=rise*0.12
+    // ══ TIRO ═══════════════════════════════════════════════════
+    // Fase 1 (0-0.25): carga — brazos bajan con el balón
+    // Fase 2 (0.25-1.0): elevación — brazos suben, cuerpo se extiende
+    const rise=Math.min(1,Math.max(0,(et-0.20)/0.80))
+    // Ambos brazos suben juntos (FIX: negativo = hacia delante/arriba)
+    go(rightShG, -0.30-rise*0.75,-0.10,0.20)   // sube hasta casi vertical
+    go(rightElG,  Math.max(0,0.55-rise*0.65),0,0.20)  // codo se estira
+    go(leftShG,  -0.25-rise*0.60, 0.10,0.20)
+    go(leftElG,   Math.max(0,0.45-rise*0.55),0,0.20)
+    // Rodillas — pequeño salto
+    go(leftHipG, 0.05);go(rightHipG,0.05)
+    go(leftKneeG,-0.05+rise*0.05);go(rightKneeG,-0.05+rise*0.05)
+    if(torsoG){torsoG.rotation.x+=(( et<0.30?0.08:-0.05)-torsoG.rotation.x)*0.20}
+    m.position.y+=(rise*0.14-m.position.y)*0.20
 
   } else if(action==='pass'&&st>0){
-    rst()
-    const t2=et<0.35?et/0.35:1-(et-0.35)/0.65
-    if(rightShG){rightShG.rotation.x=-0.5+t2*1.1;rightShG.rotation.z=0.18-t2*0.30}
-    if(rightElG)rightElG.rotation.x=0.25+t2*0.30
-    if(leftShG){leftShG.rotation.x=-0.18;leftShG.rotation.z=0.22}
-    if(leftElG)leftElG.rotation.x=0.48
-    if(torsoG)torsoG.rotation.x=-0.10*et
+    // ══ PASE ═══════════════════════════════════════════════════
+    // Wind-up (0-0.30): brazo der. va atrás cargando
+    // Release (0.30-1.0): brazo der. sale hacia delante, extensión completa
+    const wu=Math.min(1,et/0.30)
+    const rel=Math.max(0,(et-0.30)/0.70)
+    const shX= wu<1 ? wu*0.35 : 0.35-rel*1.10   // 0→0.35→-0.75
+    const elX= wu<1 ? 0.25+wu*0.20 : 0.45-rel*0.25
+    go(rightShG, shX, 0.10,0.22)
+    go(rightElG, Math.max(0,elX),0,0.22)
+    go(leftShG,  -0.15, 0.18)   // brazo de apoyo — ligeramente adelante
+    go(leftElG,  0.40)
+    go(leftHipG, 0.05);go(rightHipG,0.05)
+    if(torsoG){torsoG.rotation.x+=((-0.08*et)-torsoG.rotation.x)*0.18}
+    m.position.y+=((0)-m.position.y)*0.15
 
   } else if(action==='handoff'&&st>0){
-    rst()
-    if(rightShG){rightShG.rotation.x=-0.35;rightShG.rotation.z=-0.18}
-    if(rightElG)rightElG.rotation.x=0.28
-    if(leftShG){leftShG.rotation.x=-0.08;leftShG.rotation.z=0.22}
-    if(torsoG)torsoG.rotation.x=-0.08
+    // ══ HANDOFF ════════════════════════════════════════════════
+    // Brazo extendido HACIA DELANTE ofreciendo el balón
+    go(rightShG, -0.30,-0.12,0.16)  // negativo = brazo adelante
+    go(rightElG,  0.35,0,0.16)      // codo semidoblado
+    go(leftShG,  -0.10, 0.18)
+    go(leftElG,   0.38)
+    go(leftHipG, 0.05);go(rightHipG,0.05)
+    if(torsoG){torsoG.rotation.x+=((-0.08)-torsoG.rotation.x)*0.16}
+    m.position.y+=((0)-m.position.y)*0.15
 
   } else if(action==='screen'){
-    rst()
-    if(leftHipG){leftHipG.rotation.x=0.08;leftHipG.rotation.z=0.14}
-    if(rightHipG){rightHipG.rotation.x=0.08;rightHipG.rotation.z=-0.14}
-    if(leftKneeG)leftKneeG.rotation.x=0.12
-    if(rightKneeG)rightKneeG.rotation.x=0.12
-    if(leftShG){leftShG.rotation.x=-0.12;leftShG.rotation.z=0.52}
-    if(rightShG){rightShG.rotation.x=-0.12;rightShG.rotation.z=-0.52}
-    if(leftElG)leftElG.rotation.x=0.95
-    if(rightElG)rightElG.rotation.x=0.95
-    if(torsoG)torsoG.rotation.x=0.08
+    // ══ BLOQUEO ════════════════════════════════════════════════
+    // Pies separados, brazos CRUZADOS en el pecho (no levantados)
+    go(leftHipG,  0.06, 0.12)    // pies separados
+    go(rightHipG, 0.06,-0.12)
+    go(leftKneeG, 0.10)
+    go(rightKneeG,0.10)
+    // Brazos cruzados al pecho — ambos delante (negativo x), codos muy doblados
+    go(leftShG,  -0.25, 0.28)
+    go(rightShG, -0.25,-0.28)
+    go(leftElG,   1.05)   // muy doblado = mano en el pecho
+    go(rightElG,  1.05)
+    if(torsoG){torsoG.rotation.x+=((0.10)-torsoG.rotation.x)*SPD}
+    m.position.y+=((0)-m.position.y)*0.15
 
   } else if(e.id===bc){
-    rst()
-    if(leftHipG)leftHipG.rotation.x=0.12
-    if(rightHipG)rightHipG.rotation.x=0.12
-    if(leftKneeG)leftKneeG.rotation.x=0.18
-    if(rightKneeG)rightKneeG.rotation.x=0.18
-    if(rightShG){rightShG.rotation.x=0.08;rightShG.rotation.z=-0.25}
-    if(rightElG)rightElG.rotation.x=0.60
-    if(leftShG){leftShG.rotation.x=-0.05;leftShG.rotation.z=0.30}
-    if(leftElG)leftElG.rotation.x=0.55
-    if(torsoG)torsoG.rotation.x=Math.sin(ts*0.001)*0.04
-    m.position.y=Math.sin(ts*0.0008)*0.015
+    // ══ TRIPLE AMENAZA (portador estático) ════════════════════
+    // Rodillas flexionadas, balón a la altura de la cadera, listo para todo
+    go(leftHipG,  0.08);go(rightHipG,  0.08)
+    go(leftKneeG, 0.14);go(rightKneeG, 0.14)
+    // Brazo derecho — bote: adelante y ligeramente abajo (hacia el balón)
+    go(rightShG, -0.08,-0.15)  // negativo X = brazo DELANTE ✓, Z = ligeramente inward
+    go(rightElG,  0.72)         // codo doblado, mano hacia abajo al balón
+    // Brazo izquierdo — apoyo/guardia: ligeramente delante
+    go(leftShG,  -0.05, 0.18)
+    go(leftElG,   0.58)
+    if(torsoG){torsoG.rotation.x+=(breath*0.5-torsoG.rotation.x)*SPD}
+    m.position.y+=((breath*0.8)-m.position.y)*0.10
 
   } else if(['defense','xdefense'].includes(e.type)){
-    rst()
-    if(leftHipG){leftHipG.rotation.x=0.22;leftHipG.rotation.z=0.10}
-    if(rightHipG){rightHipG.rotation.x=0.22;rightHipG.rotation.z=-0.10}
-    if(leftKneeG)leftKneeG.rotation.x=0.30
-    if(rightKneeG)rightKneeG.rotation.x=0.30
-    if(leftShG){leftShG.rotation.x=-0.05;leftShG.rotation.z=0.56}
-    if(rightShG){rightShG.rotation.x=-0.05;rightShG.rotation.z=-0.56}
-    if(leftElG)leftElG.rotation.x=0.46
-    if(rightElG)rightElG.rotation.x=0.46
-    if(torsoG)torsoG.rotation.x=0.14
-    m.position.y=-0.06
+    // ══ POSTURA DEFENSIVA ══════════════════════════════════════
+    // MUY baja, pies bien separados, brazos EXTENDIDOS HACIA DELANTE (no arriba)
+    go(leftHipG,  0.18, 0.08)
+    go(rightHipG, 0.18,-0.08)
+    go(leftKneeG, 0.26);go(rightKneeG,0.26)
+    // Brazos: extendidos al FRENTE y separados — presión sobre el atacante
+    // FIX CLAVE: rotation.x NEGATIVO = hacia delante, z los separa lateralmente
+    go(leftShG,  -0.20, 0.38)   // brazo izq: delante + a la izquierda
+    go(rightShG, -0.20,-0.38)   // brazo der: delante + a la derecha
+    go(leftElG,   0.18)          // codo casi recto (brazos extendidos, no doblados)
+    go(rightElG,  0.18)
+    if(torsoG){torsoG.rotation.x+=((0.15)-torsoG.rotation.x)*SPD}
+    m.position.y+=((-0.05)-m.position.y)*0.15
 
   } else {
-    rst()
+    // ══ IDLE ORGÁNICO ══════════════════════════════════════════
+    // Posición de descanso — brazos colgando naturalmente con respiración
+    go(leftShG,   0.02, 0.08)  // brazos ligeramente separados (natural)
+    go(rightShG,  0.02,-0.08)
+    go(leftElG,   0.08);go(rightElG,0.08)  // leve flexión de codos
+    go(leftHipG,  0);go(rightHipG, 0)
+    go(leftKneeG, 0);go(rightKneeG,0)
+    if(torsoG){torsoG.rotation.x+=((breath*0.4)-torsoG.rotation.x)*SPD}
+    m.position.y+=((breath*0.6)-m.position.y)*0.10
   }
 }
 

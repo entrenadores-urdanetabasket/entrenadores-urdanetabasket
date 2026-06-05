@@ -155,27 +155,24 @@ function addHoop(scene,courtType,H_m,flipped){
 }
 
 /* ══════════════════════════════════════════════════════════════
-   HELPERS: materials + outline
+   HELPERS: materials
 ══════════════════════════════════════════════════════════════ */
-let _toonGrad=null
-function getToonGrad(){
-  if(_toonGrad)return _toonGrad
-  const c=document.createElement('canvas');c.width=4;c.height=1
-  const ctx=c.getContext('2d')
-  ;['#1a1a1a','#606060','#c0c0c0','#ffffff'].forEach((col,i)=>{ctx.fillStyle=col;ctx.fillRect(i,0,1,1)})
-  _toonGrad=new THREE.CanvasTexture(c)
-  _toonGrad.magFilter=THREE.NearestFilter;_toonGrad.minFilter=THREE.NearestFilter
-  return _toonGrad
+// MeshStandardMaterial con emissive para colores vivos bajo cualquier luz
+function pbrMat(col,rough=0.72,emissiveFactor=0.12){
+  const c=new THREE.Color(col)
+  return new THREE.MeshStandardMaterial({
+    color:col,roughness:rough,metalness:0,
+    emissive:c,emissiveIntensity:emissiveFactor
+  })
 }
-function tm(col){return new THREE.MeshToonMaterial({color:col,gradientMap:getToonGrad()})}
-function smMat(col,rough=0.62){return new THREE.MeshStandardMaterial({color:col,roughness:rough,metalness:0})}
-function ol(mesh,sc=1.055){
-  const m=new THREE.Mesh(mesh.geometry,new THREE.MeshBasicMaterial({color:0x060606,side:THREE.BackSide}))
+function smMat(col,rough=0.65){return new THREE.MeshStandardMaterial({color:col,roughness:rough,metalness:0})}
+// outline — muy sutil, solo para separar partes (escala 1.02 no 1.06)
+function ol(mesh,sc=1.022){
+  const m=new THREE.Mesh(mesh.geometry,new THREE.MeshBasicMaterial({color:0x111111,side:THREE.BackSide}))
   m.scale.setScalar(sc);mesh.add(m)
 }
-// Lathe helper — profile points [r,y] → LatheGeometry
+// Lathe helper
 function lathe(pts,seg=14){return new THREE.LatheGeometry(pts.map(([r,y])=>new THREE.Vector2(r,y)),seg)}
-function cylM(r1,r2,h,seg,mat){const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg),mat);m.castShadow=true;return m}
 function sphM(r,ws,hs,mat){const m=new THREE.Mesh(new THREE.SphereGeometry(r,ws,hs),mat);m.castShadow=true;return m}
 function boxM(w,h,d,mat){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.castShadow=true;return m}
 
@@ -364,14 +361,20 @@ function createPlayer(isOffense,num,idx=0){
   const hC=HAIRS[idx%HAIRS.length]
   const shC=isOffense?0x111111:0xf0f0f0
 
-  // Jersey usa StandardMaterial con textura para mejor luz PBR
+  // Materiales con emissive para que se vean vivos bajo cualquier ángulo
   const jTex=makeJerseyTex(isOffense,aC)
-  const J=new THREE.MeshStandardMaterial({color:jC,map:jTex,roughness:0.80,metalness:0})
-  const S=new THREE.MeshStandardMaterial({color:sC,roughness:0.82,metalness:0})
-  const SK=smMat(skC,0.65)  // piel: Standard para SSS aproximado
-  const AC=tm(aC)
-  const SH=new THREE.MeshStandardMaterial({color:shC,roughness:0.55,metalness:0.05})
-  const WHT=smMat(0xfafafa,0.85)
+  const J=new THREE.MeshStandardMaterial({color:jC,map:jTex,roughness:0.75,metalness:0,
+    emissive:new THREE.Color(jC),emissiveIntensity:0.18})
+  const S=new THREE.MeshStandardMaterial({color:sC,roughness:0.78,metalness:0,
+    emissive:new THREE.Color(sC),emissiveIntensity:0.14})
+  const SK=new THREE.MeshStandardMaterial({color:skC,roughness:0.62,metalness:0,
+    emissive:new THREE.Color(skC),emissiveIntensity:0.10})
+  const AC=new THREE.MeshStandardMaterial({color:aC,roughness:0.55,metalness:0,
+    emissive:new THREE.Color(aC),emissiveIntensity:0.25})
+  const SH=new THREE.MeshStandardMaterial({color:shC,roughness:0.50,metalness:0.08,
+    emissive:new THREE.Color(shC),emissiveIntensity:0.08})
+  const WHT=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.80,metalness:0,
+    emissive:new THREE.Color(0xffffff),emissiveIntensity:0.12})
 
   // ── Sombra suelo ──────────────────────────────────────────
   const shadow=new THREE.Mesh(new THREE.CircleGeometry(0.42,24),
@@ -389,7 +392,7 @@ function createPlayer(isOffense,num,idx=0){
       [0.116,0.22],[0.112,0.34],[0.098,0.46],     // rodilla
     ],13)
     const thigh=new THREE.Mesh(thighGeo,S);thigh.castShadow=true
-    thigh.position.y=-0.46;ol(thigh,1.05);hipG.add(thigh)
+    thigh.position.y=-0.46;hipG.add(thigh)
 
     const kneeG=new THREE.Group();kneeG.position.y=-0.46
 
@@ -399,7 +402,7 @@ function createPlayer(isOffense,num,idx=0){
       [0.078,0.24],[0.064,0.38],[0.056,0.46],  // tobillo
     ],12)
     const calf=new THREE.Mesh(calfGeo,SK);calf.castShadow=true
-    calf.position.y=-0.46;ol(calf,1.05);kneeG.add(calf)
+    calf.position.y=-0.46;kneeG.add(calf)
 
     // CALCETÍN
     const sockGeo=lathe([[0.00,0],[0.072,0.01],[0.074,0.14],[0.070,0.16]],12)
@@ -414,7 +417,7 @@ function createPlayer(isOffense,num,idx=0){
     // parte superior (forma ligeramente curvada)
     const upperGeo=new THREE.BoxGeometry(0.192,0.098,0.318)
     const upperMesh=new THREE.Mesh(upperGeo,SH);upperMesh.position.y=0.022
-    upperMesh.castShadow=true;ol(upperMesh,1.03);shoeGrp.add(upperMesh)
+    upperMesh.castShadow=true;shoeGrp.add(upperMesh)
     // lengüeta / cordones (plano con textura)
     const laceTex=makeShoeTex(shC,aC)
     const lacePlane=new THREE.Mesh(new THREE.PlaneGeometry(0.14,0.12),
@@ -442,7 +445,7 @@ function createPlayer(isOffense,num,idx=0){
     [0.268,0.76],[0.220,0.80],               // hombro
   ],16)
   const bodyM=new THREE.Mesh(bodyGeo,J);bodyM.castShadow=true
-  bodyM.position.y=0;ol(bodyM,1.035);torsoG.add(bodyM)
+  bodyM.position.y=0;torsoG.add(bodyM)
 
   // collar
   const collarGeo=lathe([[0.00,0],[0.148,0.01],[0.152,0.07],[0.148,0.08]],14)
@@ -451,7 +454,7 @@ function createPlayer(isOffense,num,idx=0){
   // caps de hombro esféricos
   ;[-1,1].forEach(sx=>{
     const cap=sphM(0.085,10,10,J);cap.castShadow=true
-    cap.position.set(sx*0.310,0.76,0);ol(cap,1.04);torsoG.add(cap)
+    cap.position.set(sx*0.310,0.76,0);torsoG.add(cap)
   })
 
   G.add(torsoG)
@@ -467,23 +470,23 @@ function createPlayer(isOffense,num,idx=0){
       [0.090,0.22],[0.078,0.38],[0.072,0.42],
     ],11)
     const bicep=new THREE.Mesh(bicepGeo,J);bicep.castShadow=true
-    bicep.position.y=-0.42;ol(bicep,1.05);shG.add(bicep)
+    bicep.position.y=-0.42;shG.add(bicep)
 
     const elG=new THREE.Group();elG.position.y=-0.42
 
     // ANTEBRAZO
     const foreGeo=lathe([
-      [0.00,0.00],[0.070,0.01],[0.078,0.08],  // pico del antebrazo
+      [0.00,0.00],[0.070,0.01],[0.078,0.08],
       [0.068,0.22],[0.055,0.36],[0.048,0.40],
     ],11)
     const fore=new THREE.Mesh(foreGeo,SK);fore.castShadow=true
-    fore.position.y=-0.40;ol(fore,1.05);elG.add(fore)
+    fore.position.y=-0.40;elG.add(fore)
 
-    // MANO — ligeramente aplanada para realismo
+    // MANO
     const handGeo=new THREE.SphereGeometry(0.072,12,10)
     const hand=new THREE.Mesh(handGeo,SK);hand.castShadow=true
     hand.scale.set(1.10,0.82,1.20);hand.position.y=-0.43
-    ol(hand,1.06);elG.add(hand)
+    elG.add(hand)
     // dedos simplificados (3 esferas pequeñas)
     ;[-0.035,0,0.035].forEach((ox,i)=>{
       const fing=new THREE.Mesh(new THREE.SphereGeometry(0.022,8,6),SK)
@@ -499,35 +502,29 @@ function createPlayer(isOffense,num,idx=0){
   // ══ CUELLO ════════════════════════════════════════════════
   const neckGeo=lathe([[0.00,0],[0.112,0.01],[0.118,0.10],[0.108,0.20],[0.098,0.22]],12)
   const neckM=new THREE.Mesh(neckGeo,SK);neckM.castShadow=true
-  neckM.position.set(0,0.92+0.82+0.02,0);ol(neckM);G.add(neckM)
+  neckM.position.set(0,0.92+0.82+0.02,0);G.add(neckM)
 
   // ══ CABEZA ════════════════════════════════════════════════
   const headG=new THREE.Group()
   headG.position.set(0,0.92+0.82+0.26,0)
 
-  // Cráneo con SphereGeometry alta resolución
+  // Cráneo — StandardMaterial con piel bien iluminada
   const skull=sphM(0.228,22,18,SK);skull.scale.set(1.0,1.08,0.98)
-  skull.castShadow=true;ol(skull,1.038);headG.add(skull)
+  skull.castShadow=true;headG.add(skull)
 
-  // CARA DETALLADA — PlaneGeometry con canvas de cara
+  // CARA DETALLADA — PlaneGeometry billboard (visible de lado/inclinada)
   const faceTex=makeDetailFace(skC,hC)
   const faceMat=new THREE.MeshBasicMaterial({map:faceTex,transparent:true,alphaTest:0.01,depthWrite:false})
   const facePlane=new THREE.Mesh(new THREE.PlaneGeometry(0.44,0.44),faceMat)
   facePlane.position.set(0,0.02,0.215)
   headG.add(facePlane)
 
-  // PELO — varios volúmenes para más realismo
-  const hairMat=new THREE.MeshStandardMaterial({color:hC,roughness:0.95,metalness:0})
-  // capa base
-  const hairBase=new THREE.Mesh(new THREE.SphereGeometry(0.232,16,10,0,Math.PI*2,0,Math.PI*.47),hairMat)
+  // PELO — cubre solo la parte superior (no toda la cabeza)
+  // Reducido a phi=0.38 para dejar piel visible desde arriba
+  const hairMat=new THREE.MeshStandardMaterial({color:hC,roughness:0.92,metalness:0,
+    emissive:new THREE.Color(hC),emissiveIntensity:0.08})
+  const hairBase=new THREE.Mesh(new THREE.SphereGeometry(0.232,16,10,0,Math.PI*2,0,Math.PI*.38),hairMat)
   headG.add(hairBase)
-  // volumen superior adicional
-  const hairTop=new THREE.Mesh(new THREE.SphereGeometry(0.225,14,8,0,Math.PI*2,0,Math.PI*.25),hairMat)
-  hairTop.position.y=0.06;headG.add(hairTop)
-  // contorno negro
-  const hairOL=new THREE.Mesh(new THREE.SphereGeometry(0.238,16,10,0,Math.PI*2,0,Math.PI*.47),
-    new THREE.MeshBasicMaterial({color:0x060606,side:THREE.BackSide}))
-  headG.add(hairOL)
   // orejas
   ;[-1,1].forEach(sx=>{
     const earGeo=new THREE.SphereGeometry(0.038,8,8);earGeo.scale(1,1.4,0.5)

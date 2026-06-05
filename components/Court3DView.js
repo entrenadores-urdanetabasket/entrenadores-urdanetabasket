@@ -797,7 +797,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,clockMap,ball,hasGLTF:!!gltfTemplate}
+        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,clockMap,ball,hasGLTF}
         renderer.render(scene,camera)
         setInitError(null)
 

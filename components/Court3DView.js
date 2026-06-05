@@ -154,15 +154,19 @@ function addHoop(scene,courtType,H_m,flipped){
 }
 
 /* ── realistic player ────────────────────────────────────────── */
-function createPlayer(isOffense,num){
+const SKIN_PALETTE=[0x7a4f3a,0xc68642,0xedc9a0,0x5c3520,0xd4956a,0x3d2010]
+const HAIR_PALETTE=[0x0d0400,0x1a0800,0x241005,0x0a0300,0x180a04,0x100602]
+
+function createPlayer(isOffense,num,idx=0){
   const group=new THREE.Group()
 
-  // Natural team colors — realistic kit
-  const jerseyC =isOffense?0x1a3a8a:0xf0f0f0   // navy blue vs white
-  const shortsC =isOffense?0x1a3a8a:0xf0f0f0
-  const accentC =isOffense?0xf5c518:0xcc2222   // gold vs red accent
-  const skinC   =isOffense?0x7a4f3a:0xedc9a0   // darker vs lighter skin
-  const shoeC   =isOffense?0x111111:0xeeeeee
+  // Colores de equipo
+  const jerseyC=isOffense?0x1a3a8a:0xf2f2f2
+  const shortsC=isOffense?0x1a3a8a:0xf2f2f2
+  const accentC=isOffense?0xf5c518:0xcc2222
+  const skinC  =SKIN_PALETTE[idx%SKIN_PALETTE.length]
+  const hairC  =HAIR_PALETTE[idx%HAIR_PALETTE.length]
+  const shoeC  =isOffense?0x111111:0xdddddd
 
   const jMat=new THREE.MeshStandardMaterial({color:jerseyC,roughness:0.85,metalness:0})
   const sMat=new THREE.MeshStandardMaterial({color:shortsC,roughness:0.85,metalness:0})
@@ -237,7 +241,7 @@ function createPlayer(isOffense,num){
   // Hair cap / hair (flat dark sphere top)
   const hair=new THREE.Mesh(
     new THREE.SphereGeometry(0.215,14,8,0,Math.PI*2,0,Math.PI*0.48),
-    new THREE.MeshStandardMaterial({color:isOffense?0x1a0800:0x2a1a0a,roughness:1,metalness:0})
+    new THREE.MeshStandardMaterial({color:hairC,roughness:1,metalness:0})
   )
   hair.position.set(0,1.93,0);group.add(hair)
 
@@ -267,24 +271,62 @@ function createPlayer(isOffense,num){
   return group
 }
 
-/* ── basketball ──────────────────────────────────────────────── */
+/* ── basketball canvas texture (costura figure-8 real) ────────── */
+function makeBallTex(){
+  const W=1024,H=512,c=document.createElement('canvas')
+  c.width=W;c.height=H
+  const ctx=c.getContext('2d')
+  // Gradiente naranja con profundidad
+  const g=ctx.createRadialGradient(W*0.36,H*0.30,8,W*0.5,H*0.5,W*0.54)
+  g.addColorStop(0,'#f59040');g.addColorStop(0.55,'#d06018');g.addColorStop(1,'#9a3c06')
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H)
+  // Textura de goma sutil
+  ctx.globalAlpha=0.04
+  for(let i=0;i<1200;i++){
+    ctx.fillStyle=Math.random()>0.5?'#fff':'#000'
+    ctx.fillRect(Math.random()*W,Math.random()*H,Math.random()*3+1,Math.random()*3+1)
+  }
+  ctx.globalAlpha=1
+  // Costura figure-8 real: en proyección UV aparece como onda sinusoidal
+  ctx.strokeStyle='#160700';ctx.lineCap='round';ctx.lineJoin='round'
+  // Ecuador
+  ctx.lineWidth=10
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke()
+  // Las 2 costuras sinusoidales (figure-8 visto de lado)
+  const A=H*0.30
+  for(let s=0;s<2;s++){
+    ctx.lineWidth=10
+    ctx.beginPath()
+    for(let x=0;x<=W;x++){
+      const t=((x+s*(W/2))/W)*Math.PI*4
+      const y=H/2+A*Math.sin(t)
+      x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)
+    }
+    ctx.stroke()
+  }
+  // Surcos paralelos a las costuras (textura de goma)
+  ctx.lineWidth=3;ctx.globalAlpha=0.25
+  for(let s=0;s<2;s++){
+    for(const off of[-14,14]){
+      ctx.beginPath()
+      for(let x=0;x<=W;x++){
+        const t=((x+s*(W/2))/W)*Math.PI*4
+        const y=H/2+A*Math.sin(t)+off
+        x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)
+      }
+      ctx.stroke()
+    }
+  }
+  ctx.globalAlpha=1
+  const tex=new THREE.CanvasTexture(c);tex.anisotropy=16;return tex
+}
+
 function createBall(scene){
-  // Realistic orange rubber ball
   const ball=new THREE.Mesh(
-    new THREE.SphereGeometry(0.122,24,24),
-    new THREE.MeshStandardMaterial({color:0xd85010,roughness:0.72,metalness:0.0})
+    new THREE.SphereGeometry(0.122,36,28),
+    new THREE.MeshStandardMaterial({map:makeBallTex(),roughness:0.78,metalness:0.0})
   )
   ball.castShadow=true
-  // Black seam lines — 3 great circles
-  const seamMat=new THREE.LineBasicMaterial({color:0x111111,linewidth:1.5})
-  const mkSeam=()=>{
-    const pts=Array.from({length:65},(_,i)=>{const a=i/64*Math.PI*2;return new THREE.Vector3(Math.cos(a)*0.126,0,Math.sin(a)*0.126)})
-    return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),seamMat)
-  }
-  const eq=mkSeam();ball.add(eq)
-  const ms=mkSeam();ms.rotation.z=Math.PI/2;ball.add(ms)
-  // Curved seam lines for realism
-  const cs=mkSeam();cs.rotation.x=Math.PI/4;ball.add(cs)
   scene.add(ball);return ball
 }
 
@@ -388,26 +430,37 @@ export default function Court3DView({phases,courtType}){
       scene.background=new THREE.Color(0x080b14)
       scene.fog=new THREE.Fog(0x080b14,45,90)
 
-      // ── Natural arena lighting ─────────────────────────────
-      scene.add(new THREE.AmbientLight(0xfff0d8,0.60))
-      // 4 overhead directional lights con sombras más amplias para pista completa
-      const shadowSz=full?22:14
-      ;[[0,26,H_m*0.1],[0,26,H_m*0.9],[-W_m*0.35,20,H_m/2],[W_m*0.35,20,H_m/2]].forEach(([x,y,z])=>{
-        const dl=new THREE.DirectionalLight(0xfff8e8,0.78)
-        dl.position.set(x,y,z);dl.castShadow=true
-        dl.shadow.mapSize.set(1024,1024);dl.shadow.camera.near=1;dl.shadow.camera.far=60
-        ;['left','right','top','bottom'].forEach((k,i)=>(dl.shadow.camera[k]=[-shadowSz,shadowSz,shadowSz,-shadowSz][i]))
-        scene.add(dl)
+      // ── Arena lighting — SpotLights de pabellón ───────────────
+      scene.add(new THREE.AmbientLight(0xfff0d8,0.38))
+      // 4 focos cenital de techo — conos visibles con penumbra suave
+      const spotDist=full?55:38
+      ;[
+        [0,          full?32:26, H_m*0.12],
+        [0,          full?32:26, H_m*0.88],
+        [-W_m*0.42,  full?26:20, H_m/2  ],
+        [ W_m*0.42,  full?26:20, H_m/2  ],
+      ].forEach(([x,y,z])=>{
+        const sp=new THREE.SpotLight(0xfff5e0,full?2.0:2.5)
+        sp.position.set(x,y,z)
+        sp.target.position.set(x*0.25,0,z)
+        sp.angle=Math.PI/6
+        sp.penumbra=0.55
+        sp.decay=1.4
+        sp.distance=spotDist
+        sp.castShadow=true
+        sp.shadow.mapSize.set(1024,1024)
+        sp.shadow.camera.near=1;sp.shadow.camera.far=spotDist+5
+        scene.add(sp);scene.add(sp.target)
       })
-      // Soft fill from sides — mayor rango para pista completa
-      const fillRange=full?55:35
-      const fill1=new THREE.PointLight(0xc8d0e0,0.40,fillRange);fill1.position.set(-W_m,4,H_m/2);scene.add(fill1)
-      const fill2=new THREE.PointLight(0xc8d0e0,0.40,fillRange);fill2.position.set( W_m,4,H_m/2);scene.add(fill2)
+      // Luces de relleno laterales frías (simulan rebote desde graderías)
+      const fillRange=full?60:40
+      const fill1=new THREE.PointLight(0xb8c8e0,0.35,fillRange);fill1.position.set(-W_m*1.2,3,H_m/2);scene.add(fill1)
+      const fill2=new THREE.PointLight(0xb8c8e0,0.35,fillRange);fill2.position.set( W_m*1.2,3,H_m/2);scene.add(fill2)
 
-      // Court floor
+      // Court floor — parquet brillante (roughness bajo = reflejos suaves)
       const floor=new THREE.Mesh(
         new THREE.PlaneGeometry(W_m,H_m),
-        new THREE.MeshStandardMaterial({map:makeCourtTex(courtType),roughness:0.35,metalness:0.04})
+        new THREE.MeshStandardMaterial({map:makeCourtTex(courtType),roughness:0.18,metalness:0.05})
       )
       floor.rotation.x=-Math.PI/2;floor.position.set(0,0,H_m/2);floor.receiveShadow=true;scene.add(floor)
 
@@ -421,16 +474,18 @@ export default function Court3DView({phases,courtType}){
       // Players
       const playerMeshes={}
       const e0=phases[0]?.elements||[]
+      let pIdx=0
       for(const el of e0){
         if(!PLAYER_TYPES.includes(el.type))continue
-        const mesh=createPlayer(el.type==='offense',el.num??'?')
+        const mesh=createPlayer(el.type==='offense',el.num??'?',pIdx++)
         const{x,z}=p3(el.x,el.y);mesh.position.set(x,0,z)
         scene.add(mesh);playerMeshes[el.id]=mesh
       }
       const ball=createBall(scene)
+      const BALL_HOLD_H=0.95   // altura de cintura al portar el balón
       const ic=e0.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
-      if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,0.12,z)}
-      else{const{x,z}=p3(CW/2,H_px*0.4);ball.position.set(x,0.12,z)}
+      if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_HOLD_H,z)}
+      else{const{x,z}=p3(CW/2,H_px*0.4);ball.position.set(x,BALL_HOLD_H,z)}
 
       stateRef.current={renderer,scene,camera,playerMeshes,ball}
       renderer.render(scene,camera)
@@ -463,11 +518,11 @@ export default function Court3DView({phases,courtType}){
     for(const el of e0){
       if(!PLAYER_TYPES.includes(el.type))continue
       const m=s.playerMeshes[el.id];if(!m)continue
-      const{x,z}=p3(el.x,el.y);m.position.set(x,0,z);m.rotation.y=0
+      const{x,z}=p3(el.x,el.y);m.position.set(x,0,z);m.rotation.set(0,0,0)
       if(m.userData.leftArm){m.userData.leftArm.rotation.x=0;m.userData.rightArm.rotation.x=0}
     }
     const ic=e0.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
-    if(ic){const{x,z}=p3(ic.x,ic.y);s.ball.position.set(x,0.12,z)}
+    if(ic){const{x,z}=p3(ic.x,ic.y);s.ball.position.set(x,0.95,z)}
     s.ball.scale.setScalar(1);s.renderer.render(s.scene,s.camera)
   }
 
@@ -524,25 +579,28 @@ export default function Court3DView({phases,courtType}){
         const bp2=p3(b.x,b.y),tp2=p3(t.x,t.y)
         m.position.x=lerp(bp2.x,tp2.x,et);m.position.z=lerp(bp2.z,tp2.z,et)
         const dx=tp2.x-bp2.x,dz=tp2.z-bp2.z,dist=Math.hypot(dx,dz)
-        // face direction of movement
+        // cara hacia dirección de movimiento
         if(dist>0.02)m.rotation.y=Math.atan2(dx,dz)
-        // natural running bob + arm swing
+        // carrera: bob vertical + balanceo de brazos + inclinación hacia delante
         if(tg[e.id]&&st>0&&dist>0.05){
-          const speed=Math.min(1,dist*1.5)
-          m.position.y=Math.abs(Math.sin(et*Math.PI*5))*0.06*speed
+          const speed=Math.min(1,dist*1.8)
+          const phase=et*Math.PI*5
+          m.position.y=Math.abs(Math.sin(phase))*0.07*speed
+          // inclinación hacia delante al correr
+          m.rotation.x=-Math.sin(et*Math.PI)*0.14*speed
           if(m.userData.leftArm&&m.userData.rightArm){
-            const sw=Math.sin(et*Math.PI*5)*0.35*speed
+            const sw=Math.sin(phase)*0.42*speed
             m.userData.leftArm.rotation.x=sw;m.userData.rightArm.rotation.x=-sw
-            if(m.userData.leftFore){m.userData.leftFore.rotation.x=sw*0.6;m.userData.rightFore.rotation.x=-sw*0.6}
+            if(m.userData.leftFore){m.userData.leftFore.rotation.x=sw*0.55;m.userData.rightFore.rotation.x=-sw*0.55}
           }
         } else {
-          m.position.y=0
+          m.position.y=0;m.rotation.x=0
           if(m.userData.leftArm){m.userData.leftArm.rotation.x=0;m.userData.rightArm.rotation.x=0}
         }
       }
 
-      // ball animation
-      let bx=null,by=0.12,bz=null;ball.scale.setScalar(1)
+      // ball animation — balón a altura de cintura cuando está en manos
+      let bx=null,by=0.95,bz=null;ball.scale.setScalar(1)
       if(st>0&&bc){
         const cB=bp[bc]
         // handoff
@@ -572,12 +630,15 @@ export default function Court3DView({phases,courtType}){
             by=0.95+pDist*0.12*Math.sin(et*Math.PI)   // slight arc on pass
           }
         }
-        // dribble — ball bounces
+        // dribble — rebote real: va al suelo y vuelve a la mano (0.95m)
         if(bx===null&&tg[bc]){
           const bp3=p3(cB.x,cB.y),tp3=p3(tg[bc].x,tg[bc].y)
           bx=lerp(bp3.x,tp3.x,et);bz=lerp(bp3.z,tp3.z,et)
-          by=0.12+Math.abs(Math.sin(et*Math.PI*4))*0.65  // realistic dribble bounce
+          // parábola: 0.95 → 0.08 → 0.95 (mano→suelo→mano)
+          const bounce=Math.abs(Math.cos(et*Math.PI*3.5))
+          by=0.08+bounce*0.87
         }
+        // estático con balón: a altura de cintura
         if(bx===null){const cp=p3(cB.x,cB.y);bx=cp.x;bz=cp.z;by=0.95}
       }
       if(bx!==null)ball.position.set(bx,by,bz)

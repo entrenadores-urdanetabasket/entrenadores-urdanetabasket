@@ -699,25 +699,29 @@ export default function Court3DView({phases,courtType}){
         setLoadMsg('Cargando personaje… (primera vez puede tardar 1 min)')
         const fbxLoader=new FBXLoader()
 
-        // Carga un FBX, extrae su primer clip de animación; devuelve null si falla
+        // Carga un FBX, extrae su primer clip; devuelve null si falla (sin re-renders de progreso)
         async function loadClip(path,name){
           return new Promise(res=>{
             fbxLoader.load(path,fbx=>{
               const c=fbx.animations[0]
               if(c){c.name=name;res({clip:c,fbx})}else res(null)
-            },xhr=>{
-              if(xhr.total)setLoadMsg(`Cargando ${name}… ${Math.round(xhr.loaded/xhr.total*100)}%`)
-            },()=>res(null)) // falla silenciosamente si el archivo no existe
+            },null,()=>res(null))
           })
         }
 
-        // Modelo base (con skin) — siempre requerido
+        // Modelo base (con skin) — requerido, mostramos un único mensaje
+        setLoadMsg('Cargando personaje…')
         const baseResult=await loadClip('/models/player_idle.fbx','Idle')
         if(canceled||!baseResult)return
         const baseFbx=baseResult.fbx
         const loadedClips={Idle:baseResult.clip}
 
-        // Clips opcionales — se cargan en paralelo, se ignoran si no están
+        // Run — también requerido
+        setLoadMsg('Cargando animaciones…')
+        const runResult=await loadClip('/models/player_run.fbx','Run')
+        if(runResult)loadedClips['Run']=runResult.clip
+
+        // Clips opcionales todos en paralelo — sin actualizar el mensaje (evita re-renders)
         const extra=await Promise.all(
           ANIM_CLIPS.filter(a=>!a.required).map(a=>loadClip(a.path,a.name))
         )
@@ -825,8 +829,8 @@ export default function Court3DView({phases,courtType}){
       if(md&&md.currentState!=='Idle'&&md.actions?.['Idle']){
         const from=md.actions[md.currentState]
         const to=md.actions['Idle']
-        if(from)from.crossFadeTo(to,0.30,true)
-        to.reset().play()
+        if(from)from.fadeOut(0.30)
+        to.reset().fadeIn(0.30).play()
         md.currentState='Idle'
       }
     }
@@ -952,8 +956,9 @@ export default function Court3DView({phases,courtType}){
             const toAct  =md.actions[target]
             if(toAct){
               const fade=ANIM_FADE[target]??ANIM_FADE._default
-              if(fromAct)fromAct.crossFadeTo(toAct,fade,true)
-              toAct.reset().play()
+              // Patrón correcto Three.js: fadeOut el anterior, fadeIn el nuevo
+              if(fromAct){fromAct.fadeOut(fade)}
+              toAct.reset().fadeIn(fade).play()
             }
             md.currentState=target
           }
@@ -966,10 +971,25 @@ export default function Court3DView({phases,courtType}){
       ball.scale.setScalar(1)
       let bx=null,by=1.0,bz=null
 
+      // Busca el hueso de la mano derecha en el esqueleto Mixamo y devuelve su posición real
       function carrierHand(cid){
         const cm=playerMeshes[cid];if(!cm)return null
+        let handPos=null
+        cm.traverse(obj=>{
+          if(handPos)return
+          if(obj.isBone||obj.isSkinnedMesh){
+            const n=obj.name.toLowerCase()
+            if(n.includes('righthand')||n.includes('right_hand')||n==='mixamorigrighthand'){
+              const wp=new THREE.Vector3();obj.getWorldPosition(wp)
+              // Convertir de escala Mixamo (cm) a metros ya está hecho por clone.scale(0.01)
+              handPos={x:wp.x,y:Math.max(0.4,wp.y),z:wp.z}
+            }
+          }
+        })
+        if(handPos)return handPos
+        // Fallback geométrico si no encuentra el hueso
         const ry=cm.rotation.y
-        return{x:cm.position.x+Math.sin(ry-0.30)*0.42,y:1.0,z:cm.position.z+Math.cos(ry-0.30)*0.42}
+        return{x:cm.position.x+Math.sin(ry-0.30)*0.38,y:0.95,z:cm.position.z+Math.cos(ry-0.30)*0.38}
       }
 
       if(bc){

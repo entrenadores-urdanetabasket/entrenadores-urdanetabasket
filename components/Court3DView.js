@@ -350,7 +350,7 @@ function createPlayer(isOffense,num,idx=0){
 ──────────────────────────────────────────────────────────────── */
 function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
   const{leftHipG,rightHipG,leftKneeG,rightKneeG,leftShG,rightShG,leftElG,rightElG,torsoG,headG}=ud
-  const SPD=0.22
+  const SPD=0.35
   function go(joint,x,z=0,spd=SPD){
     if(!joint)return
     joint.rotation.x+=(x-joint.rotation.x)*spd
@@ -366,31 +366,29 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     const cyc=et*Math.PI*6.0*spd
     const lL=Math.max(0,Math.sin(cyc)),lR=Math.max(0,-Math.sin(cyc))
     // Piernas — zancada amplia
-    go(leftHipG,  -Math.sin(cyc)*0.68, 0.04,0.26)
-    go(rightHipG,  Math.sin(cyc)*0.68,-0.04,0.26)
+    go(leftHipG,  -Math.sin(cyc)*0.85, 0.05,0.40)
+    go(rightHipG,  Math.sin(cyc)*0.85,-0.05,0.40)
     // Rodillas — recogida alta (estilo NBA)
-    go(leftKneeG,  lL*0.92,0,0.26)
-    go(rightKneeG, lR*0.92,0,0.26)
+    go(leftKneeG,  lL*1.10,0,0.40)
+    go(rightKneeG, lR*1.10,0,0.40)
     // Brazos — si va botando, brazo dcha baja rítmico + brazo izqda contrapeso
     if(action==='dribble'){
-      // Brazo de bote: sube y baja sincronizado con el rebote del balón
-      go(rightShG, -0.10+Math.sin(cyc)*0.18, -0.12, 0.24)
-      go(rightElG, 0.72+Math.sin(cyc+Math.PI)*0.38, 0, 0.24)
-      // Brazo izquierda: balanceo normal de carrera (guardia)
-      go(leftShG,  Math.sin(cyc)*0.48, 0.08, 0.24)
-      go(leftElG,  0.42+lR*0.36, 0, 0.24)
+      go(rightShG, -0.12+Math.sin(cyc)*0.22, -0.14, 0.38)
+      go(rightElG, 0.80+Math.sin(cyc+Math.PI)*0.50, 0, 0.38)
+      go(leftShG,  Math.sin(cyc)*0.60, 0.10, 0.38)
+      go(leftElG,  0.50+lR*0.44, 0, 0.38)
     }else{
       // Carrera normal sin balón — patrón cruzado enérgico
-      go(leftShG,   Math.sin(cyc)*0.55, 0.07,0.26)
-      go(rightShG, -Math.sin(cyc)*0.55,-0.07,0.26)
-      go(leftElG,  0.42+lR*0.38,0,0.24)
-      go(rightElG, 0.42+lL*0.38,0,0.24)
+      go(leftShG,   Math.sin(cyc)*0.72, 0.08,0.40)
+      go(rightShG, -Math.sin(cyc)*0.72,-0.08,0.40)
+      go(leftElG,  0.55+lR*0.50,0,0.38)
+      go(rightElG, 0.55+lL*0.50,0,0.38)
     }
     if(torsoG){
-      torsoG.rotation.x+=(-0.16-torsoG.rotation.x)*SPD
-      torsoG.rotation.y+=(Math.sin(cyc*0.5)*0.06-torsoG.rotation.y)*0.14
+      torsoG.rotation.x+=(-0.20-torsoG.rotation.x)*SPD
+      torsoG.rotation.y+=(Math.sin(cyc*0.5)*0.08-torsoG.rotation.y)*0.18
     }
-    m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.075-m.position.y)*0.30
+    m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.10-m.position.y)*0.40
 
   }else if(action==='shot'&&st>0){
     // ══ TIRO NBA — keyframes directos, lerp rapido para maximo impacto visual ══
@@ -422,20 +420,21 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     if(headG)headG.rotation.x+=((-p2*0.35-p3*0.10)-headG.rotation.x)*SQ
 
   }else if(action==='pass'&&st>0){
-    // ══ PASE — wind-up + disparo + follow-through ══════════
-    const wu=Math.min(1,et/0.26)
-    const rel=Math.max(0,(et-0.26)/0.74)
-    // Brazo de pase: carga atrás → dispara hacia delante
-    const shX=wu<1?wu*0.42:0.42-rel*1.18
-    const elX=wu<1?0.28+wu*0.22:0.50-rel*0.32
-    go(rightShG,shX, 0.08,0.24)
-    go(rightElG,Math.max(0,elX),0,0.24)
-    // Brazo guía
-    go(leftShG,-0.20,0.24,0.18);go(leftElG,0.42,0,0.18)
-    // Transferencia de peso: pie trasero → delantero
-    go(leftHipG, -0.08+rel*0.18,0,0.20);go(rightHipG,0.14-rel*0.12,0,0.20)
-    go(leftKneeG,0.12,0,0.18);go(rightKneeG,0.08,0,0.18)
-    if(torsoG)torsoG.rotation.x+=(-0.07*et-torsoG.rotation.x)*0.20
+    // ══ PASE — wind-up + disparo explosivo + follow-through ══════════
+    const SP=0.45
+    const wu=Math.min(1,et/0.22)
+    const rel=Math.max(0,(et-0.22)/0.78)
+    // Brazo de pase: carga atrás → dispara potente hacia delante
+    const shX=wu<1?wu*0.62:-0.14-rel*1.20
+    const elX=wu<1?0.32+wu*0.30:0.62-rel*0.55
+    go(rightShG,shX, 0.10,SP)
+    go(rightElG,Math.max(0,elX),0,SP)
+    // Brazo guía: acompaña
+    go(leftShG,-0.28+rel*0.12,0.28,SP);go(leftElG,0.55,0,SP)
+    // Transferencia de peso
+    go(leftHipG, -0.10+rel*0.22,0,SP);go(rightHipG,0.18-rel*0.15,0,SP)
+    go(leftKneeG,0.15,0,SP);go(rightKneeG,0.10,0,SP)
+    if(torsoG)torsoG.rotation.x+=(-0.10*et-torsoG.rotation.x)*SP
 
   }else if(action==='handoff'&&st>0){
     // ══ HANDOFF — ofrece el balón con el brazo extendido ══
@@ -736,7 +735,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,ball}
+        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,ball,rimWorldZ,H_m}
         setInitError(null)
 
         // Loop idle siempre activo — animación aunque no se esté reproduciendo
@@ -802,7 +801,7 @@ export default function Court3DView({phases,courtType}){
     const s=stateRef.current;if(!s||playing)return
     setPlaying(true)
     s._setPlaying?.(true)
-    const{renderer,scene,camera,playerMeshes,ball}=s
+    const{renderer,scene,camera,playerMeshes,ball,rimWorldZ,H_m}=s
     const nP=phases.length
     const meta=phases.map(ph=>({n:getNumSteps(ph.elements||[]),get dur(){return this.n*STEP_DUR+PHASE_HOLD}}))
     const starts=[0];for(let i=0;i<nP;i++)starts.push(starts[i]+meta[i].dur)
@@ -853,13 +852,30 @@ export default function Court3DView({phases,courtType}){
       const playerAction={}
       for(const e of elems){
         if(!ARROW_TYPES.includes(e.type)||(e.step??0)!==si)continue
-        const pid=e.fromId;if(!pid)continue
+        // Resolver el jugador: usar fromId si existe, o el más cercano al inicio de la flecha
+        let pid=e.fromId
+        if(!pid){
+          let bd=PR*3.5,bi=null
+          for(const p of elems){
+            if(!PLAYER_TYPES.includes(p.type))continue
+            const pp=bp[p.id];if(!pp)continue
+            const d=Math.hypot(pp.x-(e.x1??e.x),pp.y-(e.y1??e.y))
+            if(d<bd){bd=d;bi=p.id}
+          }
+          pid=bi
+        }
+        if(!pid)continue
         if(e.type==='pass')    playerAction[pid]='pass'
         if(e.type==='shot')    playerAction[pid]='shot'
         if(e.type==='handoff') playerAction[pid]='handoff'
         if(e.type==='screen')  playerAction[pid]='screen'
         if(e.type==='cut')     playerAction[pid]='cut'
         if(e.type==='dribble') playerAction[pid]='dribble'
+      }
+      // Si hay flecha de tiro en este paso y el portador no tiene acción, asignarle shot
+      if(bc&&!playerAction[bc]){
+        const hasShotArrow=elems.some(e=>e.type==='shot'&&(e.step??0)===si)
+        if(hasShotArrow)playerAction[bc]='shot'
       }
       // Marcar receptor de pase
       for(const e of elems){

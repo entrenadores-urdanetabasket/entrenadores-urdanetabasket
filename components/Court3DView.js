@@ -131,28 +131,76 @@ function makeCourtTex(courtType){
 /* ── basket ──────────────────────────────────────────────────── */
 function addHoop(scene,courtType,H_m,flipped){
   const H_px=getH(courtType),mg=22,hh=courtType==='full'?Math.round(H_px/2):H_px
-  const sy=(hh-2*mg)/14,rimZ=(flipped?H_m-( mg+1.575*sy)*S:(mg+1.575*sy)*S)
+  const sy=(hh-2*mg)/14
+  const rimZ=flipped?H_m-(mg+1.575*sy)*S:(mg+1.575*sy)*S
   const RH=3.05,RR=0.225,dir=flipped?1:-1
-  const steel=new THREE.MeshStandardMaterial({color:0xcccccc,roughness:0.2,metalness:0.85})
-  // Pole
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,4.2,10),steel);pole.position.set(0,2.1,rimZ+dir*1.1);scene.add(pole)
-  const arm=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,1.05),steel);arm.position.set(0,3.85,rimZ+dir*0.57);scene.add(arm)
-  // Backboard
-  const bbMat=new THREE.MeshPhongMaterial({color:0xb8d4ff,transparent:true,opacity:0.25,shininess:150,specular:0x6688cc})
-  const bb=new THREE.Mesh(new THREE.BoxGeometry(1.83,1.07,0.04),bbMat);bb.position.set(0,RH+0.535,rimZ+dir*0.12);scene.add(bb)
-  const fM=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.3,metalness:0.5})
-  const bx=0,by=RH+0.535,bz=rimZ+dir*0.12
-  ;[[1.88,0.055,0.055,bx,by+0.537,bz],[1.88,0.055,0.055,bx,by-0.537,bz],[0.055,1.12,0.055,bx-0.935,by,bz],[0.055,1.12,0.055,bx+0.935,by,bz]]
-    .forEach(([w,h,d,x,y,z])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),fM);m.position.set(x,y,z);scene.add(m)})
-  const sq=new THREE.Mesh(new THREE.BoxGeometry(0.59,0.45,0.055),new THREE.MeshStandardMaterial({color:0xff6600,roughness:0.5,metalness:0}))
-  sq.position.set(bx,by,bz+dir*0.01);scene.add(sq)
-  // Rim
-  const rimM=new THREE.MeshStandardMaterial({color:0xff5500,roughness:0.3,metalness:0.5})
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(RR,0.024,12,40),rimM)
+
+  const steel=new THREE.MeshStandardMaterial({color:0xe0e0e0,roughness:0.12,metalness:0.96})
+  const rimMat=new THREE.MeshStandardMaterial({color:0xff4400,roughness:0.30,metalness:0.25,emissive:new THREE.Color(0xff3300),emissiveIntensity:0.18})
+  const glassMat=new THREE.MeshStandardMaterial({color:0xbbddff,transparent:true,opacity:0.18,roughness:0.0,metalness:0.0})
+  const frameMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.25,metalness:0.55})
+
+  // Poste — más ancho y sólido
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.080,0.095,3.65,16),steel)
+  pole.position.set(0,1.825,rimZ+dir*1.22);pole.castShadow=true;scene.add(pole)
+  // Base del poste
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,0.12,16),steel)
+  base.position.set(0,0.06,rimZ+dir*1.22);scene.add(base)
+  // Brazo horizontal
+  const armH=new THREE.Mesh(new THREE.CylinderGeometry(0.042,0.042,1.05,12),steel)
+  armH.rotation.x=Math.PI/2;armH.position.set(0,3.68,rimZ+dir*0.69);scene.add(armH)
+  // Brazo vertical corto (conexión tablero)
+  const armV=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.038,0.40,12),steel)
+  armV.position.set(0,3.50,rimZ+dir*0.16);scene.add(armV)
+
+  // Tablero — cristal real con marco blanco grueso
+  const bx=0,by=RH+0.535,bz=rimZ+dir*0.14
+  const bb=new THREE.Mesh(new THREE.BoxGeometry(1.83,1.07,0.045),glassMat)
+  bb.position.set(bx,by,bz);scene.add(bb)
+  // Marco del tablero
+  ;[[1.90,0.09,0.06,bx,by+0.575,bz],[1.90,0.09,0.06,bx,by-0.575,bz],
+    [0.09,1.22,0.06,bx-0.955,by,bz],[0.09,1.22,0.06,bx+0.955,by,bz]]
+    .forEach(([w,h,d,x,y,z])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),frameMat);m.position.set(x,y,z);m.castShadow=true;scene.add(m)})
+  // Cuadrado de tiro — naranja brillante con borde blanco
+  const sqMat=new THREE.MeshStandardMaterial({color:0xff5500,roughness:0.4,emissive:new THREE.Color(0xff3300),emissiveIntensity:0.25})
+  ;[[0.61,0.03,0.04,bx,by+0.23,bz+dir*0.04],[0.61,0.03,0.04,bx,by-0.23,bz+dir*0.04],
+    [0.03,0.49,0.04,bx-0.30,by,bz+dir*0.04],[0.03,0.49,0.04,bx+0.30,by,bz+dir*0.04]]
+    .forEach(([w,h,d,x,y,z])=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.3,emissive:new THREE.Color(0xffffff),emissiveIntensity:0.3}));m.position.set(x,y,z);scene.add(m)})
+
+  // Aro — más grueso, naranja intenso con luz de punto
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(RR,0.032,16,48),rimMat)
   rim.rotation.x=Math.PI/2;rim.position.set(0,RH,rimZ);rim.castShadow=true;scene.add(rim)
-  // Net
-  const net=new THREE.Mesh(new THREE.ConeGeometry(RR,0.45,14,4,true),new THREE.MeshBasicMaterial({color:0xcccccc,transparent:true,opacity:0.25,wireframe:true,side:THREE.DoubleSide}))
-  net.position.set(0,RH-0.22,rimZ);scene.add(net)
+  // Soportes del aro (2 brackets al tablero)
+  ;[[-0.09,0.09]].forEach(sx=>{
+    const br=new THREE.Mesh(new THREE.BoxGeometry(0.028,0.028,0.28),steel)
+    br.position.set(sx,RH-0.01,rimZ+dir*0.14);scene.add(br)
+  })
+  // Luz suave en el aro
+  const rimLight=new THREE.PointLight(0xff4400,0.6,3.5)
+  rimLight.position.set(0,RH+0.15,rimZ);scene.add(rimLight)
+
+  // Red — anillos horizontales que se estrechan + hebras verticales
+  const netMat=new THREE.MeshBasicMaterial({color:0xdddddd,transparent:true,opacity:0.70,side:THREE.DoubleSide})
+  const rings=9,depth=0.44
+  for(let i=0;i<rings;i++){
+    const t=i/(rings-1),r=RR*(1-t*0.38),y=RH-0.01-t*depth
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(r,0.005,6,28),
+      new THREE.MeshBasicMaterial({color:0xcccccc,transparent:true,opacity:0.65-t*0.12}))
+    ring.rotation.x=Math.PI/2;ring.position.set(0,y,rimZ);scene.add(ring)
+  }
+  const strands=14
+  for(let i=0;i<strands;i++){
+    const a=(i/strands)*Math.PI*2
+    const pts=[
+      new THREE.Vector3(Math.cos(a)*RR,      RH-0.01,    rimZ+Math.sin(a)*RR),
+      new THREE.Vector3(Math.cos(a)*RR*0.82, RH-0.14,    rimZ+Math.sin(a)*RR*0.82),
+      new THREE.Vector3(Math.cos(a)*RR*0.68, RH-0.28,    rimZ+Math.sin(a)*RR*0.68),
+      new THREE.Vector3(Math.cos(a)*RR*0.60, RH-depth,   rimZ+Math.sin(a)*RR*0.60),
+    ]
+    const curve=new THREE.CatmullRomCurve3(pts)
+    const strand=new THREE.Mesh(new THREE.TubeGeometry(curve,4,0.005,4,false),netMat)
+    scene.add(strand)
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -323,12 +371,21 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     // Rodillas — recogida alta (estilo NBA)
     go(leftKneeG,  lL*0.92,0,0.26)
     go(rightKneeG, lR*0.92,0,0.26)
-    // Brazos — patrón cruzado enérgico
-    go(leftShG,   Math.sin(cyc)*0.55, 0.07,0.26)
-    go(rightShG, -Math.sin(cyc)*0.55,-0.07,0.26)
-    // Codos doblados en el balanceo
-    go(leftElG,  0.42+lR*0.38,0,0.24)
-    go(rightElG, 0.42+lL*0.38,0,0.24)
+    // Brazos — si va botando, brazo dcha baja rítmico + brazo izqda contrapeso
+    if(action==='dribble'){
+      // Brazo de bote: sube y baja sincronizado con el rebote del balón
+      go(rightShG, -0.10+Math.sin(cyc)*0.18, -0.12, 0.24)
+      go(rightElG, 0.72+Math.sin(cyc+Math.PI)*0.38, 0, 0.24)
+      // Brazo izquierda: balanceo normal de carrera (guardia)
+      go(leftShG,  Math.sin(cyc)*0.48, 0.08, 0.24)
+      go(leftElG,  0.42+lR*0.36, 0, 0.24)
+    }else{
+      // Carrera normal sin balón — patrón cruzado enérgico
+      go(leftShG,   Math.sin(cyc)*0.55, 0.07,0.26)
+      go(rightShG, -Math.sin(cyc)*0.55,-0.07,0.26)
+      go(leftElG,  0.42+lR*0.38,0,0.24)
+      go(rightElG, 0.42+lL*0.38,0,0.24)
+    }
     if(torsoG){
       torsoG.rotation.x+=(-0.16-torsoG.rotation.x)*SPD
       torsoG.rotation.y+=(Math.sin(cyc*0.5)*0.06-torsoG.rotation.y)*0.14
@@ -336,24 +393,27 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.075-m.position.y)*0.30
 
   }else if(action==='shot'&&st>0){
-    // ══ TIRO — 3 fases reales ══════════════════════════════
-    const p1=Math.min(1,et/0.22)                          // carga rodillas
-    const p2=Math.min(1,Math.max(0,(et-0.22)/0.52))       // sube el balón
-    const p3=Math.min(1,Math.max(0,(et-0.74)/0.26))       // extensión + muñeca
-    // Piernas: doblan en carga, se extienden en el salto
-    const legX=p1*0.32-p2*0.36
-    go(leftHipG,  legX, 0.05,0.24);go(rightHipG, legX,-0.05,0.24)
-    go(leftKneeG, p1*0.45-p2*0.40,0,0.22);go(rightKneeG,p1*0.45-p2*0.40,0,0.22)
-    // Brazo de tiro (der): carga abajo → sube → extensión total con giro de muñeca
-    go(rightShG,-0.12-p2*0.92-p3*0.28,-0.06,0.20)
-    go(rightElG,Math.max(0,0.55-p2*0.52-p3*0.08),0,0.20)
-    // Brazo de guía (izq): sigue el movimiento más suave
-    go(leftShG,-0.10-p2*0.60, 0.10,0.18)
-    go(leftElG,Math.max(0,0.40-p2*0.35),0,0.18)
-    if(torsoG)torsoG.rotation.x+=((et<0.25?0.10:-0.06)-torsoG.rotation.x)*0.22
-    m.position.y+=((p2*0.22+p3*0.06)-m.position.y)*0.22
-    // Ligero giro de cabeza hacia la canasta
-    if(headG)headG.rotation.x+=(-0.08*p2-headG.rotation.x)*0.15
+    // ══ TIRO — carga → salto → extensión total → follow-through ══
+    const p1=Math.min(1,et/0.20)                          // flexión de carga
+    const p2=Math.min(1,Math.max(0,(et-0.20)/0.45))       // impulsión + sube brazos
+    const p3=Math.min(1,Math.max(0,(et-0.65)/0.22))       // extensión total cuerpo
+    const p4=Math.min(1,Math.max(0,(et-0.87)/0.13))       // muñeca + follow-through
+    // Piernas: flexión profunda de carga → salto explosivo → extensión completa
+    const legDip=p1*0.52-p2*0.62
+    go(leftHipG,  legDip, 0.06,0.22);go(rightHipG, legDip,-0.06,0.22)
+    go(leftKneeG, p1*0.68-p2*0.70,0,0.22);go(rightKneeG,p1*0.68-p2*0.70,0,0.22)
+    // Salto — cuerpo sube mucho más que antes
+    m.position.y+=((p2*0.45+p3*0.15-p4*0.10)-m.position.y)*0.24
+    // Torso: inclinado carga → recto → ligeramente hacia atrás (follow-through)
+    if(torsoG)torsoG.rotation.x+=((p1*0.16-p2*0.22-p4*0.05)-torsoG.rotation.x)*0.22
+    // Brazo de tiro (der): carga baja → dispara arriba → extensión total + muñeca
+    go(rightShG, p1*0.18-p2*1.42-p3*0.42, -0.08+p2*0.04, 0.22)
+    go(rightElG, 0.28+p1*0.38-p2*0.55-p3*0.14+p4*0.18, 0, 0.22)
+    // Brazo de guía (izq): sube paralelo al de tiro, separa en release
+    go(leftShG, p1*0.10-p2*1.10-p3*0.20, 0.14+p3*0.12, 0.20)
+    go(leftElG, 0.22+p1*0.20-p2*0.28, 0, 0.20)
+    // Cabeza: sigue el balón hacia la canasta
+    if(headG)headG.rotation.x+=((-p2*0.28-p3*0.12)-headG.rotation.x)*0.18
 
   }else if(action==='pass'&&st>0){
     // ══ PASE — wind-up + disparo + follow-through ══════════
@@ -380,14 +440,29 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     go(leftHipG,0.06);go(rightHipG,0.06)
     if(torsoG)torsoG.rotation.x+=(-0.10-torsoG.rotation.x)*0.18
 
+  }else if(action==='receive'&&st>0){
+    // ══ RECEPCIÓN — brazos se abren para recibir, luego cierran sobre el balón ══
+    const rOpen=Math.min(1,et/0.35)   // brazos se abren
+    const rCatch=Math.min(1,Math.max(0,(et-0.35)/0.25)) // cierran en el balón
+    const rRdy=Math.min(1,Math.max(0,(et-0.60)/0.40))   // posición triple amenaza
+    // Brazos abiertos esperando → cierran hacia delante cuando llega el balón
+    go(leftShG,  -(0.05+rOpen*0.22-rCatch*0.12+rRdy*0.06),   0.55-rCatch*0.42-rRdy*0.22, 0.18)
+    go(rightShG, -(0.05+rOpen*0.22-rCatch*0.12+rRdy*0.06),  -0.55+rCatch*0.42+rRdy*0.22, 0.18)
+    go(leftElG,  rOpen*0.30+rCatch*0.55+rRdy*0.25, 0, 0.18)
+    go(rightElG, rOpen*0.30+rCatch*0.55+rRdy*0.25, 0, 0.18)
+    go(leftHipG, 0.10, 0.05, 0.15);go(rightHipG, 0.10,-0.05,0.15)
+    go(leftKneeG,0.18,0,0.15);go(rightKneeG,0.18,0,0.15)
+    if(torsoG)torsoG.rotation.x+=(-0.06+rCatch*0.12-torsoG.rotation.x)*0.18
+
   }else if(action==='screen'){
     // ══ BLOQUEO — base muy ancha, brazos firmemente cruzados ══
-    go(leftHipG,  0.10, 0.20,0.15);go(rightHipG,0.10,-0.20,0.15)
-    go(leftKneeG, 0.22,0,0.15);go(rightKneeG,0.22,0,0.15)
-    go(leftShG,  -0.22, 0.34,0.15);go(rightShG,-0.22,-0.34,0.15)
-    go(leftElG,   1.12,0,0.15);go(rightElG,1.12,0,0.15)
-    if(torsoG)torsoG.rotation.x+=(0.14-torsoG.rotation.x)*SPD
-    m.position.y+=(-0.05-m.position.y)*0.15
+    go(leftHipG,  0.14, 0.28,0.14);go(rightHipG,0.14,-0.28,0.14)
+    go(leftKneeG, 0.30,0,0.14);go(rightKneeG,0.30,0,0.14)
+    // Brazos cruzados sobre el pecho — postura sólida de bloqueo
+    go(leftShG,  -0.18, 0.52,0.14);go(rightShG,-0.18,-0.52,0.14)
+    go(leftElG,   1.40,0,0.14);go(rightElG,1.40,0,0.14)
+    if(torsoG)torsoG.rotation.x+=(0.18-torsoG.rotation.x)*SPD
+    m.position.y+=(-0.08-m.position.y)*0.14
 
   }else if(e.id===bc){
     // ══ TRIPLE AMENAZA — portador con balón, listo para jugar ══
@@ -857,9 +932,31 @@ export default function Court3DView({phases,courtType}){
         if(bx===null&&st>0){
           const sh=elems.find(e=>e.type==='shot'&&(e.step??0)===si&&(e.fromId===bc||!e.fromId))
           if(sh&&cB){
-            const sp=p3(cB.x,cB.y),ep=p3(sh.x2,sh.y2),dist2=Math.hypot(ep.x-sp.x,ep.z-sp.z)
-            if(et<0.20){bx=sp.x;bz=sp.z;by=1.0+et*3.0}
-            else{const t2=(et-0.20)/0.80;bx=lerp(sp.x,ep.x,t2);bz=lerp(sp.z,ep.z,t2);by=1.55+dist2*0.50*Math.sin(t2*Math.PI);if(t2>0.85)ball.scale.setScalar(Math.max(0.1,1-(t2-0.85)/0.15))}
+            const hand=carrierHand(bc)
+            const sp=hand||p3(cB.x,cB.y)
+            const startY=sp.y??1.5
+            // Calcular qué aro es el destino (el más cercano al final de la flecha)
+            const ep2d=p3(sh.x2,sh.y2)
+            const nearRimZ=rimWorldZ, farRimZ=H_m-rimWorldZ
+            const tRimZ=(courtType==='full'&&Math.abs(ep2d.z-farRimZ)<Math.abs(ep2d.z-nearRimZ))?farRimZ:nearRimZ
+            const tRimX=0, tRimY=3.05
+            if(et<0.18){
+              // Carga — balón sube en la mano
+              bx=sp.x;bz=sp.z;by=startY+et*2.8
+            }else if(et<0.88){
+              // Arco parabólico real hasta el aro
+              const t2=(et-0.18)/0.70
+              const te=t2*t2*(3-2*t2) // smoothstep
+              bx=lerp(sp.x,tRimX,te);bz=lerp(sp.z,tRimZ,te)
+              const arcH=Math.max(2.2,Math.abs(tRimZ-sp.z)*0.58+1.8)
+              by=lerp(startY,tRimY,te)+arcH*Math.sin(te*Math.PI)
+            }else{
+              // Entra por el aro y cae por la red
+              const t3=(et-0.88)/0.12
+              bx=tRimX;bz=tRimZ
+              by=tRimY-t3*0.55
+              ball.scale.setScalar(Math.max(0.04,1-t3))
+            }
           }
         }
         if(bx===null&&st>0){

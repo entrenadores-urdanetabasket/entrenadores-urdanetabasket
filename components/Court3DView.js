@@ -243,7 +243,7 @@ function createPlayer(isOffense,num,idx=0){
   G.add(torsoG)
 
   function makeArm(sx){
-    const shG=new THREE.Group();shG.position.set(sx*0.295,0.76+0.90,0)
+    const shG=new THREE.Group();shG.position.set(sx*0.295,0.76,0)
     const ua=new THREE.Mesh(new THREE.CylinderGeometry(0.084,0.072,0.39,11),J);ua.position.y=-0.195;ua.castShadow=true;shG.add(ua)
     const elG=new THREE.Group();elG.position.y=-0.39
     const fa=new THREE.Mesh(new THREE.CylinderGeometry(0.066,0.056,0.35,11),SK);fa.position.y=-0.175;fa.castShadow=true;elG.add(fa)
@@ -314,8 +314,8 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
 
   if(isMoving&&st>0){
     // ══ CARRERA NBA ══════════════════════════════════════════
-    const spd={cut:2.9,dribble:2.5,replace:1.9,screen:1.2,handoff:1.6}[action]??2.2
-    const cyc=et*Math.PI*8.5*spd
+    const spd={cut:1.6,dribble:1.4,replace:1.1,screen:0.7,handoff:0.9}[action]??1.3
+    const cyc=et*Math.PI*6.0*spd
     const lL=Math.max(0,Math.sin(cyc)),lR=Math.max(0,-Math.sin(cyc))
     // Piernas — zancada amplia
     go(leftHipG,  -Math.sin(cyc)*0.68, 0.04,0.26)
@@ -656,8 +656,25 @@ export default function Court3DView({phases,courtType}){
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
         stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,ball}
-        renderer.render(scene,camera)
         setInitError(null)
+
+        // Loop idle siempre activo — animación aunque no se esté reproduciendo
+        const idleElems=e0
+        let playingNow=false
+        stateRef.current._setPlaying=(v)=>{playingNow=v}
+        function idleLoop(ts){
+          if(canceled)return
+          if(!playingNow){
+            for(const el of idleElems){
+              if(!PLAYER_TYPES.includes(el.type))continue
+              const mi=playerMeshes[el.id];if(!mi)continue
+              animatePlayer(mi,el,mi.userData,'idle',false,0,0,null,ts)
+            }
+            renderer.render(scene,camera)
+          }
+          requestAnimationFrame(idleLoop)
+        }
+        requestAnimationFrame(idleLoop)
 
         function resize(){
           const w=mount.clientWidth,h=mount.clientHeight
@@ -685,7 +702,8 @@ export default function Court3DView({phases,courtType}){
 
   /* ── animation ─────────────────────────────────────────────── */
   function stopAnim(){
-    cancelAnimationFrame(animRef.current);setPlaying(false)
+    setPlaying(false)
+    stateRef.current?._setPlaying?.(false)
     const s=stateRef.current;if(!s)return
     const e0=phases[0]?.elements||[]
     for(const el of e0){
@@ -701,6 +719,7 @@ export default function Court3DView({phases,courtType}){
   function startAnim(){
     const s=stateRef.current;if(!s||playing)return
     setPlaying(true)
+    s._setPlaying?.(true)
     const{renderer,scene,camera,playerMeshes,ball}=s
     const nP=phases.length
     const meta=phases.map(ph=>({n:getNumSteps(ph.elements||[]),get dur(){return this.n*STEP_DUR+PHASE_HOLD}}))

@@ -41,3 +41,22 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Animaciones originales del soccer pack (solo subimos los anim_*.fbx renombrados)
+public/models/goalkeeper*.fbx
+public/models/soccer*.fbx
+public/models/jog*.fbx
+public/models/header*.fbx
+public/models/kick*.fbx
+public/models/kneeing*.fbx
+public/models/stall*.fbx
+public/models/receive*.fbx
+public/models/fallen*.fbx
+public/models/standing*.fbx
+public/models/strike*.fbx
+public/models/transition*.fbx
+public/models/scissor*.fbx
+public/models/offensive*.fbx
+public/models/Idle.fbx
+public/models/Dribble*.fbx
+public/models/Ch42_nonPBR.fbx

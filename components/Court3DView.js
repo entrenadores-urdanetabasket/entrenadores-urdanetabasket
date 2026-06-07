@@ -12,6 +12,25 @@ const PLAYER_TYPES=['offense','defense','xdefense']
 const MOVE_ARROW_TYPES=['dribble','cut','screen']
 const STEP_MOVE_DUR=1000,STEP_HOLD_DUR=300
 const STEP_DUR=STEP_MOVE_DUR+STEP_HOLD_DUR,PHASE_HOLD=500
+
+// Clips de animación — los required ya existen, los opcionales se activan automáticamente
+const ANIM_CLIPS=[
+  {name:'Idle',    path:'/models/player_idle.fbx',   required:true},
+  {name:'Run',     path:'/models/player_run.fbx',    required:true},
+  {name:'Jog',     path:'/models/anim_jog.fbx',      required:false}, // Trote suave
+  {name:'Triple',  path:'/models/anim_triple.fbx',   required:false}, // Triple amenaza
+  {name:'Dribble', path:'/models/anim_dribble.fbx',  required:false}, // Bote estático
+  {name:'Shoot',   path:'/models/anim_shoot.fbx',    required:false}, // Tiro
+  {name:'Pass',    path:'/models/anim_pass.fbx',     required:false}, // Pase
+  {name:'Receive', path:'/models/anim_receive.fbx',  required:false}, // Recibir balón
+  {name:'Defense', path:'/models/anim_defense.fbx',  required:false}, // Defensa lateral
+  {name:'Screen',  path:'/models/anim_screen.fbx',   required:false}, // Bloqueo
+  {name:'Jump',    path:'/models/anim_jump.fbx',     required:false}, // Salto/header
+]
+// Velocidad de reproducción por estado (timeScale)
+const ANIM_SPEED={Run:2.2,Jog:1.4,Idle:1.0,Triple:1.0,Dribble:1.3,Shoot:1.35,Pass:1.4,Receive:1.2,Defense:1.1,Screen:0.85,Jump:1.2}
+// Duración de crossfade (segundos) al entrar en cada estado
+const ANIM_FADE={Run:0.15,Jog:0.20,Idle:0.30,Triple:0.20,Dribble:0.18,Shoot:0.08,Pass:0.08,Receive:0.15,Defense:0.22,Screen:0.18,Jump:0.10,_default:0.25}
 const S=15/CW
 
 function getH(ct){return ct==='full'?FULL_H:HALF_H}
@@ -286,6 +305,39 @@ function createPlayer(isOffense,num,idx=0){
     leftArm:LA.shG,rightArm:RA.shG,leftFore:LA.elG,rightFore:RA.elG,
   }
   return G
+}
+
+/* ── State machine: mapea acción de juego → estado de animación ─ */
+function getAnimState(action,isMoving,playerType,hasBall,clips,moveDist){
+  const isDef=['defense','xdefense'].includes(playerType)
+  const has=n=>!!clips[n]
+
+  // Movimiento — velocidad diferente según distancia/acción
+  if(isMoving){
+    if(isDef)return has('Jog')?'Jog':'Run'  // defensa trota más controlada
+    if(moveDist<0.8&&has('Jog'))return'Jog' // movimientos cortos → trote
+    return'Run'
+  }
+
+  // Defensa estática
+  if(isDef)return has('Defense')?'Defense':'Idle'
+
+  // Acciones de ataque
+  if(action==='shot')   return has('Shoot')  ?'Shoot'  :has('Jump')?'Jump':'Idle'
+  if(action==='pass')   return has('Pass')   ?'Pass'   :'Idle'
+  if(action==='handoff')return has('Pass')   ?'Pass'   :'Idle'
+  if(action==='screen') return has('Screen') ?'Screen' :'Idle'
+
+  // Jugador receptor (sin balón, al que llega un pase)
+  if(!hasBall&&action==='receive')return has('Receive')?'Receive':'Idle'
+
+  // Con balón parado
+  if(hasBall){
+    if(action==='dribble')return has('Dribble')?'Dribble':has('Triple')?'Triple':'Idle'
+    return has('Triple')?'Triple':'Idle'
+  }
+
+  return'Idle'
 }
 
 /* ── Animación baloncestística por estado ──────────────────── */
@@ -644,44 +696,47 @@ export default function Court3DView({phases,courtType}){
         const rimWorldZ=(_mg2+1.575*_sy2)*S
         const playerMeshes={},mixerMap={},globalClock=new THREE.Clock(true)
 
-        setLoadMsg('Cargando personaje Mixamo… (puede tardar 1 min)')
+        setLoadMsg('Cargando personaje… (primera vez puede tardar 1 min)')
         const fbxLoader=new FBXLoader()
 
-        // Cargar ambos FBX en paralelo
-        const [runFbx,idleFbx]=await Promise.all([
-          new Promise((res,rej)=>fbxLoader.load('/models/player_run.fbx',res,xhr=>{
-            if(xhr.total)setLoadMsg(`Cargando run… ${Math.round(xhr.loaded/xhr.total*100)}%`)
-          },rej)),
-          new Promise((res,rej)=>fbxLoader.load('/models/player_idle.fbx',res,xhr=>{
-            if(xhr.total)setLoadMsg(`Cargando idle… ${Math.round(xhr.loaded/xhr.total*100)}%`)
-          },rej)),
-        ])
+        // Carga un FBX, extrae su primer clip de animación; devuelve null si falla
+        async function loadClip(path,name){
+          return new Promise(res=>{
+            fbxLoader.load(path,fbx=>{
+              const c=fbx.animations[0]
+              if(c){c.name=name;res({clip:c,fbx})}else res(null)
+            },xhr=>{
+              if(xhr.total)setLoadMsg(`Cargando ${name}… ${Math.round(xhr.loaded/xhr.total*100)}%`)
+            },()=>res(null)) // falla silenciosamente si el archivo no existe
+          })
+        }
+
+        // Modelo base (con skin) — siempre requerido
+        const baseResult=await loadClip('/models/player_idle.fbx','Idle')
+        if(canceled||!baseResult)return
+        const baseFbx=baseResult.fbx
+        const loadedClips={Idle:baseResult.clip}
+
+        // Clips opcionales — se cargan en paralelo, se ignoran si no están
+        const extra=await Promise.all(
+          ANIM_CLIPS.filter(a=>!a.required).map(a=>loadClip(a.path,a.name))
+        )
+        for(const r of extra)if(r)loadedClips[r.clip.name]=r.clip
         if(canceled)return
         setLoadMsg('')
 
-        const runClip =runFbx.animations[0]
-        const idleClip=idleFbx.animations[0]
-        // Normalizamos nombres de clips
-        if(runClip)  runClip.name ='Run'
-        if(idleClip) idleClip.name='Idle'
+        const availableClipNames=Object.keys(loadedClips)
+        console.log('[3D] Clips cargados:',availableClipNames)
 
         // Colorizar personaje según equipo
         function colorizePlayer(model,isOff,num){
           const jC=new THREE.Color(isOff?0x1535a0:0xf5f5f5)
-          const aC=new THREE.Color(isOff?0xf5c518:0xcc2222)
           const nbg=isOff?'#1535a0':'#f5f5f5',nfg=isOff?'#f5c518':'#1535a0'
-
           model.traverse(child=>{
             if(!child.isMesh&&!child.isSkinnedMesh)return
             child.castShadow=true;child.receiveShadow=true
-            // Material fresco con color de equipo
-            child.material=new THREE.MeshStandardMaterial({
-              color:jC.clone(),roughness:0.72,metalness:0,
-              emissive:jC.clone(),emissiveIntensity:0.22
-            })
+            child.material=new THREE.MeshStandardMaterial({color:jC.clone(),roughness:0.72,metalness:0,emissive:jC.clone(),emissiveIntensity:0.22})
           })
-
-          // Sprite número flotante
           const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
           const ctx=cv.getContext('2d')
           ctx.fillStyle=nbg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-1,0,Math.PI*2);ctx.fill()
@@ -689,9 +744,7 @@ export default function Court3DView({phases,courtType}){
           ctx.fillStyle=nfg;ctx.font=`bold ${S*.52}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle'
           ctx.fillText(String(num??''),S/2,S/2+3)
           const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}))
-          // Mixamo FBX escala: 1 unidad = 1cm. Altura ≈ 170-190cm
-          sp.scale.set(20,20,1)  // 20 unidades = 20cm ≈ el tamaño de la cabeza
-          sp.position.set(0,210,0)  // 210cm ≈ por encima de la cabeza
+          sp.scale.set(20,20,1);sp.position.set(0,210,0)
           model.add(sp)
         }
 
@@ -701,25 +754,26 @@ export default function Court3DView({phases,courtType}){
           if(!PLAYER_TYPES.includes(el.type))continue
           const isOff=el.type==='offense'
 
-          // Clonar personaje correctamente (respeta el esqueleto)
-          const clone=skeletonClone(runFbx)
-          // Escala Mixamo FBX → metros Three.js (1cm = 0.01m)
+          const clone=skeletonClone(baseFbx)
           clone.scale.setScalar(0.010)
           colorizePlayer(clone,isOff,el.num??'?')
-
           const{x,z}=p3(el.x,el.y)
           clone.position.set(x,0,z)
           clone.rotation.y=isOff?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
           scene.add(clone)
           playerMeshes[el.id]=clone
 
-          // AnimationMixer — empieza con Idle
+          // AnimationMixer con todos los clips disponibles
           const mixer=new THREE.AnimationMixer(clone)
-          const runAct =runClip ?mixer.clipAction(runClip) :null
-          const idleAct=idleClip?mixer.clipAction(idleClip):null
-          if(runAct)  runAct.timeScale=2.2   // velocidad NBA
-          if(idleAct) idleAct.play()
-          mixerMap[el.id]={mixer,runAct,idleAct,running:false}
+          const actions={}
+          for(const[name,clip]of Object.entries(loadedClips)){
+            const act=mixer.clipAction(clip)
+            act.timeScale=ANIM_SPEED[name]??1.0
+            actions[name]=act
+          }
+          // Empezar con Idle
+          if(actions['Idle'])actions['Idle'].play()
+          mixerMap[el.id]={mixer,actions,currentState:'Idle',clips:loadedClips}
           pIdx++
         }
 
@@ -766,6 +820,15 @@ export default function Court3DView({phases,courtType}){
       if(!PLAYER_TYPES.includes(el.type))continue
       const m=s.playerMeshes[el.id];if(!m)continue
       const{x,z}=p3(el.x,el.y);m.position.set(x,0,z);m.rotation.set(0,0,0)
+      // Volver al estado Idle al parar
+      const md=s.mixerMap?.[el.id]
+      if(md&&md.currentState!=='Idle'&&md.actions?.['Idle']){
+        const from=md.actions[md.currentState]
+        const to=md.actions['Idle']
+        if(from)from.crossFadeTo(to,0.30,true)
+        to.reset().play()
+        md.currentState='Idle'
+      }
     }
     const ic=e0.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
     if(ic){const{x,z}=p3(ic.x,ic.y);s.ball.position.set(x,0.95,z)}
@@ -834,6 +897,18 @@ export default function Court3DView({phases,courtType}){
         if(e.type==='cut')     playerAction[pid]='cut'
         if(e.type==='dribble') playerAction[pid]='dribble'
       }
+      // Marcar receptor de pase
+      for(const e of elems){
+        if(e.type!=='pass'||(e.step??0)!==si)continue
+        // El jugador más cercano al destino del pase recibe la acción
+        let bd=PR*4,bi=null
+        for(const p of elems){
+          if(!PLAYER_TYPES.includes(p.type)||p.id===e.fromId)continue
+          const pp=bp[p.id];if(!pp)continue
+          const d=Math.hypot(pp.x-e.x2,pp.y-e.y2);if(d<bd){bd=d;bi=p.id}
+        }
+        if(bi&&!playerAction[bi])playerAction[bi]='receive'
+      }
       for(const id of Object.keys(tg)){if(!playerAction[id])playerAction[id]='replace'}
 
       for(const e of elems){
@@ -868,17 +943,19 @@ export default function Court3DView({phases,courtType}){
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
         m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        // Mixer Mixamo: crossfade Run ↔ Idle según movimiento
+        // ══ STATE MACHINE de animación baloncestística ════════════
         const md=s.mixerMap?.[e.id]
         if(md){
-          if(isMoving&&!md.running){
-            if(md.idleAct)md.idleAct.crossFadeTo(md.runAct,0.25,true)
-            if(md.runAct){md.runAct.reset().play();md.runAct.timeScale=2.2}
-            md.running=true
-          }else if(!isMoving&&md.running){
-            if(md.runAct)md.runAct.crossFadeTo(md.idleAct,0.30,true)
-            if(md.idleAct)md.idleAct.reset().play()
-            md.running=false
+          const target=getAnimState(action,isMoving,e.type,e.id===bc,md.clips,dist)||'Idle'
+          if(target!==md.currentState){
+            const fromAct=md.actions[md.currentState]
+            const toAct  =md.actions[target]
+            if(toAct){
+              const fade=ANIM_FADE[target]??ANIM_FADE._default
+              if(fromAct)fromAct.crossFadeTo(toAct,fade,true)
+              toAct.reset().play()
+            }
+            md.currentState=target
           }
         }else{
           animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)

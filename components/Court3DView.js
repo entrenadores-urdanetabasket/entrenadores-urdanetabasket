@@ -393,27 +393,33 @@ function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
     m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.075-m.position.y)*0.30
 
   }else if(action==='shot'&&st>0){
-    // ══ TIRO — carga → salto → extensión total → follow-through ══
-    const p1=Math.min(1,et/0.20)                          // flexión de carga
-    const p2=Math.min(1,Math.max(0,(et-0.20)/0.45))       // impulsión + sube brazos
-    const p3=Math.min(1,Math.max(0,(et-0.65)/0.22))       // extensión total cuerpo
-    const p4=Math.min(1,Math.max(0,(et-0.87)/0.13))       // muñeca + follow-through
-    // Piernas: flexión profunda de carga → salto explosivo → extensión completa
-    const legDip=p1*0.52-p2*0.62
-    go(leftHipG,  legDip, 0.06,0.22);go(rightHipG, legDip,-0.06,0.22)
-    go(leftKneeG, p1*0.68-p2*0.70,0,0.22);go(rightKneeG,p1*0.68-p2*0.70,0,0.22)
-    // Salto — cuerpo sube mucho más que antes
-    m.position.y+=((p2*0.45+p3*0.15-p4*0.10)-m.position.y)*0.24
-    // Torso: inclinado carga → recto → ligeramente hacia atrás (follow-through)
-    if(torsoG)torsoG.rotation.x+=((p1*0.16-p2*0.22-p4*0.05)-torsoG.rotation.x)*0.22
-    // Brazo de tiro (der): carga baja → dispara arriba → extensión total + muñeca
-    go(rightShG, p1*0.18-p2*1.42-p3*0.42, -0.08+p2*0.04, 0.22)
-    go(rightElG, 0.28+p1*0.38-p2*0.55-p3*0.14+p4*0.18, 0, 0.22)
-    // Brazo de guía (izq): sube paralelo al de tiro, separa en release
-    go(leftShG, p1*0.10-p2*1.10-p3*0.20, 0.14+p3*0.12, 0.20)
-    go(leftElG, 0.22+p1*0.20-p2*0.28, 0, 0.20)
-    // Cabeza: sigue el balón hacia la canasta
-    if(headG)headG.rotation.x+=((-p2*0.28-p3*0.12)-headG.rotation.x)*0.18
+    // ══ TIRO NBA — keyframes directos, lerp rapido para maximo impacto visual ══
+    // rotation.x: 0=brazo abajo  -1.57=horizontal  -3.14=arriba  -2.5~54grados arriba
+    const SQ=0.50
+    const p1=Math.min(1,et/0.22)
+    const p2=Math.min(1,Math.max(0,(et-0.22)/0.38))
+    const p3=Math.min(1,Math.max(0,(et-0.60)/0.28))
+    const p4=Math.min(1,Math.max(0,(et-0.88)/0.12))
+    // Piernas: flexion profunda → extension en salto
+    const legX=p1*0.60-p2*0.75
+    leftHipG.rotation.x+=(legX-leftHipG.rotation.x)*SQ
+    leftHipG.rotation.z+=(0.07-leftHipG.rotation.z)*SQ
+    rightHipG.rotation.x+=(legX-rightHipG.rotation.x)*SQ
+    rightHipG.rotation.z+=(-0.07-rightHipG.rotation.z)*SQ
+    leftKneeG.rotation.x+=(p1*0.82-p2*0.86-leftKneeG.rotation.x)*SQ
+    rightKneeG.rotation.x+=(p1*0.82-p2*0.86-rightKneeG.rotation.x)*SQ
+    // Salto visible — pico de 0.5m
+    m.position.y+=((p2*0.48-p4*0.22)-m.position.y)*0.38
+    if(torsoG)torsoG.rotation.x+=((p1*0.20-p2*0.30+p4*0.08)-torsoG.rotation.x)*SQ
+    // BRAZO DE TIRO (DER): carga → -2.55 rad = ~65° sobre horizontal = posicion real de tiro
+    rightShG.rotation.x+=(-0.10+p1*0.40-p2*2.95-p3*0.10+p4*0.35-rightShG.rotation.x)*SQ
+    rightShG.rotation.z+=(-0.10+p2*0.05-rightShG.rotation.z)*SQ
+    rightElG.rotation.x+=(0.30+p1*0.45-p2*0.50+p4*0.35-rightElG.rotation.x)*SQ
+    // BRAZO GUIA (IZQ): sube menos, se abre en release
+    leftShG.rotation.x+=(-0.08+p1*0.20-p2*2.40-p3*0.08+p4*0.30-leftShG.rotation.x)*SQ
+    leftShG.rotation.z+=(0.12+p2*0.10+p3*0.20-leftShG.rotation.z)*SQ
+    leftElG.rotation.x+=(0.22+p1*0.25-p2*0.35-leftElG.rotation.x)*SQ
+    if(headG)headG.rotation.x+=((-p2*0.35-p3*0.10)-headG.rotation.x)*SQ
 
   }else if(action==='pass'&&st>0){
     // ══ PASE — wind-up + disparo + follow-through ══════════
@@ -740,10 +746,11 @@ export default function Court3DView({phases,courtType}){
         function idleLoop(ts){
           if(canceled)return
           if(!playingNow){
+            const idleCarrier=idleElems.find(el=>PLAYER_TYPES.includes(el.type)&&el.hasBall)?.id||null
             for(const el of idleElems){
               if(!PLAYER_TYPES.includes(el.type))continue
               const mi=playerMeshes[el.id];if(!mi)continue
-              animatePlayer(mi,el,mi.userData,'idle',false,0,0,null,ts)
+              animatePlayer(mi,el,mi.userData,'idle',false,0,0,idleCarrier,ts)
             }
             renderer.render(scene,camera)
           }

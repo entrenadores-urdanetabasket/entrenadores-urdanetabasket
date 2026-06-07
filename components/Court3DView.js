@@ -2,8 +2,6 @@
 
 import { useRef, useEffect, useState } from 'react'
 import * as THREE from 'three'
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
-import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 /* ── constants ───────────────────────────────────────────────── */
 const CW=560,HALF_H=520,FULL_H=970,PR=20
@@ -13,24 +11,6 @@ const MOVE_ARROW_TYPES=['dribble','cut','screen']
 const STEP_MOVE_DUR=1000,STEP_HOLD_DUR=300
 const STEP_DUR=STEP_MOVE_DUR+STEP_HOLD_DUR,PHASE_HOLD=500
 
-// Clips de animación — los required ya existen, los opcionales se activan automáticamente
-const ANIM_CLIPS=[
-  {name:'Idle',    path:'/models/player_idle.fbx',   required:true},
-  {name:'Run',     path:'/models/player_run.fbx',    required:true},
-  {name:'Jog',     path:'/models/anim_jog.fbx',      required:false}, // Trote suave
-  {name:'Triple',  path:'/models/anim_triple.fbx',   required:false}, // Triple amenaza
-  {name:'Dribble', path:'/models/anim_dribble.fbx',  required:false}, // Bote estático
-  {name:'Shoot',   path:'/models/anim_shoot.fbx',    required:false}, // Tiro
-  {name:'Pass',    path:'/models/anim_pass.fbx',     required:false}, // Pase
-  {name:'Receive', path:'/models/anim_receive.fbx',  required:false}, // Recibir balón
-  {name:'Defense', path:'/models/anim_defense.fbx',  required:false}, // Defensa lateral
-  {name:'Screen',  path:'/models/anim_screen.fbx',   required:false}, // Bloqueo
-  {name:'Jump',    path:'/models/anim_jump.fbx',     required:false}, // Salto/header
-]
-// Velocidad de reproducción por estado (timeScale)
-const ANIM_SPEED={Run:2.2,Jog:1.4,Idle:1.0,Triple:1.0,Dribble:1.3,Shoot:1.35,Pass:1.4,Receive:1.2,Defense:1.1,Screen:0.85,Jump:1.2}
-// Duración de crossfade (segundos) al entrar en cada estado
-const ANIM_FADE={Run:0.15,Jog:0.20,Idle:0.30,Triple:0.20,Dribble:0.18,Shoot:0.08,Pass:0.08,Receive:0.15,Defense:0.22,Screen:0.18,Jump:0.10,_default:0.25}
 const S=15/CW
 
 function getH(ct){return ct==='full'?FULL_H:HALF_H}
@@ -307,40 +287,7 @@ function createPlayer(isOffense,num,idx=0){
   return G
 }
 
-/* ── State machine: mapea acción de juego → estado de animación ─ */
-function getAnimState(action,isMoving,playerType,hasBall,clips,moveDist){
-  const isDef=['defense','xdefense'].includes(playerType)
-  const has=n=>!!clips[n]
-
-  // Movimiento — velocidad diferente según distancia/acción
-  if(isMoving){
-    if(isDef)return has('Jog')?'Jog':'Run'  // defensa trota más controlada
-    if(moveDist<0.8&&has('Jog'))return'Jog' // movimientos cortos → trote
-    return'Run'
-  }
-
-  // Defensa estática
-  if(isDef)return has('Defense')?'Defense':'Idle'
-
-  // Acciones de ataque
-  if(action==='shot')   return has('Shoot')  ?'Shoot'  :has('Jump')?'Jump':'Idle'
-  if(action==='pass')   return has('Pass')   ?'Pass'   :'Idle'
-  if(action==='handoff')return has('Pass')   ?'Pass'   :'Idle'
-  if(action==='screen') return has('Screen') ?'Screen' :'Idle'
-
-  // Jugador receptor (sin balón, al que llega un pase)
-  if(!hasBall&&action==='receive')return has('Receive')?'Receive':'Idle'
-
-  // Con balón parado
-  if(hasBall){
-    if(action==='dribble')return has('Dribble')?'Dribble':has('Triple')?'Triple':'Idle'
-    return has('Triple')?'Triple':'Idle'
-  }
-
-  return'Idle'
-}
-
-/* ── Animación baloncestística por estado ──────────────────── */
+/* ── Animación baloncestística procedural ──────────────────── */
 /* ── Convenciones de rotación en nuestro rig ──────────────────
    Hombro (shG, pivot EN el hombro, brazo cuelga hacia -Y):
      rotation.x NEGATIVO  → brazo hacia DELANTE
@@ -354,140 +301,133 @@ function getAnimState(action,isMoving,playerType,hasBall,clips,moveDist){
      rotation.x NEGATIVO  → pierna hacia DELANTE
 ──────────────────────────────────────────────────────────────── */
 function animatePlayer(m,e,ud,action,isMoving,et,st,bc,ts){
-  const{leftHipG,rightHipG,leftKneeG,rightKneeG,leftShG,rightShG,leftElG,rightElG,torsoG}=ud
-
-  // Interpolación suave hacia target — elimina el efecto robot
-  const SPD=0.18  // velocidad de transición entre poses
-  function go(joint,x,z=0,speed=SPD){
+  const{leftHipG,rightHipG,leftKneeG,rightKneeG,leftShG,rightShG,leftElG,rightElG,torsoG,headG}=ud
+  const SPD=0.22
+  function go(joint,x,z=0,spd=SPD){
     if(!joint)return
-    joint.rotation.x+=((x)-joint.rotation.x)*speed
-    joint.rotation.z+=((z)-joint.rotation.z)*speed
+    joint.rotation.x+=(x-joint.rotation.x)*spd
+    joint.rotation.z+=(z-joint.rotation.z)*spd
   }
-
-  // Respiración base — todos los jugadores tienen micro-movimiento orgánico
-  const breath=Math.sin(ts*0.0014+e.id.charCodeAt(0)*0.5)*0.012
+  const seed=(e.id?.charCodeAt(0)??0)*0.7
+  const breath=Math.sin(ts*0.0013+seed)*0.013
+  const isDef=['defense','xdefense'].includes(e.type)
 
   if(isMoving&&st>0){
-    // ══ CARRERA REAL ══════════════════════════════════════════
-    const spd={cut:2.6,dribble:2.3,replace:1.7,screen:1.0,handoff:1.4}[action]??2.0
-    const cyc=et*Math.PI*7.5*spd
-    // Piernas — ciclo alterno natural
-    go(leftHipG,  -Math.sin(cyc)*0.58, 0.03)   // negativo = pierna adelante ✓
-    go(rightHipG,  Math.sin(cyc)*0.58,-0.03)
-    // Rodillas — se doblan cuando la pierna va atrás
-    go(leftKneeG,  Math.max(0, Math.sin(cyc-0.4))*0.72)
-    go(rightKneeG, Math.max(0,-Math.sin(cyc-0.4))*0.72)
-    // Brazos — patrón cruzado, colgando hacia abajo, NO hacia arriba
-    // rotation.x negativo = brazo delante, positivo = brazo atrás
-    go(leftShG,   Math.sin(cyc)*0.40, 0.06)    // brazo iz: sube cuando pierna der adelanta
-    go(rightShG, -Math.sin(cyc)*0.40,-0.06)
-    // Codo — se dobla más cuando el brazo va hacia atrás (natural al correr)
-    go(leftElG,  0.35+Math.max(0, Math.sin(cyc))*0.30)
-    go(rightElG, 0.35+Math.max(0,-Math.sin(cyc))*0.30)
-    // Torso — inclinación frontal + leve torsión
+    // ══ CARRERA NBA ══════════════════════════════════════════
+    const spd={cut:2.9,dribble:2.5,replace:1.9,screen:1.2,handoff:1.6}[action]??2.2
+    const cyc=et*Math.PI*8.5*spd
+    const lL=Math.max(0,Math.sin(cyc)),lR=Math.max(0,-Math.sin(cyc))
+    // Piernas — zancada amplia
+    go(leftHipG,  -Math.sin(cyc)*0.68, 0.04,0.26)
+    go(rightHipG,  Math.sin(cyc)*0.68,-0.04,0.26)
+    // Rodillas — recogida alta (estilo NBA)
+    go(leftKneeG,  lL*0.92,0,0.26)
+    go(rightKneeG, lR*0.92,0,0.26)
+    // Brazos — patrón cruzado enérgico
+    go(leftShG,   Math.sin(cyc)*0.55, 0.07,0.26)
+    go(rightShG, -Math.sin(cyc)*0.55,-0.07,0.26)
+    // Codos doblados en el balanceo
+    go(leftElG,  0.42+lR*0.38,0,0.24)
+    go(rightElG, 0.42+lL*0.38,0,0.24)
     if(torsoG){
-      torsoG.rotation.x+=((-0.12*Math.sin(et*Math.PI))-torsoG.rotation.x)*SPD
-      torsoG.rotation.z+=((Math.sin(cyc*0.5)*0.04)-torsoG.rotation.z)*SPD
+      torsoG.rotation.x+=(-0.16-torsoG.rotation.x)*SPD
+      torsoG.rotation.y+=(Math.sin(cyc*0.5)*0.06-torsoG.rotation.y)*0.14
     }
-    m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.06-m.position.y)*0.25
+    m.position.y+=(Math.abs(Math.sin(cyc*0.5))*0.075-m.position.y)*0.30
 
-  } else if(action==='shot'&&st>0){
-    // ══ TIRO ═══════════════════════════════════════════════════
-    // Fase 1 (0-0.25): carga — brazos bajan con el balón
-    // Fase 2 (0.25-1.0): elevación — brazos suben, cuerpo se extiende
-    const rise=Math.min(1,Math.max(0,(et-0.20)/0.80))
-    // Ambos brazos suben juntos (FIX: negativo = hacia delante/arriba)
-    go(rightShG, -0.30-rise*0.75,-0.10,0.20)   // sube hasta casi vertical
-    go(rightElG,  Math.max(0,0.55-rise*0.65),0,0.20)  // codo se estira
-    go(leftShG,  -0.25-rise*0.60, 0.10,0.20)
-    go(leftElG,   Math.max(0,0.45-rise*0.55),0,0.20)
-    // Rodillas — pequeño salto
+  }else if(action==='shot'&&st>0){
+    // ══ TIRO — 3 fases reales ══════════════════════════════
+    const p1=Math.min(1,et/0.22)                          // carga rodillas
+    const p2=Math.min(1,Math.max(0,(et-0.22)/0.52))       // sube el balón
+    const p3=Math.min(1,Math.max(0,(et-0.74)/0.26))       // extensión + muñeca
+    // Piernas: doblan en carga, se extienden en el salto
+    const legX=p1*0.32-p2*0.36
+    go(leftHipG,  legX, 0.05,0.24);go(rightHipG, legX,-0.05,0.24)
+    go(leftKneeG, p1*0.45-p2*0.40,0,0.22);go(rightKneeG,p1*0.45-p2*0.40,0,0.22)
+    // Brazo de tiro (der): carga abajo → sube → extensión total con giro de muñeca
+    go(rightShG,-0.12-p2*0.92-p3*0.28,-0.06,0.20)
+    go(rightElG,Math.max(0,0.55-p2*0.52-p3*0.08),0,0.20)
+    // Brazo de guía (izq): sigue el movimiento más suave
+    go(leftShG,-0.10-p2*0.60, 0.10,0.18)
+    go(leftElG,Math.max(0,0.40-p2*0.35),0,0.18)
+    if(torsoG)torsoG.rotation.x+=((et<0.25?0.10:-0.06)-torsoG.rotation.x)*0.22
+    m.position.y+=((p2*0.22+p3*0.06)-m.position.y)*0.22
+    // Ligero giro de cabeza hacia la canasta
+    if(headG)headG.rotation.x+=(-0.08*p2-headG.rotation.x)*0.15
+
+  }else if(action==='pass'&&st>0){
+    // ══ PASE — wind-up + disparo + follow-through ══════════
+    const wu=Math.min(1,et/0.26)
+    const rel=Math.max(0,(et-0.26)/0.74)
+    // Brazo de pase: carga atrás → dispara hacia delante
+    const shX=wu<1?wu*0.42:0.42-rel*1.18
+    const elX=wu<1?0.28+wu*0.22:0.50-rel*0.32
+    go(rightShG,shX, 0.08,0.24)
+    go(rightElG,Math.max(0,elX),0,0.24)
+    // Brazo guía
+    go(leftShG,-0.20,0.24,0.18);go(leftElG,0.42,0,0.18)
+    // Transferencia de peso: pie trasero → delantero
+    go(leftHipG, -0.08+rel*0.18,0,0.20);go(rightHipG,0.14-rel*0.12,0,0.20)
+    go(leftKneeG,0.12,0,0.18);go(rightKneeG,0.08,0,0.18)
+    if(torsoG)torsoG.rotation.x+=(-0.07*et-torsoG.rotation.x)*0.20
+
+  }else if(action==='handoff'&&st>0){
+    // ══ HANDOFF — ofrece el balón con el brazo extendido ══
+    const ext=Math.min(1,et/0.38)
+    go(rightShG,-0.28-ext*0.12,-0.08,0.18)
+    go(rightElG, 0.32+ext*0.08,0,0.18)
+    go(leftShG, -0.12, 0.20,0.15);go(leftElG,0.40,0,0.15)
+    go(leftHipG,0.06);go(rightHipG,0.06)
+    if(torsoG)torsoG.rotation.x+=(-0.10-torsoG.rotation.x)*0.18
+
+  }else if(action==='screen'){
+    // ══ BLOQUEO — base muy ancha, brazos firmemente cruzados ══
+    go(leftHipG,  0.10, 0.20,0.15);go(rightHipG,0.10,-0.20,0.15)
+    go(leftKneeG, 0.22,0,0.15);go(rightKneeG,0.22,0,0.15)
+    go(leftShG,  -0.22, 0.34,0.15);go(rightShG,-0.22,-0.34,0.15)
+    go(leftElG,   1.12,0,0.15);go(rightElG,1.12,0,0.15)
+    if(torsoG)torsoG.rotation.x+=(0.14-torsoG.rotation.x)*SPD
+    m.position.y+=(-0.05-m.position.y)*0.15
+
+  }else if(e.id===bc){
+    // ══ TRIPLE AMENAZA — portador con balón, listo para jugar ══
+    const bob=Math.sin(ts*0.0022+seed)*0.016
+    const shift=Math.sin(ts*0.0015+seed)*0.008
+    go(leftHipG,  0.12, 0.06);go(rightHipG,0.12,-0.06)
+    go(leftKneeG, 0.22);go(rightKneeG,0.22)
+    // Brazo de bote: adelante y abajo sosteniendo el balón
+    go(rightShG,-0.10,-0.18)
+    go(rightElG, 0.82)
+    // Brazo de guardia: adelante y arriba
+    go(leftShG, -0.12, 0.26)
+    go(leftElG,  0.65)
+    if(torsoG){
+      torsoG.rotation.x+=(-0.08+breath-torsoG.rotation.x)*SPD
+      torsoG.rotation.y+=(shift-torsoG.rotation.y)*0.10
+    }
+    m.position.y+=(bob*0.9-m.position.y)*0.12
+
+  }else if(isDef){
+    // ══ POSTURA DEFENSIVA — muy baja, activa, brazos presionando ══
+    const sway=Math.sin(ts*0.0017+seed)*0.022
+    go(leftHipG,  0.24, 0.14,0.16);go(rightHipG,0.24,-0.14,0.16)
+    go(leftKneeG, 0.38,0,0.16);go(rightKneeG,0.38,0,0.16)
+    go(leftShG,  -0.24, 0.48,0.16);go(rightShG,-0.24,-0.48,0.16)
+    go(leftElG,   0.14,0,0.16);go(rightElG,0.14,0,0.16)
+    if(torsoG){
+      torsoG.rotation.x+=(0.20+sway*0.3-torsoG.rotation.x)*0.14
+      torsoG.rotation.z+=(sway*0.4-torsoG.rotation.z)*0.10
+    }
+    m.position.y+=(-0.10+sway-m.position.y)*0.16
+
+  }else{
+    // ══ IDLE ATLÉTICO — postura de espera con micro-movimiento ══
+    go(leftShG,  0.04, 0.10);go(rightShG,0.04,-0.10)
+    go(leftElG,  0.10);go(rightElG,0.10)
     go(leftHipG, 0.05);go(rightHipG,0.05)
-    go(leftKneeG,-0.05+rise*0.05);go(rightKneeG,-0.05+rise*0.05)
-    if(torsoG){torsoG.rotation.x+=(( et<0.30?0.08:-0.05)-torsoG.rotation.x)*0.20}
-    m.position.y+=(rise*0.14-m.position.y)*0.20
-
-  } else if(action==='pass'&&st>0){
-    // ══ PASE ═══════════════════════════════════════════════════
-    // Wind-up (0-0.30): brazo der. va atrás cargando
-    // Release (0.30-1.0): brazo der. sale hacia delante, extensión completa
-    const wu=Math.min(1,et/0.30)
-    const rel=Math.max(0,(et-0.30)/0.70)
-    const shX= wu<1 ? wu*0.35 : 0.35-rel*1.10   // 0→0.35→-0.75
-    const elX= wu<1 ? 0.25+wu*0.20 : 0.45-rel*0.25
-    go(rightShG, shX, 0.10,0.22)
-    go(rightElG, Math.max(0,elX),0,0.22)
-    go(leftShG,  -0.15, 0.18)   // brazo de apoyo — ligeramente adelante
-    go(leftElG,  0.40)
-    go(leftHipG, 0.05);go(rightHipG,0.05)
-    if(torsoG){torsoG.rotation.x+=((-0.08*et)-torsoG.rotation.x)*0.18}
-    m.position.y+=((0)-m.position.y)*0.15
-
-  } else if(action==='handoff'&&st>0){
-    // ══ HANDOFF ════════════════════════════════════════════════
-    // Brazo extendido HACIA DELANTE ofreciendo el balón
-    go(rightShG, -0.30,-0.12,0.16)  // negativo = brazo adelante
-    go(rightElG,  0.35,0,0.16)      // codo semidoblado
-    go(leftShG,  -0.10, 0.18)
-    go(leftElG,   0.38)
-    go(leftHipG, 0.05);go(rightHipG,0.05)
-    if(torsoG){torsoG.rotation.x+=((-0.08)-torsoG.rotation.x)*0.16}
-    m.position.y+=((0)-m.position.y)*0.15
-
-  } else if(action==='screen'){
-    // ══ BLOQUEO ════════════════════════════════════════════════
-    // Pies separados, brazos CRUZADOS en el pecho (no levantados)
-    go(leftHipG,  0.06, 0.12)    // pies separados
-    go(rightHipG, 0.06,-0.12)
-    go(leftKneeG, 0.10)
-    go(rightKneeG,0.10)
-    // Brazos cruzados al pecho — ambos delante (negativo x), codos muy doblados
-    go(leftShG,  -0.25, 0.28)
-    go(rightShG, -0.25,-0.28)
-    go(leftElG,   1.05)   // muy doblado = mano en el pecho
-    go(rightElG,  1.05)
-    if(torsoG){torsoG.rotation.x+=((0.10)-torsoG.rotation.x)*SPD}
-    m.position.y+=((0)-m.position.y)*0.15
-
-  } else if(e.id===bc){
-    // ══ TRIPLE AMENAZA (portador estático) ════════════════════
-    // Rodillas flexionadas, balón a la altura de la cadera, listo para todo
-    go(leftHipG,  0.08);go(rightHipG,  0.08)
-    go(leftKneeG, 0.14);go(rightKneeG, 0.14)
-    // Brazo derecho — bote: adelante y ligeramente abajo (hacia el balón)
-    go(rightShG, -0.08,-0.15)  // negativo X = brazo DELANTE ✓, Z = ligeramente inward
-    go(rightElG,  0.72)         // codo doblado, mano hacia abajo al balón
-    // Brazo izquierdo — apoyo/guardia: ligeramente delante
-    go(leftShG,  -0.05, 0.18)
-    go(leftElG,   0.58)
-    if(torsoG){torsoG.rotation.x+=(breath*0.5-torsoG.rotation.x)*SPD}
-    m.position.y+=((breath*0.8)-m.position.y)*0.10
-
-  } else if(['defense','xdefense'].includes(e.type)){
-    // ══ POSTURA DEFENSIVA ══════════════════════════════════════
-    // MUY baja, pies bien separados, brazos EXTENDIDOS HACIA DELANTE (no arriba)
-    go(leftHipG,  0.18, 0.08)
-    go(rightHipG, 0.18,-0.08)
-    go(leftKneeG, 0.26);go(rightKneeG,0.26)
-    // Brazos: extendidos al FRENTE y separados — presión sobre el atacante
-    // FIX CLAVE: rotation.x NEGATIVO = hacia delante, z los separa lateralmente
-    go(leftShG,  -0.20, 0.38)   // brazo izq: delante + a la izquierda
-    go(rightShG, -0.20,-0.38)   // brazo der: delante + a la derecha
-    go(leftElG,   0.18)          // codo casi recto (brazos extendidos, no doblados)
-    go(rightElG,  0.18)
-    if(torsoG){torsoG.rotation.x+=((0.15)-torsoG.rotation.x)*SPD}
-    m.position.y+=((-0.05)-m.position.y)*0.15
-
-  } else {
-    // ══ IDLE ORGÁNICO ══════════════════════════════════════════
-    // Posición de descanso — brazos colgando naturalmente con respiración
-    go(leftShG,   0.02, 0.08)  // brazos ligeramente separados (natural)
-    go(rightShG,  0.02,-0.08)
-    go(leftElG,   0.08);go(rightElG,0.08)  // leve flexión de codos
-    go(leftHipG,  0);go(rightHipG, 0)
-    go(leftKneeG, 0);go(rightKneeG,0)
-    if(torsoG){torsoG.rotation.x+=((breath*0.4)-torsoG.rotation.x)*SPD}
-    m.position.y+=((breath*0.6)-m.position.y)*0.10
+    go(leftKneeG,0.07);go(rightKneeG,0.07)
+    if(torsoG)torsoG.rotation.x+=(breath*0.5-torsoG.rotation.x)*SPD
+    m.position.y+=(breath*0.7-m.position.y)*0.10
   }
 }
 
@@ -626,7 +566,6 @@ export default function Court3DView({phases,courtType}){
   const [recording, setRecording]=useState(false)
   const [camMode,   setCamMode]  =useState('overhead')
   const [initError, setInitError]=useState(null)
-  const [loadMsg,   setLoadMsg]  =useState('Cargando jugadores...')
 
   const H_px=getH(courtType),H_m=H_px*S,W_m=CW*S
 
@@ -691,93 +630,22 @@ export default function Court3DView({phases,courtType}){
         const camera=new THREE.PerspectiveCamera(44,W/H,0.1,150)
         applyCamera(camera,'overhead',H_m,W_m)
 
-        // ── Cargar Mixamo FBX ─────────────────────────────────────
+        // ── Jugadores procedurales — instancia instantánea ────────
         const _mg2=22,_sy2=(getH(courtType)-2*_mg2)/14
         const rimWorldZ=(_mg2+1.575*_sy2)*S
-        const playerMeshes={},mixerMap={},globalClock=new THREE.Clock(true)
-
-        setLoadMsg('Cargando personaje… (primera vez puede tardar 1 min)')
-        const fbxLoader=new FBXLoader()
-
-        // Carga un FBX, extrae su primer clip; devuelve null si falla (sin re-renders de progreso)
-        async function loadClip(path,name){
-          return new Promise(res=>{
-            fbxLoader.load(path,fbx=>{
-              const c=fbx.animations[0]
-              if(c){c.name=name;res({clip:c,fbx})}else res(null)
-            },null,()=>res(null))
-          })
-        }
-
-        // Modelo base (con skin) — requerido, mostramos un único mensaje
-        setLoadMsg('Cargando personaje…')
-        const baseResult=await loadClip('/models/player_idle.fbx','Idle')
-        if(canceled||!baseResult)return
-        const baseFbx=baseResult.fbx
-        const loadedClips={Idle:baseResult.clip}
-
-        // Run — también requerido
-        setLoadMsg('Cargando animaciones…')
-        const runResult=await loadClip('/models/player_run.fbx','Run')
-        if(runResult)loadedClips['Run']=runResult.clip
-
-        // Clips opcionales todos en paralelo — sin actualizar el mensaje (evita re-renders)
-        const extra=await Promise.all(
-          ANIM_CLIPS.filter(a=>!a.required).map(a=>loadClip(a.path,a.name))
-        )
-        for(const r of extra)if(r)loadedClips[r.clip.name]=r.clip
-        if(canceled)return
-        setLoadMsg('')
-
-        const availableClipNames=Object.keys(loadedClips)
-        console.log('[3D] Clips cargados:',availableClipNames)
-
-        // Colorizar personaje según equipo
-        function colorizePlayer(model,isOff,num){
-          const jC=new THREE.Color(isOff?0x1535a0:0xf5f5f5)
-          const nbg=isOff?'#1535a0':'#f5f5f5',nfg=isOff?'#f5c518':'#1535a0'
-          model.traverse(child=>{
-            if(!child.isMesh&&!child.isSkinnedMesh)return
-            child.castShadow=true;child.receiveShadow=true
-            child.material=new THREE.MeshStandardMaterial({color:jC.clone(),roughness:0.72,metalness:0,emissive:jC.clone(),emissiveIntensity:0.22})
-          })
-          const S=128,cv=document.createElement('canvas');cv.width=S;cv.height=S
-          const ctx=cv.getContext('2d')
-          ctx.fillStyle=nbg;ctx.beginPath();ctx.arc(S/2,S/2,S/2-1,0,Math.PI*2);ctx.fill()
-          ctx.strokeStyle=nfg;ctx.lineWidth=6;ctx.beginPath();ctx.arc(S/2,S/2,S/2-5,0,Math.PI*2);ctx.stroke()
-          ctx.fillStyle=nfg;ctx.font=`bold ${S*.52}px Arial`;ctx.textAlign='center';ctx.textBaseline='middle'
-          ctx.fillText(String(num??''),S/2,S/2+3)
-          const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),depthWrite:false,transparent:true}))
-          sp.scale.set(20,20,1);sp.position.set(0,210,0)
-          model.add(sp)
-        }
+        const playerMeshes={},mixerMap={}
 
         const e0=phases[0]?.elements||[]
         let pIdx=0
         for(const el of e0){
           if(!PLAYER_TYPES.includes(el.type))continue
           const isOff=el.type==='offense'
-
-          const clone=skeletonClone(baseFbx)
-          clone.scale.setScalar(0.010)
-          colorizePlayer(clone,isOff,el.num??'?')
+          const m=createPlayer(isOff,el.num,pIdx)
           const{x,z}=p3(el.x,el.y)
-          clone.position.set(x,0,z)
-          clone.rotation.y=isOff?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
-          scene.add(clone)
-          playerMeshes[el.id]=clone
-
-          // AnimationMixer con todos los clips disponibles
-          const mixer=new THREE.AnimationMixer(clone)
-          const actions={}
-          for(const[name,clip]of Object.entries(loadedClips)){
-            const act=mixer.clipAction(clip)
-            act.timeScale=ANIM_SPEED[name]??1.0
-            actions[name]=act
-          }
-          // Empezar con Idle
-          if(actions['Idle'])actions['Idle'].play()
-          mixerMap[el.id]={mixer,actions,currentState:'Idle',clips:loadedClips}
+          m.position.set(x,0,z)
+          m.rotation.y=isOff?Math.atan2(0-x,rimWorldZ-z):Math.atan2(0-x,(H_m/2)-z)
+          scene.add(m)
+          playerMeshes[el.id]=m
           pIdx++
         }
 
@@ -787,7 +655,7 @@ export default function Court3DView({phases,courtType}){
         if(ic){const{x,z}=p3(ic.x,ic.y);ball.position.set(x,BALL_H,z)}
         else{const{x,z}=p3(CW/2,H_px*.4);ball.position.set(x,BALL_H,z)}
 
-        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,globalClock,ball}
+        stateRef.current={renderer,scene,camera,playerMeshes,mixerMap,ball}
         renderer.render(scene,camera)
         setInitError(null)
 
@@ -824,15 +692,6 @@ export default function Court3DView({phases,courtType}){
       if(!PLAYER_TYPES.includes(el.type))continue
       const m=s.playerMeshes[el.id];if(!m)continue
       const{x,z}=p3(el.x,el.y);m.position.set(x,0,z);m.rotation.set(0,0,0)
-      // Volver al estado Idle al parar
-      const md=s.mixerMap?.[el.id]
-      if(md&&md.currentState!=='Idle'&&md.actions?.['Idle']){
-        const from=md.actions[md.currentState]
-        const to=md.actions['Idle']
-        if(from)from.fadeOut(0.30)
-        to.reset().fadeIn(0.30).play()
-        md.currentState='Idle'
-      }
     }
     const ic=e0.find(e=>PLAYER_TYPES.includes(e.type)&&e.hasBall)
     if(ic){const{x,z}=p3(ic.x,ic.y);s.ball.position.set(x,0.95,z)}
@@ -947,49 +806,25 @@ export default function Court3DView({phases,courtType}){
         while(dr>Math.PI)dr-=2*Math.PI;while(dr<-Math.PI)dr+=2*Math.PI
         m.rotation.y+=dr*Math.min(1,8*0.016)
 
-        // ══ STATE MACHINE de animación baloncestística ════════════
-        const md=s.mixerMap?.[e.id]
-        if(md){
-          const target=getAnimState(action,isMoving,e.type,e.id===bc,md.clips,dist)||'Idle'
-          if(target!==md.currentState){
-            const fromAct=md.actions[md.currentState]
-            const toAct  =md.actions[target]
-            if(toAct){
-              const fade=ANIM_FADE[target]??ANIM_FADE._default
-              // Patrón correcto Three.js: fadeOut el anterior, fadeIn el nuevo
-              if(fromAct){fromAct.fadeOut(fade)}
-              toAct.reset().fadeIn(fade).play()
-            }
-            md.currentState=target
-          }
-        }else{
-          animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
-        }
+        animatePlayer(m,e,m.userData,action,isMoving,et,st,bc,ts)
       }
 
       // ══ BALÓN ══════════════════════════════════════════════════
       ball.scale.setScalar(1)
       let bx=null,by=1.0,bz=null
 
-      // Busca el hueso de la mano derecha en el esqueleto Mixamo y devuelve su posición real
+      // Posición de la mano derecha del jugador procedural (rig conocido)
       function carrierHand(cid){
         const cm=playerMeshes[cid];if(!cm)return null
-        let handPos=null
-        cm.traverse(obj=>{
-          if(handPos)return
-          if(obj.isBone||obj.isSkinnedMesh){
-            const n=obj.name.toLowerCase()
-            if(n.includes('righthand')||n.includes('right_hand')||n==='mixamorigrighthand'){
-              const wp=new THREE.Vector3();obj.getWorldPosition(wp)
-              // Convertir de escala Mixamo (cm) a metros ya está hecho por clone.scale(0.01)
-              handPos={x:wp.x,y:Math.max(0.4,wp.y),z:wp.z}
-            }
-          }
-        })
-        if(handPos)return handPos
-        // Fallback geométrico si no encuentra el hueso
+        const elG=cm.userData?.rightElG
+        if(elG){
+          elG.updateWorldMatrix(true,false)
+          const hp=new THREE.Vector3(0,-0.39,0)
+          hp.applyMatrix4(elG.matrixWorld)
+          return{x:hp.x,y:Math.max(0.25,hp.y),z:hp.z}
+        }
         const ry=cm.rotation.y
-        return{x:cm.position.x+Math.sin(ry-0.30)*0.38,y:0.95,z:cm.position.z+Math.cos(ry-0.30)*0.38}
+        return{x:cm.position.x+Math.sin(ry-0.28)*0.36,y:0.90,z:cm.position.z+Math.cos(ry-0.28)*0.36}
       }
 
       if(bc){
@@ -1036,12 +871,6 @@ export default function Court3DView({phases,courtType}){
       // follow-ball camera
       if(camMode==='follow'&&bx!==null){camera.position.set(bx,10,bz-5);camera.lookAt(bx,0,bz+2)}
 
-      // Actualizar todos los AnimationMixers Mixamo
-      if(s.mixerMap&&s.globalClock){
-        const dt=Math.min(s.globalClock.getDelta(),0.05)
-        Object.values(s.mixerMap).forEach(md=>md.mixer.update(dt))
-      }
-
       renderer.render(scene,camera)
       animRef.current=requestAnimationFrame(frame)
     }
@@ -1079,17 +908,6 @@ export default function Court3DView({phases,courtType}){
 
   return(
     <div ref={mountRef} style={{position:'relative',width:'100%',height:'100%',background:'#080b14',overflow:'hidden'}}>
-      {/* Pantalla de carga Mixamo */}
-      {loadMsg&&(
-        <div style={{position:'absolute',inset:0,zIndex:50,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(8,11,20,0.95)',gap:16}}>
-          <div style={{fontSize:48}}>🏀</div>
-          <div style={{color:'#fff',fontSize:16,fontWeight:700}}>{loadMsg}</div>
-          <div style={{color:'#6b7280',fontSize:12,textAlign:'center',maxWidth:280}}>Primera carga: los modelos Mixamo son pesados.<br/>Las siguientes cargas serán instantáneas (caché).</div>
-          <div style={{width:200,height:4,background:'#1f2937',borderRadius:2,overflow:'hidden',marginTop:8}}>
-            <div style={{height:'100%',background:'linear-gradient(90deg,#1d4ed8,#3b82f6)',borderRadius:2,animation:'pulse 1.5s ease-in-out infinite'}}/>
-          </div>
-        </div>
-      )}
       {/* Three.js appends its own canvas here via mount.appendChild(renderer.domElement) */}
       {/* Subtle vignette */}
       <div style={{position:'absolute',inset:0,background:'radial-gradient(ellipse at 50% 48%,transparent 52%,rgba(0,0,0,0.45) 100%)',pointerEvents:'none'}}/>

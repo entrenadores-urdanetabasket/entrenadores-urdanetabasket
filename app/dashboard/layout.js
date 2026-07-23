@@ -33,7 +33,7 @@ export default function DashboardLayout({ children }) {
       <Sidebar />
       <main style={{ flex: 1, minWidth: 0 }}>
         <div style={{ padding: '28px 24px', maxWidth: 900, margin: '0 auto' }}
-          className="fade-in dash-content">
+          className="fade-in-safe dash-content">
           {children}
         </div>
       </main>

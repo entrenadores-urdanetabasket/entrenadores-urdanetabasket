@@ -73,6 +73,11 @@ input, select, textarea, button { font-family: inherit; }
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeInSafe {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(-12px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -91,6 +96,9 @@ input, select, textarea, button { font-family: inherit; }
 .fade-in     { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
 .scale-in    { animation: scaleIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) both; }
 .slide-left  { animation: slideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1) both; }
+/* opacity-only: unlike .fade-in, doesn't create a transform containing block,
+   so position:fixed modals inside this element still anchor to the viewport */
+.fade-in-safe { animation: fadeInSafe 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
 
 /* ── Utilidades ── */
 .card {

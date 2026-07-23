@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { PING_INTERVAL_SECONDS } from '@/lib/activityConfig'
 
 export async function POST(request) {
   try {
@@ -43,6 +44,7 @@ export async function POST(request) {
       { data: convocatorias },
       { data: games },
       { data: attendanceRows },
+      { data: pings },
     ] = await Promise.all([
       supabaseAdmin.from('training_sessions').select('id, title, date, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('tactics').select('id, title, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
@@ -52,6 +54,7 @@ export async function POST(request) {
       teamIds.length > 0
         ? supabaseAdmin.from('attendance').select('team_id, status, date').in('team_id', teamIds)
         : Promise.resolve({ data: [] }),
+      supabaseAdmin.from('activity_pings').select('path, section, created_at').eq('coach_id', coachId).order('created_at', { ascending: true }),
     ])
 
     // Asistencia: agregada por equipo (varios entrenadores pueden compartir equipo, no es atribuible a uno solo)
@@ -72,6 +75,40 @@ export async function POST(request) {
       }
     })
 
+    // Tiempo de uso: cada ping representa PING_INTERVAL_SECONDS de uso activo
+    // (solo se registran mientras la pestaña está visible, ver ActivityTracker)
+    const SECTION_LABELS = {
+      inicio: 'Inicio', equipo: 'Mi Equipo', asistencia: 'Asistencia', estadisticas: 'Estadísticas',
+      tacticas: 'Tácticas', convocatorias: 'Convocatorias', entrenamientos: 'Entrenamientos',
+      incidencias: 'Incidencias', director: 'Panel Director', perfil: 'Perfil',
+      live: 'Partido en directo', otro: 'Otro',
+    }
+    const pingList = pings || []
+    const minutesPerPing = PING_INTERVAL_SECONDS / 60
+
+    const sectionCounts = {}
+    const dayCounts = {}
+    pingList.forEach(p => {
+      sectionCounts[p.section] = (sectionCounts[p.section] || 0) + 1
+      const day = p.created_at.slice(0, 10)
+      dayCounts[day] = (dayCounts[day] || 0) + 1
+    })
+
+    const bySection = Object.entries(sectionCounts)
+      .map(([section, count]) => ({ section, label: SECTION_LABELS[section] || section, minutes: Math.round(count * minutesPerPing) }))
+      .sort((a, b) => b.minutes - a.minutes)
+
+    const last30 = []
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i)
+      const key = d.toISOString().slice(0, 10)
+      last30.push({ date: key, minutes: Math.round((dayCounts[key] || 0) * minutesPerPing) })
+    }
+
+    const totalMinutes = Math.round(pingList.length * minutesPerPing)
+    const daysActiveLast30 = last30.filter(d => d.minutes > 0).length
+    const lastActivityAt = pingList.length > 0 ? pingList[pingList.length - 1].created_at : null
+
     return NextResponse.json({
       profile: coachProfile,
       lastSignInAt: authUser?.user?.last_sign_in_at || null,
@@ -83,6 +120,13 @@ export async function POST(request) {
       convocatorias: convocatorias || [],
       games: games || [],
       attendanceSummary,
+      usage: {
+        totalMinutes,
+        bySection,
+        last30Days: last30,
+        daysActiveLast30,
+        lastActivityAt,
+      },
     })
   } catch (err) {
     console.error('coach-activity error:', err)

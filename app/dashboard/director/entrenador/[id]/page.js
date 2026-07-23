@@ -22,8 +22,8 @@ function fmtDate(d) {
   return new Date(d + (d.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function fmtRelative(iso) {
-  if (!iso) return 'Nunca ha iniciado sesión'
+function fmtRelative(iso, fallback = 'Nunca') {
+  if (!iso) return fallback
   const then = new Date(iso).getTime()
   const diffMs = Date.now() - then
   const days = Math.floor(diffMs / 86400000)
@@ -34,6 +34,15 @@ function fmtRelative(iso) {
   if (months < 12) return `Hace ${months} ${months === 1 ? 'mes' : 'meses'}`
   const years = Math.floor(months / 12)
   return `Hace ${years} ${years === 1 ? 'año' : 'años'}`
+}
+
+function fmtMinutes(mins) {
+  if (!mins || mins <= 0) return '0 min'
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  if (h === 0) return `${m} min`
+  if (m === 0) return `${h} h`
+  return `${h} h ${m} min`
 }
 
 const card = { backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }
@@ -86,7 +95,8 @@ export default function CoachActivityPage() {
   )
   if (!data) return null
 
-  const { profile: coach, lastSignInAt, teams, trainings, tactics, incidents, convocatorias, games, attendanceSummary } = data
+  const { profile: coach, lastSignInAt, teams, trainings, tactics, incidents, convocatorias, games, attendanceSummary, usage } = data
+  const maxDayMinutes = Math.max(1, ...usage.last30Days.map(d => d.minutes))
 
   return (
     <div className="fade-in">
@@ -139,6 +149,63 @@ export default function CoachActivityPage() {
             <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Tiempo de uso */}
+      <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
+        <div style={sectionTitle}>⏱ Tiempo de uso de la web</div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, backgroundColor: '#eef2f7' }}>
+          <div style={{ backgroundColor: '#fff', padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a' }}>{fmtMinutes(usage.totalMinutes)}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Tiempo total registrado</div>
+          </div>
+          <div style={{ backgroundColor: '#fff', padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a' }}>{usage.daysActiveLast30} / 30</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Días activo (últimos 30)</div>
+          </div>
+          <div style={{ backgroundColor: '#fff', padding: '16px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', marginTop: 4 }}>{fmtRelative(usage.lastActivityAt, 'Sin actividad registrada')}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Última actividad</div>
+          </div>
+        </div>
+
+        {/* Tendencia últimos 30 días */}
+        <div style={{ padding: '16px 18px', borderTop: '1px solid #eef2f7' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Actividad diaria (30 días)</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 60 }}>
+            {usage.last30Days.map(d => (
+              <div key={d.date} title={`${d.date}: ${fmtMinutes(d.minutes)}`} style={{
+                flex: 1, height: `${Math.max(3, (d.minutes / maxDayMinutes) * 100)}%`,
+                backgroundColor: d.minutes > 0 ? '#52B043' : '#eef2f7', borderRadius: 2, minWidth: 2,
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* Desglose por sección */}
+        <div style={{ padding: '4px 18px 16px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, margin: '10px 0' }}>Tiempo por sección</div>
+          {usage.bySection.length === 0 ? (
+            <div style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>Sin actividad registrada todavía</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {usage.bySection.map(s => (
+                <div key={s.section} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 120, fontSize: 12, fontWeight: 600, color: '#374151', flexShrink: 0 }}>{s.label}</div>
+                  <div style={{ flex: 1, height: 8, backgroundColor: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.max(2, (s.minutes / usage.bySection[0].minutes) * 100)}%`, height: '100%', backgroundColor: '#2563eb', borderRadius: 4 }} />
+                  </div>
+                  <div style={{ width: 70, textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#2563eb', flexShrink: 0 }}>{fmtMinutes(s.minutes)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <p style={{ fontSize: 11, color: '#9ca3af', padding: '0 18px 14px' }}>
+          Estimado a partir de la actividad con la pestaña abierta y visible (no cuenta el tiempo con la pestaña en segundo plano o el navegador cerrado).
+        </p>
       </div>
 
       {/* Asistencia por equipo */}

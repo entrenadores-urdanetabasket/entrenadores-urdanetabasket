@@ -136,6 +136,26 @@ CREATE POLICY "incidents_all" ON incidents FOR ALL
     ))
   ));
 
+-- Seguimiento de tiempo de uso (heartbeats mientras la pestaña está visible)
+CREATE TABLE IF NOT EXISTS activity_pings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  coach_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  path TEXT NOT NULL,
+  section TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_pings_coach_created ON activity_pings(coach_id, created_at);
+
+ALTER TABLE activity_pings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "activity_pings_insert" ON activity_pings FOR INSERT
+  WITH CHECK (auth.uid() = coach_id);
+
+CREATE POLICY "activity_pings_select" ON activity_pings FOR SELECT
+  USING (auth.uid() = coach_id OR EXISTS (
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'director'
+  ));
+
 -- ============================================
 -- FUNCIÓN: crear perfil automáticamente al registrarse
 -- ============================================

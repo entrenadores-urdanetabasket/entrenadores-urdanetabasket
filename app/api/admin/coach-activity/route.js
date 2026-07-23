@@ -46,16 +46,28 @@ export async function POST(request) {
       { data: attendanceRows },
       { data: pings },
     ] = await Promise.all([
-      supabaseAdmin.from('training_sessions').select('id, title, date, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
-      supabaseAdmin.from('tactics').select('id, title, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('training_sessions').select('id, title, date, start_time, duration_minutes, objectives, notes, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
+      supabaseAdmin.from('tactics').select('id, title, description, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
       supabaseAdmin.from('incidents').select('id, type, description, date, resolved, team_id, teams(name)').eq('reported_by', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('convocatorias').select('id, rival, date, team_id, teams(name)').eq('coach_id', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('games').select('id, rival_name, date, our_score, rival_score, status, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
       teamIds.length > 0
-        ? supabaseAdmin.from('attendance').select('team_id, status, date').in('team_id', teamIds)
+        ? supabaseAdmin.from('attendance').select('team_id, status, date, type').in('team_id', teamIds)
         : Promise.resolve({ data: [] }),
       supabaseAdmin.from('activity_pings').select('path, section, created_at').eq('coach_id', coachId).order('created_at', { ascending: true }),
     ])
+
+    // Ejercicios de cada entrenamiento (para el detalle)
+    const trainingIds = (trainings || []).map(t => t.id)
+    const { data: exerciseRows } = trainingIds.length > 0
+      ? await supabaseAdmin.from('training_exercises').select('id, session_id, title, duration_minutes, description').in('session_id', trainingIds).order('order_index')
+      : { data: [] }
+    const exercisesBySession = {}
+    ;(exerciseRows || []).forEach(ex => {
+      if (!exercisesBySession[ex.session_id]) exercisesBySession[ex.session_id] = []
+      exercisesBySession[ex.session_id].push(ex)
+    })
+    const trainingsWithExercises = (trainings || []).map(t => ({ ...t, exercises: exercisesBySession[t.id] || [] }))
 
     // Asistencia: agregada por equipo (varios entrenadores pueden compartir equipo, no es atribuible a uno solo)
     const attendanceByTeam = {}
@@ -74,6 +86,17 @@ export async function POST(request) {
         attendancePct: a && a.total > 0 ? Math.round((a.attended / a.total) * 100) : null,
       }
     })
+
+    // Lista de sesiones de asistencia individuales (fecha + tipo), por equipo
+    const teamNameById = Object.fromEntries(teams.map(t => [t.id, t.name]))
+    const sessionMap = {}
+    ;(attendanceRows || []).forEach(r => {
+      const key = `${r.team_id}|${r.date}|${r.type || 'training'}`
+      if (!sessionMap[key]) sessionMap[key] = { team_id: r.team_id, team_name: teamNameById[r.team_id] || '—', date: r.date, type: r.type || 'training', total: 0, present: 0 }
+      sessionMap[key].total++
+      if (r.status === 'present' || r.status === 'late') sessionMap[key].present++
+    })
+    const attendanceSessions = Object.values(sessionMap).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 100)
 
     // Tiempo de uso: cada ping representa PING_INTERVAL_SECONDS de uso activo
     // (solo se registran mientras la pestaña está visible, ver ActivityTracker)
@@ -114,11 +137,12 @@ export async function POST(request) {
       lastSignInAt: authUser?.user?.last_sign_in_at || null,
       accountCreatedAt: authUser?.user?.created_at || coachProfile.created_at,
       teams,
-      trainings: trainings || [],
+      trainings: trainingsWithExercises,
       tactics: tactics || [],
       incidents: incidents || [],
       convocatorias: convocatorias || [],
       games: games || [],
+      attendanceSessions,
       attendanceSummary,
       usage: {
         totalMinutes,

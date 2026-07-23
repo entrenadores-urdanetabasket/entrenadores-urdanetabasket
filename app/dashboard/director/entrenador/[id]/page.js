@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import ModalPortal from '@/components/ModalPortal'
 
 const INCIDENT_COLORS = {
   lesion:     { label: 'Lesión',     color: '#ef4444', bg: '#fef2f2' },
@@ -59,6 +60,8 @@ export default function CoachActivityPage() {
   const [data, setData]     = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState('')
+  const [detailTraining, setDetailTraining] = useState(null)
+  const [detailTactic, setDetailTactic]     = useState(null)
 
   useEffect(() => {
     if (!profile) return
@@ -95,7 +98,7 @@ export default function CoachActivityPage() {
   )
   if (!data) return null
 
-  const { profile: coach, lastSignInAt, teams, trainings, tactics, incidents, convocatorias, games, attendanceSummary, usage } = data
+  const { profile: coach, lastSignInAt, teams, trainings, tactics, incidents, convocatorias, games, attendanceSummary, attendanceSessions, usage } = data
   const maxDayMinutes = Math.max(1, ...usage.last30Days.map(d => d.minutes))
 
   return (
@@ -228,16 +231,31 @@ export default function CoachActivityPage() {
         </div>
       )}
 
+      {/* Sesiones de asistencia individuales */}
+      <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
+        <div style={sectionTitle}>✅ Asistencia — sesiones registradas</div>
+        {attendanceSessions.length === 0 ? <div style={emptyRow}>Sin sesiones de asistencia registradas</div> : attendanceSessions.map(s => (
+          <div key={`${s.team_id}-${s.date}-${s.type}`} style={row}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{s.type === 'game' ? '🏆 Partido' : '🏋️ Entrenamiento'}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.team_name} · {s.present}/{s.total} presentes</div>
+            </div>
+            <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(s.date)}</span>
+          </div>
+        ))}
+      </div>
+
       {/* Entrenamientos */}
       <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
         <div style={sectionTitle}>📝 Entrenamientos creados</div>
         {trainings.length === 0 ? <div style={emptyRow}>Sin entrenamientos registrados</div> : trainings.map(s => (
-          <div key={s.id} style={row}>
+          <div key={s.id} style={{ ...row, cursor: 'pointer' }} onClick={() => setDetailTraining(s)}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{s.title || 'Sin título'}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.teams?.name || '—'}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.teams?.name || '—'} {s.exercises.length > 0 ? `· ${s.exercises.length} ejercicios` : ''}</div>
             </div>
             <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(s.date)}</span>
+            <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
           </div>
         ))}
       </div>
@@ -246,12 +264,13 @@ export default function CoachActivityPage() {
       <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
         <div style={sectionTitle}>🏀 Tácticas / jugadas diseñadas</div>
         {tactics.length === 0 ? <div style={emptyRow}>Sin tácticas registradas</div> : tactics.map(t => (
-          <div key={t.id} style={row}>
+          <div key={t.id} style={{ ...row, cursor: 'pointer' }} onClick={() => setDetailTactic(t)}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{t.title || 'Jugada sin nombre'}</div>
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{t.teams?.name || '—'}</div>
             </div>
             <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(t.created_at?.slice(0,10))}</span>
+            <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
           </div>
         ))}
       </div>
@@ -278,13 +297,14 @@ export default function CoachActivityPage() {
       <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
         <div style={sectionTitle}>📋 Convocatorias creadas</div>
         {convocatorias.length === 0 ? <div style={emptyRow}>Sin convocatorias registradas</div> : convocatorias.map(c => (
-          <div key={c.id} style={row}>
+          <Link key={c.id} href={`/dashboard/convocatorias/${c.id}`} style={{ ...row, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>vs {c.rival}</div>
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.teams?.name || '—'}</div>
             </div>
             <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(c.date)}</span>
-          </div>
+            <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
+          </Link>
         ))}
       </div>
 
@@ -292,7 +312,7 @@ export default function CoachActivityPage() {
       <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
         <div style={sectionTitle}>📊 Partidos con estadísticas</div>
         {games.length === 0 ? <div style={emptyRow}>Sin partidos registrados</div> : games.map(g => (
-          <div key={g.id} style={row}>
+          <Link key={g.id} href={`/dashboard/estadisticas/${g.id}`} style={{ ...row, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
                 vs {g.rival_name} {g.status === 'finished' ? `· ${g.our_score}-${g.rival_score}` : ''}
@@ -300,9 +320,80 @@ export default function CoachActivityPage() {
               <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{g.teams?.name || '—'} · {g.status === 'finished' ? 'Finalizado' : g.status === 'live' ? 'En directo' : 'Pendiente'}</div>
             </div>
             <span style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>{fmtDate(g.date)}</span>
-          </div>
+            <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
+          </Link>
         ))}
       </div>
+
+      {/* ── MODAL DETALLE ENTRENAMIENTO ── */}
+      {detailTraining && (
+        <ModalPortal>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) setDetailTraining(null) }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 70px rgba(0,0,0,0.22)', maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: -0.3 }}>{detailTraining.title || 'Sin título'}</h2>
+              <button onClick={() => setDetailTraining(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 18px' }}>
+              {detailTraining.teams?.name || '—'} · {fmtDate(detailTraining.date)}{detailTraining.start_time ? ` · ${detailTraining.start_time.slice(0,5)}` : ''}{detailTraining.duration_minutes ? ` · ${detailTraining.duration_minutes} min` : ''}
+            </p>
+            {detailTraining.objectives && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Objetivos</div>
+                <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{detailTraining.objectives}</div>
+              </div>
+            )}
+            {detailTraining.notes && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Notas</div>
+                <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{detailTraining.notes}</div>
+              </div>
+            )}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+              Ejercicios {detailTraining.exercises.length > 0 ? `(${detailTraining.exercises.length})` : ''}
+            </div>
+            {detailTraining.exercises.length === 0 ? (
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>Sin ejercicios añadidos</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {detailTraining.exercises.map(ex => (
+                  <div key={ex.id} style={{ padding: '10px 12px', borderRadius: 10, backgroundColor: '#f8fafc', border: '1px solid #eef2f7' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{ex.title}</span>
+                      {ex.duration_minutes && <span style={{ fontSize: 11, color: '#94a3b8', flexShrink: 0 }}>{ex.duration_minutes} min</span>}
+                    </div>
+                    {ex.description && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{ex.description}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* ── MODAL DETALLE TÁCTICA ── */}
+      {detailTactic && (
+        <ModalPortal>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) setDetailTactic(null) }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: -0.3 }}>{detailTactic.title || 'Jugada sin nombre'}</h2>
+              <button onClick={() => setDetailTactic(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>{detailTactic.teams?.name || '—'} · {fmtDate(detailTactic.created_at?.slice(0,10))}</p>
+            {detailTactic.description ? (
+              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{detailTactic.description}</div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#94a3b8' }}>Sin descripción</div>
+            )}
+            <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 16 }}>El diagrama de la jugada solo se puede ver desde el editor de tácticas del propio entrenador.</p>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
     </div>
   )
 }

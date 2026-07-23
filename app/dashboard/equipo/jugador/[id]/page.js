@@ -41,7 +41,7 @@ function addEventToLine(line, ev) {
   }
 }
 
-function pct(made, att) { return att > 0 ? Math.round((made / att) * 100) : null }
+function shootPct(made, att) { return att > 0 ? Math.round((made / att) * 100) : null }
 function avg(total, games) { return games > 0 ? (total / games).toFixed(1) : '—' }
 
 export default function JugadorPage() {
@@ -73,26 +73,32 @@ export default function JugadorPage() {
     setRecords(att || [])
     setIncidents(inc || [])
 
-    const gameRows = (gp || []).filter(r => r.games)
-    const gameIds = gameRows.map(r => r.game_id)
-    const { data: evs } = gameIds.length > 0
-      ? await supabase.from('game_events').select('game_id, event_type').eq('player_id', id).in('game_id', gameIds)
-      : { data: [] }
+    try {
+      const gameRows = (gp || []).filter(r => r.games && !Array.isArray(r.games))
+      const gameIds = gameRows.map(r => r.game_id)
+      const { data: evs } = gameIds.length > 0
+        ? await supabase.from('game_events').select('game_id, event_type').eq('player_id', id).in('game_id', gameIds)
+        : { data: [] }
 
-    const lineByGame = {}
-    ;(evs || []).forEach(ev => {
-      if (!lineByGame[ev.game_id]) lineByGame[ev.game_id] = emptyLine()
-      addEventToLine(lineByGame[ev.game_id], ev)
-    })
+      const lineByGame = {}
+      ;(evs || []).forEach(ev => {
+        if (!lineByGame[ev.game_id]) lineByGame[ev.game_id] = emptyLine()
+        addEventToLine(lineByGame[ev.game_id], ev)
+      })
 
-    const lines = gameRows
-      .map(r => ({ ...r.games, jersey_number: r.jersey_number, starter: r.starter, line: lineByGame[r.game_id] || emptyLine() }))
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    setGameLines(lines)
+      const lines = gameRows
+        .map(r => ({ ...r.games, jersey_number: r.jersey_number, starter: r.starter, line: lineByGame[r.game_id] || emptyLine() }))
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      setGameLines(lines)
 
-    const totals = emptyLine()
-    lines.forEach(g => { Object.keys(totals).forEach(k => { totals[k] += g.line[k] }) })
-    setSeason({ ...totals, gamesPlayed: lines.length })
+      const totals = emptyLine()
+      lines.forEach(g => { Object.keys(totals).forEach(k => { totals[k] += g.line[k] }) })
+      setSeason({ ...totals, gamesPlayed: lines.length })
+    } catch (err) {
+      console.error('Error cargando estadísticas de partidos:', err)
+      setGameLines([])
+      setSeason({ ...emptyLine(), gamesPlayed: 0 })
+    }
     const s = { total: 0, attended: 0, absent: 0, late: 0, justified: 0, trainings: 0, trainingsAttended: 0, matches: 0, matchesAttended: 0 }
     att?.forEach(r => {
       const att  = r.status === 'present' || r.status === 'late'
@@ -250,7 +256,7 @@ export default function JugadorPage() {
                 { label: 'Triples', made: season.tpm, att: season.tpa },
                 { label: 'Tiros libres', made: season.ftm, att: season.fta },
               ].map(s => {
-                const p = pct(s.made, s.att)
+                const p = shootPct(s.made, s.att)
                 return (
                   <div key={s.label} style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 17, fontWeight: 800, color: p !== null ? '#2563eb' : '#94a3b8' }}>{p !== null ? `${p}%` : '—'}</div>
@@ -266,7 +272,7 @@ export default function JugadorPage() {
           <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', marginBottom: 28, overflow: 'hidden' }}>
             <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>Por partido</div>
             {gameLines.map(g => (
-              <Link key={g.id} href={`/dashboard/estadisticas/${g.id}`} style={{
+              <Link key={g.id} href={`/live/${g.id}`} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px',
                 borderBottom: '1px solid #f9fafb', textDecoration: 'none', color: 'inherit'
               }}>

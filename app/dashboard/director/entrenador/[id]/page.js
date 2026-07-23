@@ -315,7 +315,7 @@ export default function CoachActivityPage() {
       <div style={{ ...card, marginBottom: 16, overflow: 'hidden' }}>
         <div style={sectionTitle}>📊 Partidos con estadísticas</div>
         {games.length === 0 ? <div style={emptyRow}>Sin partidos registrados</div> : games.map(g => (
-          <Link key={g.id} href={`/dashboard/estadisticas/${g.id}`} style={{ ...row, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}>
+          <Link key={g.id} href={`/live/${g.id}`} style={{ ...row, cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
                 vs {g.rival_name} {g.status === 'finished' ? `· ${g.our_score}-${g.rival_score}` : ''}

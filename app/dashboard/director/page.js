@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
+import ModalPortal from '@/components/ModalPortal'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
@@ -45,6 +46,12 @@ export default function DirectorPage() {
   const [settingPassword, setSettingPassword]   = useState(false)
   const [passwordSetFor, setPasswordSetFor]     = useState(new Set())
   const [passwordError, setPasswordError]       = useState('')
+
+  const [editingCoach, setEditingCoach]     = useState(null) // { id }
+  const [coachForm, setCoachForm]           = useState({ full_name: '', email: '', phone: '', coach_role: 'principal' })
+  const [savingCoach, setSavingCoach]       = useState(false)
+  const [coachError, setCoachError]         = useState('')
+  const [deletingCoach, setDeletingCoach]   = useState(null)
 
   const [showForm, setShowForm]       = useState(false)
   const [editing, setEditing]         = useState(null)
@@ -165,6 +172,56 @@ export default function DirectorPage() {
       setPasswordError('Error de conexión')
     } finally {
       setSettingPassword(false)
+    }
+  }
+
+  function openEditCoach(coach) {
+    setEditingCoach({ id: coach.id })
+    setCoachForm({ full_name: coach.full_name || '', email: coach.email || '', phone: coach.phone || '', coach_role: coach.coach_role || 'principal' })
+    setCoachError('')
+  }
+
+  async function handleSaveCoach() {
+    setCoachError('')
+    if (!coachForm.full_name.trim()) { setCoachError('El nombre es obligatorio'); return }
+    if (!coachForm.email.trim()) { setCoachError('El email es obligatorio'); return }
+    setSavingCoach(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/update-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ coachId: editingCoach.id, ...coachForm })
+      })
+      const json = await res.json()
+      if (!res.ok) { setCoachError(json.error || 'Error al guardar'); return }
+      setEditingCoach(null)
+      loadCoachProfiles()
+    } catch (err) {
+      setCoachError('Error de conexión')
+    } finally {
+      setSavingCoach(false)
+    }
+  }
+
+  async function handleDeleteCoach(coach) {
+    if (!confirm(`¿Eliminar a ${coach.full_name}? Esta acción no se puede deshacer.`)) return
+    setDeletingCoach(coach.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/delete-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ coachId: coach.id })
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error || 'Error al eliminar'); return }
+      loadCoachProfiles()
+      loadOverview()
+    } catch (err) {
+      alert('Error de conexión')
+    } finally {
+      setDeletingCoach(null)
     }
   }
 
@@ -516,7 +573,7 @@ export default function DirectorPage() {
             <div key={coach.id} style={{
               backgroundColor: '#fff', borderRadius: 16, padding: '16px 18px',
               border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
               transition: 'all 0.2s'
             }}
               onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
@@ -541,16 +598,36 @@ export default function DirectorPage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => { setSettingPasswordFor({ id: coach.id, name: coach.full_name }); setNewPasswordInput(''); setPasswordError('') }}
-                style={{
-                  padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
-                  fontSize: 12, fontWeight: 700, flexShrink: 0, transition: 'all 0.2s',
-                  backgroundColor: passwordSetFor.has(coach.id) ? '#f0fdf4' : '#eff6ff',
-                  color: passwordSetFor.has(coach.id) ? '#16a34a' : '#2563eb',
-                }}>
-                {passwordSetFor.has(coach.id) ? '✓ Contraseña cambiada' : '🔑 Cambiar contraseña'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => openEditCoach(coach)}
+                  style={{
+                    padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, backgroundColor: '#f8fafc', color: '#334155',
+                  }}>
+                  ✏️ Editar
+                </button>
+                <button
+                  onClick={() => { setSettingPasswordFor({ id: coach.id, name: coach.full_name }); setNewPasswordInput(''); setPasswordError('') }}
+                  style={{
+                    padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, transition: 'all 0.2s',
+                    backgroundColor: passwordSetFor.has(coach.id) ? '#f0fdf4' : '#eff6ff',
+                    color: passwordSetFor.has(coach.id) ? '#16a34a' : '#2563eb',
+                  }}>
+                  {passwordSetFor.has(coach.id) ? '✓ Contraseña cambiada' : '🔑 Cambiar contraseña'}
+                </button>
+                <button
+                  onClick={() => handleDeleteCoach(coach)}
+                  disabled={deletingCoach === coach.id}
+                  style={{
+                    width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2',
+                    color: '#ef4444', fontSize: 14, cursor: deletingCoach === coach.id ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: deletingCoach === coach.id ? 0.5 : 1,
+                  }}>
+                  🗑
+                </button>
+              </div>
             </div>
           ))}
           <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', marginTop: 8 }}>
@@ -561,6 +638,7 @@ export default function DirectorPage() {
 
       {/* ── MODAL CONTRASEÑA ── */}
       {settingPasswordFor && (
+        <ModalPortal>
         <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', letterSpacing: -0.3 }}>Cambiar contraseña</h2>
@@ -594,10 +672,63 @@ export default function DirectorPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
+      )}
+
+      {/* ── MODAL EDITAR ENTRENADOR ── */}
+      {editingCoach && (
+        <ModalPortal>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>Editar entrenador</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label className="label-field">Nombre completo *</label>
+                <input type="text" value={coachForm.full_name} onChange={e => setCoachForm(f => ({ ...f, full_name: e.target.value }))}
+                  autoFocus className="input-field" />
+              </div>
+              <div>
+                <label className="label-field">Email *</label>
+                <input type="email" value={coachForm.email} onChange={e => setCoachForm(f => ({ ...f, email: e.target.value }))}
+                  className="input-field" />
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>Si lo cambias, el entrenador tendrá que iniciar sesión con el nuevo email.</p>
+              </div>
+              <div>
+                <label className="label-field">Teléfono</label>
+                <input type="tel" value={coachForm.phone} onChange={e => setCoachForm(f => ({ ...f, phone: e.target.value }))}
+                  placeholder="Ej: 600 123 456" className="input-field" />
+              </div>
+              <div>
+                <label className="label-field">Rol en el equipo</label>
+                <select value={coachForm.coach_role} onChange={e => setCoachForm(f => ({ ...f, coach_role: e.target.value }))}
+                  className="input-field" style={{ cursor: 'pointer' }}>
+                  <option value="principal">Entrenador principal</option>
+                  <option value="ayudante">Entrenador ayudante</option>
+                  <option value="preparador">Preparador físico</option>
+                </select>
+              </div>
+              {coachError && (
+                <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13 }}>{coachError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button onClick={() => setEditingCoach(null)} style={{
+                  flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                  backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
+                }}>Cancelar</button>
+                <button onClick={handleSaveCoach} disabled={savingCoach} className="btn-primary" style={{
+                  flex: 1, padding: '12px',
+                  ...(savingCoach ? { background: '#e2e8f0', color: '#94a3b8', boxShadow: 'none', cursor: 'not-allowed' } : {})
+                }}>{savingCoach ? 'Guardando...' : 'Guardar'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
       )}
 
       {/* ── MODAL GESTIONAR ── */}
       {showForm && (
+        <ModalPortal>
         <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto' }}>
           <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 480, boxShadow: '0 24px 70px rgba(0,0,0,0.22)', margin: 'auto' }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editing ? 'Gestionar equipo' : 'Nuevo equipo'}</h2>
@@ -680,6 +811,7 @@ export default function DirectorPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

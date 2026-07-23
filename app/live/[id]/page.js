@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ModalPortal from '@/components/ModalPortal'
 
 // ─── LOGIC HELPERS ────────────────────────────────────────────────────────────
 function computeScores(evs) {
@@ -291,6 +292,7 @@ function ActionBtn({ label, color, aKey, armed, armAction, small }) {
 
 function Overlay({ children, onClose }) {
   return (
+    <ModalPortal>
     <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.82)', zIndex:300,
       display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget && onClose) onClose() }}>
@@ -303,6 +305,7 @@ function Overlay({ children, onClose }) {
         {children}
       </div>
     </div>
+    </ModalPortal>
   )
 }
 

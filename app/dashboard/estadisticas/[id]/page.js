@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ModalPortal from '@/components/ModalPortal'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function computeScores(evs) {
@@ -1556,6 +1557,7 @@ export default function GamePage() {
 // ─── HELPERS DE UI ──────────────────────────────────────────────────────────
 function Overlay({ children, onClose }) {
   return (
+    <ModalPortal>
     <div style={{position:'fixed',inset:0,backgroundColor:'rgba(0,0,0,0.75)',zIndex:300,
       display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
       onClick={e => { if (e.target===e.currentTarget && onClose) onClose() }}>
@@ -1568,6 +1570,7 @@ function Overlay({ children, onClose }) {
         {children}
       </div>
     </div>
+    </ModalPortal>
   )
 }
 

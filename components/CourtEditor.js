@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import ModalPortal from '@/components/ModalPortal'
 const Court3DView = dynamic(() => import('./Court3DView'), { ssr: false, loading: () => (
   <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#6b7280',fontSize:14}}>
     Cargando vista 3D…
@@ -1755,6 +1756,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
 
       {/* ── TEXT MODAL ── */}
       {textModal && (
+        <ModalPortal>
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.65)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center'}}>
           <div style={{background:'#1f2937',borderRadius:14,padding:24,width:320,boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
             <div style={{color:'#fff',fontWeight:700,fontSize:15,marginBottom:14}}>Añadir texto</div>
@@ -1774,6 +1776,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

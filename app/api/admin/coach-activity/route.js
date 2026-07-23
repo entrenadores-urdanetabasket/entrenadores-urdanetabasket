@@ -47,7 +47,7 @@ export async function POST(request) {
       { data: pings },
     ] = await Promise.all([
       supabaseAdmin.from('training_sessions').select('id, title, date, start_time, duration_minutes, objectives, notes, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
-      supabaseAdmin.from('tactics').select('id, title, description, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
+      supabaseAdmin.from('tactics').select('id, title, description, play_data, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
       supabaseAdmin.from('incidents').select('id, type, description, date, resolved, team_id, teams(name)').eq('reported_by', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('convocatorias').select('id, rival, date, team_id, teams(name)').eq('coach_id', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('games').select('id, rival_name, date, our_score, rival_score, status, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),

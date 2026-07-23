@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
+
+const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
 const INCIDENT_COLORS = {
   lesion:     { label: 'Lesión',     color: '#ef4444', bg: '#fef2f2' },
@@ -373,24 +376,19 @@ export default function CoachActivityPage() {
         </ModalPortal>
       )}
 
-      {/* ── MODAL DETALLE TÁCTICA ── */}
+      {/* ── VISOR DE TÁCTICA (editor en modo solo lectura, a pantalla completa) ── */}
       {detailTactic && (
         <ModalPortal>
-        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={e => { if (e.target === e.currentTarget) setDetailTactic(null) }}>
-          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: -0.3 }}>{detailTactic.title || 'Jugada sin nombre'}</h2>
-              <button onClick={() => setDetailTactic(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>{detailTactic.teams?.name || '—'} · {fmtDate(detailTactic.created_at?.slice(0,10))}</p>
-            {detailTactic.description ? (
-              <div style={{ fontSize: 13, color: '#374151', whiteSpace: 'pre-wrap' }}>{detailTactic.description}</div>
-            ) : (
-              <div style={{ fontSize: 13, color: '#94a3b8' }}>Sin descripción</div>
-            )}
-            <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 16 }}>El diagrama de la jugada solo se puede ver desde el editor de tácticas del propio entrenador.</p>
-          </div>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+          <CourtEditor
+            readOnly
+            initialData={{
+              title: detailTactic.title,
+              description: detailTactic.description || '',
+              steps: detailTactic.play_data?.steps || [],
+            }}
+            onClose={() => setDetailTactic(null)}
+          />
         </div>
         </ModalPortal>
       )}

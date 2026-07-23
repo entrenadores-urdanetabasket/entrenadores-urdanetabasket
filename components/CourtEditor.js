@@ -954,7 +954,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1467,16 +1467,18 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           {tabBtn('notes',   '📝 Notas')}
           {tabBtn('output',  '📤 Exportar')}
         </div>
-        <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Sin título..."
+        <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Sin título..." readOnly={readOnly}
           style={{flex:1,background:'transparent',border:'none',outline:'none',color:'#fff',fontSize:15,fontWeight:700,textAlign:'center'}} />
         <div style={{display:'flex',background:'#111827',borderRadius:8,padding:3,gap:1}}>
           {[['half','½ Pista'],['full','Pista Completa']].map(([ct,label])=>(
             <button key={ct} onClick={()=>setCourtType(ct)} style={{padding:'6px 12px',borderRadius:6,border:'none',cursor:'pointer',fontWeight:600,fontSize:12,background:courtType===ct?'#fff':'transparent',color:courtType===ct?'#111827':'#9ca3af',transition:'all 0.15s'}}>{label}</button>
           ))}
         </div>
-        <button onClick={handleSave} style={{background:'#16a34a',border:'none',borderRadius:8,color:'#fff',padding:'8px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
-          💾 Guardar
-        </button>
+        {!readOnly && (
+          <button onClick={handleSave} style={{background:'#16a34a',border:'none',borderRadius:8,color:'#fff',padding:'8px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+            💾 Guardar
+          </button>
+        )}
       </div>
 
       {/* ── MAIN AREA ── */}
@@ -1492,6 +1494,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           ))}
 
           {/* Phase action buttons */}
+          {!readOnly && (<>
           <div style={{display:'flex',gap:4,marginTop:2}}>
             <button onClick={addPhase} title="Nueva fase (copia jugadores)" style={{flex:1,padding:'6px 2px',borderRadius:6,border:'1px dashed #374151',background:'transparent',color:'#6b7280',cursor:'pointer',fontSize:11,fontWeight:600}}>+ Nueva</button>
             <button onClick={clonePhase} title="Clonar fase exacta" style={{flex:1,padding:'5px 2px',borderRadius:6,border:'1px solid #374151',background:'#111827',color:'#9ca3af',cursor:'pointer',fontSize:10,fontWeight:600}}>Clonar</button>
@@ -1510,6 +1513,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           {phases.length>1 && (
             <button onClick={delPhase} style={{padding:'5px',borderRadius:6,border:'1px solid #7f1d1d',background:'transparent',color:'#ef4444',cursor:'pointer',fontSize:10,fontWeight:600}}>— Eliminar fase</button>
           )}
+          </>)}
         </div>
 
         {/* ── CENTER: CANVAS ── */}
@@ -1538,6 +1542,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
                   style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:cur===phases.length-1?'transparent':'#1f2937',color:cur===phases.length-1?'#374151':'#9ca3af',cursor:cur===phases.length-1?'default':'pointer',fontSize:12}}>›</button>
               </div>
 
+              {!readOnly && (<>
               {/* Separator */}
               <div style={{width:1,height:22,background:'#374151'}} />
 
@@ -1576,6 +1581,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
                 style={{padding:'4px 10px',borderRadius:6,border:'1px solid #374151',background:'#1f2937',color:'#9ca3af',cursor:'pointer',fontSize:12,fontWeight:600,display:'flex',alignItems:'center',gap:5}}>
                 ↩ Deshacer
               </button>
+              </>)}
             </div>
           )}
 
@@ -1594,7 +1600,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
                 : 'crosshair',
               touchAction:'none',
               display:(tab==='notes'||tab==='output'||tab==='3d')?'none':'block',
-              pointerEvents:tab==='animate'?'none':'auto',
+              pointerEvents:(readOnly||tab==='animate')?'none':'auto',
             }}
             onDoubleClick={e => {
               if (tool!=='select') return
@@ -1640,7 +1646,7 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           {tab==='notes' && (
             <div style={{width:'100%',maxWidth:580}}>
               <div style={{color:'#9ca3af',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:10}}>Notas de la jugada</div>
-              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={14}
+              <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={14} readOnly={readOnly}
                 placeholder="Describe la jugada: objetivos, instrucciones, variantes, puntos clave..."
                 style={{width:'100%',background:'#1f2937',border:'1px solid #374151',borderRadius:10,color:'#e5e7eb',fontSize:14,padding:'14px',resize:'vertical',outline:'none',fontFamily:'inherit',boxSizing:'border-box',lineHeight:1.6}}
               />
@@ -1667,8 +1673,8 @@ export default function CourtEditor({ initialData, onSave, onClose }) {
           )}
         </div>
 
-        {/* ── RIGHT: TOOLS (solo en tab draw) ── */}
-        {tab==='draw' && (
+        {/* ── RIGHT: TOOLS (solo en tab draw, oculto en solo lectura) ── */}
+        {tab==='draw' && !readOnly && (
           <div style={{width:196,background:'#1f2937',borderLeft:'1px solid #374151',padding:'10px 8px',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column',gap:14}}>
 
             {/* ACCIONES */}

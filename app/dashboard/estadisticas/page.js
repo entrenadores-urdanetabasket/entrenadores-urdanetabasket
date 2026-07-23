@@ -22,26 +22,54 @@ const TYPE_LABEL = {
 export default function EstadisticasPage() {
   const { user, profile, supabase, activeTeam } = useAuth()
   const router = useRouter()
+  const isDirector = profile?.role === 'director'
 
   const [games, setGames]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [filter, setFilter]       = useState('all')
   const [teamName, setTeamName]   = useState('')
   const [deleting, setDeleting]   = useState(null) // game id being deleted
+  const [allTeams, setAllTeams]         = useState([])
+  const [selectedTeam, setSelectedTeam] = useState(null)
 
   useEffect(() => {
-    if (user && activeTeam) loadGames()
-    else if (user && activeTeam === null && profile?.role !== 'coach') setLoading(false)
-  }, [user, activeTeam])
+    if (!user || !profile) return
+    if (!isDirector && !activeTeam) { setLoading(false); return }
+    loadData()
+  }, [user, profile, activeTeam])
 
-  async function loadGames() {
-    if (!activeTeam) { setLoading(false); return }
+  async function loadData() {
     setLoading(true)
-    setTeamName(activeTeam.name)
+    if (isDirector) {
+      const { data: t } = await supabase.from('teams').select('*').order('name')
+      const teamList = t || []
+      setAllTeams(teamList)
+      if (teamList.length > 0) {
+        const team = selectedTeam || teamList[0]
+        setSelectedTeam(team)
+        await loadGames(team)
+      } else {
+        setLoading(false)
+      }
+    } else {
+      setSelectedTeam(activeTeam)
+      await loadGames(activeTeam)
+    }
+  }
+
+  function switchTeam(team) {
+    setSelectedTeam(team)
+    loadGames(team)
+  }
+
+  async function loadGames(team) {
+    if (!team) { setLoading(false); return }
+    setLoading(true)
+    setTeamName(team.name)
     const { data } = await supabase
       .from('games')
       .select('*')
-      .eq('team_id', activeTeam.id)
+      .eq('team_id', team.id)
       .order('date', { ascending: false })
     setGames(data || [])
     setLoading(false)
@@ -89,10 +117,32 @@ export default function EstadisticasPage() {
             {games.length} {games.length === 1 ? 'partido registrado' : 'partidos registrados'}
           </p>
         </div>
-        <Link href="/dashboard/estadisticas/nuevo" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>
-          + Nuevo partido
-        </Link>
+        {!isDirector && (
+          <Link href="/dashboard/estadisticas/nuevo" className="btn-primary" style={{ flexShrink: 0, textDecoration: 'none' }}>
+            + Nuevo partido
+          </Link>
+        )}
       </div>
+
+      {/* Selector de equipo — solo director */}
+      {isDirector && allTeams.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+          {allTeams.map(t => {
+            const active = selectedTeam?.id === t.id
+            return (
+              <button key={t.id} onClick={() => switchTeam(t)} style={{
+                padding: '8px 16px', borderRadius: 20,
+                cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                color: active ? '#fff' : '#475569',
+                border: active ? 'none' : '1.5px solid #e2e8f0',
+                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
+                transition: 'all 0.15s'
+              }}>{t.name}</button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Tabs filtro */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
@@ -191,21 +241,23 @@ export default function EstadisticasPage() {
                         </div>
                       )}
                       {/* Botón eliminar */}
-                      <button
-                        onClick={(e) => deleteGame(game.id, e)}
-                        disabled={deleting === game.id}
-                        style={{
-                          width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fee2e2',
-                          backgroundColor: deleting === game.id ? '#f1f5f9' : '#fff',
-                          color: deleting === game.id ? '#cbd5e1' : '#ef4444',
-                          cursor: deleting === game.id ? 'not-allowed' : 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 15, flexShrink: 0, transition: 'background 0.1s',
-                        }}
-                        title="Eliminar partido"
-                      >
-                        {deleting === game.id ? '…' : '🗑'}
-                      </button>
+                      {!isDirector && (
+                        <button
+                          onClick={(e) => deleteGame(game.id, e)}
+                          disabled={deleting === game.id}
+                          style={{
+                            width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fee2e2',
+                            backgroundColor: deleting === game.id ? '#f1f5f9' : '#fff',
+                            color: deleting === game.id ? '#cbd5e1' : '#ef4444',
+                            cursor: deleting === game.id ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 15, flexShrink: 0, transition: 'background 0.1s',
+                          }}
+                          title="Eliminar partido"
+                        >
+                          {deleting === game.id ? '…' : '🗑'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

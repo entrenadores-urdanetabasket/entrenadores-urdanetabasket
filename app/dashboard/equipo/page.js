@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import ModalPortal from '@/components/ModalPortal'
 import Link from 'next/link'
 
 const POSITIONS = ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot']
@@ -272,6 +273,7 @@ export default function EquipoPage() {
 
       {/* Modal */}
       {showForm && (
+        <ModalPortal>
         <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>
@@ -312,6 +314,7 @@ export default function EquipoPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

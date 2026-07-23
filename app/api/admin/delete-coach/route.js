@@ -44,6 +44,6 @@ export async function POST(request) {
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('delete-coach error:', err)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    return NextResponse.json({ error: 'Error del servidor: ' + (err?.message || String(err)) }, { status: 500 })
   }
 }

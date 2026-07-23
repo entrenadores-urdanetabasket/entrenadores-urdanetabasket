@@ -20,6 +20,30 @@ const STATUS = {
   justified: { label: 'Justificado', color: '#6366f1', bg: '#eef2ff' },
 }
 
+function emptyLine() {
+  return { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0 }
+}
+
+function addEventToLine(line, ev) {
+  switch (ev.event_type) {
+    case '2pt_made': line.pts += 2; line.fgm++; line.fga++; break
+    case '2pt_miss': line.fga++; break
+    case '3pt_made': line.pts += 3; line.fgm++; line.fga++; line.tpm++; line.tpa++; break
+    case '3pt_miss': line.fga++; line.tpa++; break
+    case 'ft_made':  line.pts += 1; line.ftm++; line.fta++; break
+    case 'ft_miss':  line.fta++; break
+    case 'rebound_off': case 'rebound_def': line.reb++; break
+    case 'assist':  line.ast++; break
+    case 'steal':   line.stl++; break
+    case 'block':   line.blk++; break
+    case 'turnover':line.tov++; break
+    case 'foul_personal': case 'foul_technical': case 'foul_unsporting': case 'foul_disqualifying': line.pf++; break
+  }
+}
+
+function pct(made, att) { return att > 0 ? Math.round((made / att) * 100) : null }
+function avg(total, games) { return games > 0 ? (total / games).toFixed(1) : '—' }
+
 export default function JugadorPage() {
   const { user, profile, supabase } = useAuth()
   const { id } = useParams()
@@ -28,6 +52,8 @@ export default function JugadorPage() {
   const [player, setPlayer] = useState(null)
   const [records, setRecords] = useState([])
   const [incidents, setIncidents] = useState([])
+  const [gameLines, setGameLines] = useState([])
+  const [season, setSeason] = useState(null)
   const [stats, setStats] = useState({ total: 0, attended: 0, absent: 0, late: 0, justified: 0, trainings: 0, trainingsAttended: 0, matches: 0, matchesAttended: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -38,13 +64,35 @@ export default function JugadorPage() {
     if (!p) { router.replace('/dashboard/equipo'); return }
     setPlayer(p)
 
-    const [{ data: att }, { data: inc }] = await Promise.all([
+    const [{ data: att }, { data: inc }, { data: gp }] = await Promise.all([
       supabase.from('attendance').select('date, status, type').eq('player_id', id).order('date', { ascending: false }),
-      supabase.from('incidents').select('*').eq('player_id', id).order('date', { ascending: false })
+      supabase.from('incidents').select('*').eq('player_id', id).order('date', { ascending: false }),
+      supabase.from('game_players').select('game_id, jersey_number, starter, games(id, date, rival_name, our_score, rival_score, status, game_type)').eq('player_id', id),
     ])
 
     setRecords(att || [])
     setIncidents(inc || [])
+
+    const gameRows = (gp || []).filter(r => r.games)
+    const gameIds = gameRows.map(r => r.game_id)
+    const { data: evs } = gameIds.length > 0
+      ? await supabase.from('game_events').select('game_id, event_type').eq('player_id', id).in('game_id', gameIds)
+      : { data: [] }
+
+    const lineByGame = {}
+    ;(evs || []).forEach(ev => {
+      if (!lineByGame[ev.game_id]) lineByGame[ev.game_id] = emptyLine()
+      addEventToLine(lineByGame[ev.game_id], ev)
+    })
+
+    const lines = gameRows
+      .map(r => ({ ...r.games, jersey_number: r.jersey_number, starter: r.starter, line: lineByGame[r.game_id] || emptyLine() }))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    setGameLines(lines)
+
+    const totals = emptyLine()
+    lines.forEach(g => { Object.keys(totals).forEach(k => { totals[k] += g.line[k] }) })
+    setSeason({ ...totals, gamesPlayed: lines.length })
     const s = { total: 0, attended: 0, absent: 0, late: 0, justified: 0, trainings: 0, trainingsAttended: 0, matches: 0, matchesAttended: 0 }
     att?.forEach(r => {
       const att  = r.status === 'present' || r.status === 'late'
@@ -165,6 +213,83 @@ export default function JugadorPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Estadísticas de partidos */}
+      <h3 className="section-title" style={{ marginBottom: 12 }}>📊 Estadísticas de partidos</h3>
+      {!season || season.gamesPlayed === 0 ? (
+        <div className="empty-state" style={{ marginBottom: 28 }}>
+          <div className="empty-state-icon">🏀</div>
+          <div className="empty-state-title">Sin estadísticas de partidos todavía</div>
+        </div>
+      ) : (
+        <>
+          {/* Resumen de temporada */}
+          <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', marginBottom: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
+              Media de la temporada · {season.gamesPlayed} {season.gamesPlayed === 1 ? 'partido' : 'partidos'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, backgroundColor: '#eef2f7' }}>
+              {[
+                { label: 'Puntos', value: avg(season.pts, season.gamesPlayed) },
+                { label: 'Rebotes', value: avg(season.reb, season.gamesPlayed) },
+                { label: 'Asistencias', value: avg(season.ast, season.gamesPlayed) },
+                { label: 'Robos', value: avg(season.stl, season.gamesPlayed) },
+                { label: 'Tapones', value: avg(season.blk, season.gamesPlayed) },
+                { label: 'Pérdidas', value: avg(season.tov, season.gamesPlayed) },
+              ].map(s => (
+                <div key={s.label} style={{ backgroundColor: '#fff', padding: '14px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a' }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '14px 18px' }}>
+              {[
+                { label: 'Tiro de campo', made: season.fgm, att: season.fga },
+                { label: 'Triples', made: season.tpm, att: season.tpa },
+                { label: 'Tiros libres', made: season.ftm, att: season.fta },
+              ].map(s => {
+                const p = pct(s.made, s.att)
+                return (
+                  <div key={s.label} style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: p !== null ? '#2563eb' : '#94a3b8' }}>{p !== null ? `${p}%` : '—'}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.made}/{s.att}</div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Por partido */}
+          <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', marginBottom: 28, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef2f7', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>Por partido</div>
+            {gameLines.map(g => (
+              <Link key={g.id} href={`/dashboard/estadisticas/${g.id}`} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px',
+                borderBottom: '1px solid #f9fafb', textDecoration: 'none', color: 'inherit'
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>vs {g.rival_name}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    {g.date ? new Date(g.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'}
+                    {g.status === 'finished' ? ` · ${g.our_score}-${g.rival_score}` : g.status === 'live' ? ' · En directo' : ' · Pendiente'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
+                  {[['PTS', g.line.pts], ['REB', g.line.reb], ['AST', g.line.ast]].map(([label, val]) => (
+                    <div key={label} style={{ textAlign: 'center', minWidth: 30 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{val}</div>
+                      <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 700 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
+              </Link>
+            ))}
+          </div>
+        </>
       )}
 
       {/* Incidencias */}

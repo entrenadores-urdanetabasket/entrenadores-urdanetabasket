@@ -600,6 +600,14 @@ export default function DirectorPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button
+                  onClick={() => router.push(`/dashboard/director/entrenador/${coach.id}`)}
+                  style={{
+                    padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, backgroundColor: '#f0fdf4', color: '#15803d',
+                  }}>
+                  📊 Actividad
+                </button>
+                <button
                   onClick={() => openEditCoach(coach)}
                   style={{
                     padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',

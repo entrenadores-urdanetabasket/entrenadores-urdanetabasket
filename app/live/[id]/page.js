@@ -43,6 +43,44 @@ function computeBoxScore(evs, gamePlayers, rivalJerseys) {
   return { our, riv }
 }
 
+// PIR / Valoración FIBA: (puntos+rebotes+asistencias+robos+tapones) - (tiros fallados+TL fallados+pérdidas+faltas)
+function computePIR(s) {
+  const missedFG = ((s.fg2a||0)-(s.fg2m||0)) + ((s.fg3a||0)-(s.fg3m||0))
+  const missedFT = (s.fta||0) - (s.ftm||0)
+  return (s.pts||0) + (s.reb||0) + (s.ast||0) + (s.stl||0) + (s.blk||0)
+       - missedFG - missedFT - (s.tov||0) - (s.fouls||0)
+}
+
+// Eficiencia de tiro real (True Shooting %): tiene en cuenta 2, 3 y TL en un solo numero
+function computeTS(s) {
+  const fga = (s.fg2a||0) + (s.fg3a||0)
+  const denom = 2 * (fga + 0.44*(s.fta||0))
+  return denom > 0 ? Math.round((s.pts||0) / denom * 100) : null
+}
+
+// +/- de nuestro equipo: reconstruye quien esta en pista en cada momento y suma/resta
+// la diferencia de puntos anotados mientras cada jugador estaba en la cancha.
+// Solo es fiable para "us": el rival no genera evento de sustitucion al cambiar.
+function computePlusMinusUs(evs, gamePlayers) {
+  const pm = {}
+  gamePlayers.forEach(p => { pm[p.player_id] = 0 })
+  let court = gamePlayers.slice(0,5).map(p => p.player_id)
+  evs.forEach(ev => {
+    const delta = ev.event_type==='2pt_made'?2 : ev.event_type==='3pt_made'?3 : ev.event_type==='ft_made'?1 : 0
+    if (delta > 0) {
+      const sign = ev.team === 'us' ? 1 : -1
+      court.forEach(pid => { if (pm[pid] != null) pm[pid] += sign*delta })
+    }
+    if (ev.team === 'us' && ev.event_type === 'substitution' && ev.player_id) {
+      const outIdx = court.indexOf(ev.linked_event_id)
+      if (outIdx !== -1) court[outIdx] = ev.player_id
+      else if (court.length < 5 && !court.includes(ev.player_id)) court.push(ev.player_id)
+      if (pm[ev.player_id] == null) pm[ev.player_id] = 0
+    }
+  })
+  return pm
+}
+
 // ─── PLAYER FOUL STATUS ───────────────────────────────────────────────────────
 function getPlayerFoulCounts(evs, pid) {
   const pe = evs.filter(e => e.team === 'us' && e.player_id === pid)
@@ -337,15 +375,17 @@ function ShotInfo({ shots }) {
   )
 }
 
-function BSSection({ title, color, rows }) {
+function BSSection({ title, color, rows, showPM }) {
   const th = { fontSize:10, fontWeight:700, color:'#6b7280', padding:'5px 3px', textAlign:'center', borderBottom:'1px solid #1f2937' }
   const td = { fontSize:11, padding:'6px 3px', textAlign:'center', borderBottom:'1px solid #161c28', color:'#d1d5db' }
   const tot = rows.reduce((a,r) => {
     const s = r.s||{}
     return { pts:a.pts+(s.pts||0), fg2m:a.fg2m+(s.fg2m||0), fg2a:a.fg2a+(s.fg2a||0),
       fg3m:a.fg3m+(s.fg3m||0), fg3a:a.fg3a+(s.fg3a||0), ftm:a.ftm+(s.ftm||0), fta:a.fta+(s.fta||0),
-      reb:a.reb+(s.reb||0), ast:a.ast+(s.ast||0), stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0) }
-  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,ast:0,stl:0,blk:0,tov:0,fouls:0 })
+      reb:a.reb+(s.reb||0), ast:a.ast+(s.ast||0), stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0),
+      pir:a.pir+(s.pir||0) }
+  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,ast:0,stl:0,blk:0,tov:0,fouls:0,pir:0 })
+  const totTS = computeTS(tot)
   return (
     <div>
       <div style={{ fontSize:12, fontWeight:800, color, marginBottom:8 }}>{title}</div>
@@ -354,12 +394,15 @@ function BSSection({ title, color, rows }) {
           <thead>
             <tr>
               <th style={{ ...th, textAlign:'left', paddingLeft:8, minWidth:80 }}>Jugador</th>
-              {['PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
+              {['PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
+              {showPM && <th style={{ ...th, minWidth:34 }}>+/-</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => {
               const s = r.s||{}
+              const pir = computePIR(s)
+              const ts = computeTS(s)
               return (
                 <tr key={i}>
                   <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:600 }}>
@@ -375,6 +418,13 @@ function BSSection({ title, color, rows }) {
                   <td style={td}>{s.blk||0}</td>
                   <td style={td}>{s.tov||0}</td>
                   <td style={{ ...td, color:(s.fouls||0)>=5?'#ef4444':td.color, fontWeight:(s.fouls||0)>=5?800:400 }}>{s.fouls||0}</td>
+                  <td style={{ ...td, fontWeight:800, color: pir>0?'#22c55e':pir<0?'#ef4444':td.color }}>{pir}</td>
+                  <td style={td}>{ts!==null ? `${ts}%` : '—'}</td>
+                  {showPM && (
+                    <td style={{ ...td, fontWeight:700, color: (s.pm||0)>0?'#22c55e':(s.pm||0)<0?'#ef4444':td.color }}>
+                      {(s.pm||0)>0 ? `+${s.pm}` : (s.pm||0)}
+                    </td>
+                  )}
                 </tr>
               )
             })}
@@ -391,6 +441,9 @@ function BSSection({ title, color, rows }) {
                 <td style={{ ...td, fontWeight:700 }}>{tot.blk}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.tov}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fouls}</td>
+                <td style={{ ...td, fontWeight:700 }}>{tot.pir}</td>
+                <td style={{ ...td, fontWeight:700 }}>{totTS!==null ? `${totTS}%` : '—'}</td>
+                {showPM && <td style={td}>—</td>}
               </tr>
             )}
           </tbody>
@@ -405,7 +458,7 @@ function PrintBS({ rows }) {
     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
       <thead>
         <tr style={{ backgroundColor:'#f3f4f6' }}>
-          {['#','Jugador','PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F'].map(h => (
+          {['#','Jugador','PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(h => (
             <th key={h} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:h==='Jugador'?'left':'center' }}>{h}</th>
           ))}
         </tr>
@@ -417,7 +470,7 @@ function PrintBS({ rows }) {
             <tr key={i}>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{r.num}</td>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb' }}>{r.name}</td>
-              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0].map((v,j) => (
+              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
                 <td key={j} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{v}</td>
               ))}
             </tr>
@@ -993,6 +1046,7 @@ export default function LivePage() {
   const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
+  const plusMinusUs = computePlusMinusUs(events, gps)
 
   const aActive = !!armed
   const bActive = !!armed
@@ -1330,12 +1384,15 @@ export default function LivePage() {
               📄 PDF
             </button>
           </div>
-          <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e"
-            rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
+          <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e" showPM
+            rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:{ ...(ourBS[gp.player_id]||{}), pm: plusMinusUs[gp.player_id] } }))}/>
           <div style={{ marginTop:16 }}>
             <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316"
               rows={rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
           </div>
+          <p style={{ fontSize:10, color:'#4b5563', marginTop:6 }}>
+            VAL = valoración FIBA · EFI% = % de tiro real (TS%) · +/- solo disponible para {ourName} (el rival no registra cambios como evento)
+          </p>
           <div style={{ marginTop:18 }}>
             <h4 style={{ fontSize:12, fontWeight:800, color:'#4b5563', marginBottom:8 }}>
               Historial de acciones ({events.length})

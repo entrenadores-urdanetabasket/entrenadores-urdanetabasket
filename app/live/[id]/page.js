@@ -296,7 +296,7 @@ function Overlay({ children, onClose }) {
     <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.82)', zIndex:300,
       display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget && onClose) onClose() }}>
-      <div style={{ backgroundColor:'#161c28', border:'1px solid #1f2d42', borderRadius:18, padding:22, width:'100%', maxWidth:360 }}>
+      <div style={{ backgroundColor:'#161c28', border:'1px solid #1f2d42', borderRadius:18, padding:22, width:'100%', maxWidth:360, maxHeight:'90vh', overflowY:'auto' }}>
         {onClose && (
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:-6 }}>
             <button onClick={onClose} style={{ background:'none', border:'none', color:'#4b5563', fontSize:22, cursor:'pointer', lineHeight:1 }}>×</button>

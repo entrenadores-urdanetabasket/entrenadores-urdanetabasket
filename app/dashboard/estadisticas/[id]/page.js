@@ -1561,7 +1561,7 @@ function Overlay({ children, onClose }) {
     <div style={{position:'fixed',inset:0,backgroundColor:'rgba(0,0,0,0.75)',zIndex:300,
       display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
       onClick={e => { if (e.target===e.currentTarget && onClose) onClose() }}>
-      <div style={{backgroundColor:'#1f2937',borderRadius:18,padding:24,width:'100%',maxWidth:360}}>
+      <div style={{backgroundColor:'#1f2937',borderRadius:18,padding:24,width:'100%',maxWidth:360,maxHeight:'90vh',overflowY:'auto'}}>
         {onClose && (
           <div style={{display:'flex',justifyContent:'flex-end',marginBottom:-8}}>
             <button onClick={onClose} style={{background:'none',border:'none',color:'#6b7280',fontSize:22,cursor:'pointer',lineHeight:1}}>×</button>

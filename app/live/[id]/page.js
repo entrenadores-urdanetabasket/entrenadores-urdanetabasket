@@ -224,7 +224,7 @@ const ACTION_LABEL = {
 }
 
 // ─── COURT SVG ────────────────────────────────────────────────────────────────
-function CourtSVG({ onShot, shots = [] }) {
+function CourtSVG({ onShot, shots = [], only3pt = false }) {
   const W = 320, H = 300, P = 12
   const CW = W - P*2
   const CH = H - P*2
@@ -248,10 +248,18 @@ function CourtSVG({ onShot, shots = [] }) {
   const ccR  = 1.8 * sx
   const ccY  = P + CH
 
+  function isBeyond3pt(px, py) {
+    if (px < c3x || px > c3xR) return true
+    return Math.sqrt((px-bx)**2 + (py-by)**2) >= r3
+  }
+
   function handleClick(e) {
     if (!onShot) return
     const r = e.currentTarget.getBoundingClientRect()
-    onShot((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height)
+    const nx = (e.clientX - r.left) / r.width
+    const ny = (e.clientY - r.top) / r.height
+    if (only3pt && !isBeyond3pt(nx*W, ny*H)) return
+    onShot(nx, ny)
   }
 
   return (
@@ -294,11 +302,21 @@ function CourtSVG({ onShot, shots = [] }) {
         })
         const d = [
           `M ${c3x.toFixed(2)},${P}`, `L ${c3x.toFixed(2)},${c3y.toFixed(2)}`,
-          ...arcPts.map((p, i) => (i === 0 ? `M ${p}` : `L ${p}`)),
+          ...arcPts.map(p => `L ${p}`),
           `L ${c3xR.toFixed(2)},${c3y.toFixed(2)}`, `L ${c3xR.toFixed(2)},${P}`,
         ].join(' ')
-        return <path d={d} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round"/>
+        return (
+          <>
+            {only3pt && <path d={`${d} Z`} fill="rgba(0,0,0,0.6)" stroke="none" pointerEvents="none"/>}
+            <path d={d} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round"/>
+          </>
+        )
       })()}
+      {only3pt && (
+        <text x={W/2} y={fy(3.2)} textAnchor="middle" fontSize={10} fill="rgba(255,255,255,0.7)" fontWeight="700">
+          🚫 Zona de 2 bloqueada
+        </text>
+      )}
       <rect x={bx-bbW/2} y={bbY-2} width={bbW} height={4} fill="rgba(255,255,255,0.15)" stroke="#fff" strokeWidth={2.5}/>
       <line x1={bx} y1={bbY+2} x2={bx} y2={by-7} stroke="rgba(255,255,255,0.6)" strokeWidth={1.2}/>
       <circle cx={bx} cy={by} r={7} fill="none" stroke="#ff5722" strokeWidth={3}/>
@@ -1597,7 +1615,7 @@ export default function LivePage() {
           ) : (
             <>
               <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:10 }}>Toca la posición del tiro (o salta)</div>
-              <CourtSVG onShot={(x,y) => confirmShot(modal.made, x, y)}/>
+              <CourtSVG onShot={(x,y) => confirmShot(modal.made, x, y)} only3pt={modal.action==='3pt'}/>
               <button onClick={() => confirmShot(modal.made, 0.5, 0.5)} style={{ marginTop:10, ...btnStyle('#374151',12) }}>
                 Registrar sin posición
               </button>

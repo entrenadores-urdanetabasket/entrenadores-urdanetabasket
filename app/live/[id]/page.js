@@ -1747,18 +1747,18 @@ export default function LivePage() {
                 const fc    = getPlayerFoulCounts(events, pid)
                 const totalFouls = fc.personal + fc.technical + fc.unsporting + fc.disq
                 return (
-                  <button key={pid} disabled={st.out} onClick={() => {
-                    if (st.out) return
+                  <button key={pid} disabled={st.out && !isOn} onClick={() => {
                     if (isOn) {
                       if (court.length > 1) setModal({ ...modal, court: court.filter(p => p !== pid) })
                     } else {
+                      if (st.out) return
                       if (court.length < 5) setModal({ ...modal, court: [...court, pid] })
                     }
                   }} style={{
                     display:'flex', alignItems:'center', gap:6, minWidth:0,
                     padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#22c55e':'#374151'}`,
                     backgroundColor: st.out ? '#1a0505' : isOn ? '#14532d' : '#1a2030',
-                    cursor: st.out ? 'not-allowed' : 'pointer', opacity: st.out ? 0.5 : 1,
+                    cursor: (st.out && !isOn) ? 'not-allowed' : 'pointer', opacity: (st.out && !isOn) ? 0.5 : 1,
                   }}>
                     <span style={{ width:24, height:24, borderRadius:6, flexShrink:0,
                       backgroundColor: isOn ? '#16a34a' : '#374151',
@@ -1862,7 +1862,7 @@ export default function LivePage() {
                   display:'flex', alignItems:'center', gap:6, minWidth:0,
                   padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#f97316':'#374151'}`,
                   backgroundColor: st.out ? '#1a0505' : isOn ? '#7c2d12' : '#1a2030',
-                  cursor: (st.out && !isOn) ? 'not-allowed' : 'pointer', opacity: st.out ? 0.5 : 1,
+                  cursor: (st.out && !isOn) ? 'not-allowed' : 'pointer', opacity: (st.out && !isOn) ? 0.5 : 1,
                 }}>
                   <span style={{ width:24, height:24, borderRadius:6, flexShrink:0,
                     backgroundColor: isOn ? '#d97706' : '#374151',

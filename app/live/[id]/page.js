@@ -362,7 +362,7 @@ function BSSection({ title, color, rows }) {
                   <td style={td}>{s.stl||0}</td>
                   <td style={td}>{s.blk||0}</td>
                   <td style={td}>{s.tov||0}</td>
-                  <td style={{ ...td, color:(s.fouls||0)>=5?'#ef4444':'inherit', fontWeight:(s.fouls||0)>=5?800:400 }}>{s.fouls||0}</td>
+                  <td style={{ ...td, color:(s.fouls||0)>=5?'#ef4444':td.color, fontWeight:(s.fouls||0)>=5?800:400 }}>{s.fouls||0}</td>
                 </tr>
               )
             })}
@@ -977,9 +977,6 @@ export default function LivePage() {
   const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
-  const ourRowsDebug = gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))
-  const rivRowsDebug = rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))
-  const debugText = 'US: ' + ourRowsDebug.map(r => `${r.num}=${r.s.fouls||0}`).join(' ') + ' | RIV: ' + rivRowsDebug.map(r => `${r.num}=${r.s.fouls||0}`).join(' ')
 
   const aActive = !!armed
   const bActive = !!armed
@@ -1313,10 +1310,11 @@ export default function LivePage() {
               📄 PDF
             </button>
           </div>
-          <div style={{ fontSize:10, backgroundColor:'#000', color:'#22c55e', padding:'6px 10px', borderRadius:8, overflowX:'auto', marginBottom:16, whiteSpace:'nowrap' }}>{debugText}</div>
-          <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e" rows={ourRowsDebug}/>
+          <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e"
+            rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
           <div style={{ marginTop:16 }}>
-            <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316" rows={rivRowsDebug}/>
+            <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316"
+              rows={rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
           </div>
           <div style={{ marginTop:18 }}>
             <h4 style={{ fontSize:12, fontWeight:800, color:'#4b5563', marginBottom:8 }}>

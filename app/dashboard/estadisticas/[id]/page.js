@@ -546,9 +546,6 @@ export default function GamePage() {
   const ourShots   = events.filter(e=>e.team==='us'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
   const rivalShots = events.filter(e=>e.team==='rival'&&e.shot_x!=null).map(e=>({x:e.shot_x,y:e.shot_y,made:e.event_type.endsWith('_made')}))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
-  const ourRowsDebug = gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))
-  const rivRowsDebug = rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))
-  const debugText = 'US: ' + ourRowsDebug.map(r => `${r.num}=${r.s.fouls||0}`).join(' ') + ' | RIV: ' + rivRowsDebug.map(r => `${r.num}=${r.s.fouls||0}`).join(' ')
 
   // Colores de jugador según estado armado
   const aActive = !!armed
@@ -863,10 +860,11 @@ export default function GamePage() {
             <h3 style={{fontSize:15,fontWeight:800,color:'#111827',margin:0}}>Box Score</h3>
             <button onClick={()=>window.print()} style={{padding:'6px 14px',backgroundColor:'#f3f4f6',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer'}}>📄 PDF</button>
           </div>
-          <div style={{fontSize:10,backgroundColor:'#111827',color:'#22c55e',padding:'6px 10px',borderRadius:8,overflowX:'auto',marginBottom:16,whiteSpace:'nowrap'}}>{debugText}</div>
-          <BSSection title={`🟢 Nosotros — ${scores.us} pts`} color="#16a34a" rows={ourRowsDebug}/>
+          <BSSection title={`🟢 Nosotros — ${scores.us} pts`} color="#16a34a"
+            rows={gps.map(gp=>({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
           <div style={{marginTop:16}}>
-            <BSSection title={`🟡 ${game.rival_name} — ${scores.rival} pts`} color="#d97706" rows={rivRowsDebug}/>
+            <BSSection title={`🟡 ${game.rival_name} — ${scores.rival} pts`} color="#d97706"
+              rows={rivals.map(n=>({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
           </div>
           {/* Historial */}
           <div style={{marginTop:20}}>
@@ -1629,7 +1627,7 @@ function BSSection({ title, color, rows }) {
                   <td style={td}>{s.stl||0}</td>
                   <td style={td}>{s.blk||0}</td>
                   <td style={td}>{s.tov||0}</td>
-                  <td style={{...td,color:(s.fouls||0)>=5?'#ef4444':'inherit',fontWeight:(s.fouls||0)>=5?800:400}}>{s.fouls||0}</td>
+                  <td style={{...td,color:(s.fouls||0)>=5?'#ef4444':td.color,fontWeight:(s.fouls||0)>=5?800:400}}>{s.fouls||0}</td>
                 </tr>
               )
             })}

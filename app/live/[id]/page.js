@@ -940,6 +940,10 @@ export default function LivePage() {
 
   function armAction(key) {
     if (isFinished) return
+    if (['foul','unsporting','technical','disqualifying','timeout'].includes(key)) {
+      setRunning(false)
+      supabase.from('games').update({ clock_seconds: secsRef.current }).eq('id', id)
+    }
     if (key === 'technical') { setModal({ type:'foul_target', foulType:'technical', team:'us' }); setArmed(null); return }
     if (key === 'disqualifying') { setModal({ type:'foul_target', foulType:'disqualifying', team:'us' }); setArmed(null); return }
     if (key === 'timeout') { setModal({ type:'timeout_team' }); setArmed(null); return }

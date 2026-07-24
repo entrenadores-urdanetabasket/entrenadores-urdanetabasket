@@ -71,14 +71,104 @@ function computePlusMinusUs(evs, gamePlayers) {
       const sign = ev.team === 'us' ? 1 : -1
       court.forEach(pid => { if (pm[pid] != null) pm[pid] += sign*delta })
     }
-    if (ev.team === 'us' && ev.event_type === 'substitution' && ev.player_id) {
-      const outIdx = court.indexOf(ev.linked_event_id)
-      if (outIdx !== -1) court[outIdx] = ev.player_id
-      else if (court.length < 5 && !court.includes(ev.player_id)) court.push(ev.player_id)
-      if (pm[ev.player_id] == null) pm[ev.player_id] = 0
+    if (ev.team === 'us' && ev.event_type === 'substitution') {
+      if (ev.player_id) {
+        const outIdx = court.indexOf(ev.linked_event_id)
+        if (outIdx !== -1) court[outIdx] = ev.player_id
+        else if (court.length < 5 && !court.includes(ev.player_id)) court.push(ev.player_id)
+        if (pm[ev.player_id] == null) pm[ev.player_id] = 0
+      } else if (ev.linked_event_id) {
+        court = court.filter(p => p !== ev.linked_event_id)
+      }
     }
   })
   return pm
+}
+
+// +/- del rival: los cambios de rival se guardan como eventos 'substitution' con
+// rival_jersey + points(1=entra,0=sale), sin pareja explicita entra/sale.
+function computePlusMinusRival(evs, initialFive) {
+  const pm = {}
+  initialFive.forEach(n => { pm[n] = 0 })
+  let court = [...initialFive]
+  evs.forEach(ev => {
+    const delta = ev.event_type==='2pt_made'?2 : ev.event_type==='3pt_made'?3 : ev.event_type==='ft_made'?1 : 0
+    if (delta > 0) {
+      const sign = ev.team === 'rival' ? 1 : -1
+      court.forEach(n => { if (pm[n] != null) pm[n] += sign*delta })
+    }
+    if (ev.team === 'rival' && ev.event_type === 'substitution' && ev.rival_jersey != null) {
+      if (ev.points === 1) {
+        if (!court.includes(ev.rival_jersey)) court.push(ev.rival_jersey)
+        if (pm[ev.rival_jersey] == null) pm[ev.rival_jersey] = 0
+      } else {
+        court = court.filter(x => x !== ev.rival_jersey)
+      }
+    }
+  })
+  return pm
+}
+
+// ── Minutos jugados ───────────────────────────────────────────────────────────
+// Duracion de cada cuarto: 10 min los 4 primeros, 5 min cada prorroga (PT).
+function quarterDurationSecs(q) { return q <= 4 ? 600 : 300 }
+function absoluteGameSeconds(quarter, secsRemaining) {
+  let total = 0
+  for (let i = 1; i < quarter; i++) total += quarterDurationSecs(i)
+  return total + (quarterDurationSecs(quarter) - secsRemaining)
+}
+
+// Genera minutos jugados por jugador a partir de los eventos de sustitucion que
+// llevan el reloj guardado (shot_x = segundos restantes en ese momento). Los
+// partidos/sustituciones antiguas sin ese dato no se pueden reconstruir.
+function computeMinutesPlayed(evs, initialIds, team, nowAbsTime) {
+  const timeline = []
+  initialIds.forEach(id => timeline.push({ id, type:'enter', t:0 }))
+  evs.forEach(ev => {
+    if (ev.event_type !== 'substitution' || ev.team !== team || ev.shot_x == null) return
+    const t = absoluteGameSeconds(Number(ev.quarter)||1, ev.shot_x)
+    if (team === 'us') {
+      if (ev.linked_event_id) timeline.push({ id: ev.linked_event_id, type:'leave', t })
+      if (ev.player_id) timeline.push({ id: ev.player_id, type:'enter', t })
+    } else {
+      if (ev.rival_jersey != null) timeline.push({ id: ev.rival_jersey, type: ev.points===1?'enter':'leave', t })
+    }
+  })
+  timeline.sort((a,b) => a.t - b.t)
+  const since = {}, total = {}
+  timeline.forEach(ev => {
+    if (ev.type === 'enter') since[ev.id] = ev.t
+    else if (since[ev.id] != null) { total[ev.id] = (total[ev.id]||0) + (ev.t - since[ev.id]); delete since[ev.id] }
+  })
+  Object.keys(since).forEach(id => { total[id] = (total[id]||0) + (nowAbsTime - since[id]) })
+  return total
+}
+
+// ── Racha actual (aciertos/fallos consecutivos de tiro) ───────────────────────
+function computeStreak(evs, team, ref) {
+  const shots = evs.filter(e => e.team===team
+    && (team==='us' ? e.player_id===ref : e.rival_jersey===ref)
+    && ['2pt_made','2pt_miss','3pt_made','3pt_miss','ft_made','ft_miss'].includes(e.event_type))
+  let count = 0, made = null
+  for (let i = shots.length-1; i >= 0; i--) {
+    const isMade = shots[i].event_type.endsWith('_made')
+    if (made === null) { made = isMade; count = 1 }
+    else if (isMade === made) count++
+    else break
+  }
+  return count >= 2 ? { made, count } : null
+}
+
+// ── Marcador por cuarto ────────────────────────────────────────────────────────
+function computeQuarterScores(evs) {
+  const byQ = {}
+  evs.forEach(e => {
+    const q = Number(e.quarter) || 1
+    if (!byQ[q]) byQ[q] = { us:0, rival:0 }
+    const pts = e.event_type==='2pt_made'?2 : e.event_type==='3pt_made'?3 : e.event_type==='ft_made'?1 : 0
+    if (pts > 0) byQ[q][e.team==='us'?'us':'rival'] += pts
+  })
+  return byQ
 }
 
 // ─── PLAYER FOUL STATUS ───────────────────────────────────────────────────────
@@ -394,8 +484,10 @@ function BSSection({ title, color, rows, showPM }) {
           <thead>
             <tr>
               <th style={{ ...th, textAlign:'left', paddingLeft:8, minWidth:80 }}>Jugador</th>
+              <th style={{ ...th, minWidth:38 }}>MIN</th>
               {['PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
               {showPM && <th style={{ ...th, minWidth:34 }}>+/-</th>}
+              <th style={{ ...th, minWidth:34 }}>RACHA</th>
             </tr>
           </thead>
           <tbody>
@@ -408,6 +500,7 @@ function BSSection({ title, color, rows, showPM }) {
                   <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:600 }}>
                     <span style={{ fontSize:10, color:'#4b5563', marginRight:4 }}>#{r.num}</span>{r.name.split(' ')[0]}
                   </td>
+                  <td style={td}>{s.min!=null ? `${Math.floor(s.min/60)}:${String(s.min%60).padStart(2,'0')}` : '—'}</td>
                   <td style={{ ...td, fontWeight:800, color:(s.pts||0)>0?'#f0f0f0':'#374151' }}>{s.pts||0}</td>
                   <td style={td}>{s.fg2m||0}/{s.fg2a||0}</td>
                   <td style={td}>{s.fg3m||0}/{s.fg3a||0}</td>
@@ -425,12 +518,16 @@ function BSSection({ title, color, rows, showPM }) {
                       {(s.pm||0)>0 ? `+${s.pm}` : (s.pm||0)}
                     </td>
                   )}
+                  <td style={{ ...td, fontWeight:700, color: s.streak ? (s.streak.made?'#22c55e':'#60a5fa') : td.color }}>
+                    {s.streak ? `${s.streak.made?'🔥':'❄️'}${s.streak.count}` : '—'}
+                  </td>
                 </tr>
               )
             })}
             {rows.length > 0 && (
               <tr style={{ backgroundColor:'#1a2030' }}>
                 <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:800, color:'#9ca3af' }}>TOTAL</td>
+                <td style={td}>—</td>
                 <td style={{ ...td, fontWeight:800, color:'#f0f0f0' }}>{tot.pts}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg2m}/{tot.fg2a}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg3m}/{tot.fg3a}</td>
@@ -444,6 +541,7 @@ function BSSection({ title, color, rows, showPM }) {
                 <td style={{ ...td, fontWeight:700 }}>{tot.pir}</td>
                 <td style={{ ...td, fontWeight:700 }}>{totTS!==null ? `${totTS}%` : '—'}</td>
                 {showPM && <td style={td}>—</td>}
+                <td style={td}>—</td>
               </tr>
             )}
           </tbody>
@@ -910,16 +1008,16 @@ export default function LivePage() {
     for (let i = 0; i < maxPairs; i++) {
       const inP  = inPlayers[i]  ?? null
       const outP = outPlayers[i] ?? null
-      if (inP) {
+      if (inP || outP) {
         inserts.push({
           game_id:id, team:'us', event_type:'substitution', quarter,
-          points:0, player_id:inP, linked_event_id:outP, shot_x:null, shot_y:null,
+          points:0, player_id:inP, linked_event_id:outP, shot_x:secsRef.current, shot_y:null,
         })
       }
     }
     if (inserts.length) {
       await supabase.from('game_events').insert(inserts)
-      const newEvs = inserts.map((ins, i) => ({ id:'sub_'+Date.now()+i, team:'us', event_type:'substitution', quarter, player_id:ins.player_id, linked_event_id:ins.linked_event_id }))
+      const newEvs = inserts.map((ins, i) => ({ id:'sub_'+Date.now()+i, team:'us', event_type:'substitution', quarter, player_id:ins.player_id, linked_event_id:ins.linked_event_id, shot_x:ins.shot_x }))
       setEvents(prev => [...prev, ...newEvs])
     }
     await supabase.from('games').update({ current_lineup: newCourt }).eq('id', id)
@@ -1043,10 +1141,17 @@ export default function LivePage() {
   const ourTOs       = events.filter(e => e.team==='us'&&e.event_type==='timeout').length
   const rivalTOs     = events.filter(e => e.team==='rival'&&e.event_type==='timeout').length
 
-  const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
-  const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
+  const SHOT_TYPES   = ['2pt_made','2pt_miss','3pt_made','3pt_miss']
+  const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
+  const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
   const plusMinusUs = computePlusMinusUs(events, gps)
+  const rivalInitialFive = (game.rival_roster || []).slice(0,5)
+  const plusMinusRival = computePlusMinusRival(events, rivalInitialFive)
+  const nowAbsTime = absoluteGameSeconds(quarter, secs)
+  const minutesUs = computeMinutesPlayed(events, gps.slice(0,5).map(p=>p.player_id), 'us', nowAbsTime)
+  const minutesRival = computeMinutesPlayed(events, rivalInitialFive, 'rival', nowAbsTime)
+  const quarterScores = computeQuarterScores(events)
 
   const aActive = !!armed
   const bActive = !!armed
@@ -1385,14 +1490,54 @@ export default function LivePage() {
             </button>
           </div>
           <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e" showPM
-            rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:{ ...(ourBS[gp.player_id]||{}), pm: plusMinusUs[gp.player_id] } }))}/>
+            rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:{
+              ...(ourBS[gp.player_id]||{}), pm: plusMinusUs[gp.player_id], min: minutesUs[gp.player_id],
+              streak: computeStreak(events, 'us', gp.player_id),
+            } }))}/>
           <div style={{ marginTop:16 }}>
-            <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316"
-              rows={rivals.map(n => ({ num:n, name:`#${n}`, s:rivBS[n]||{} }))}/>
+            <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316" showPM
+              rows={rivals.map(n => ({ num:n, name:`#${n}`, s:{
+                ...(rivBS[n]||{}), pm: plusMinusRival[n], min: minutesRival[n],
+                streak: computeStreak(events, 'rival', n),
+              } }))}/>
           </div>
-          <p style={{ fontSize:10, color:'#4b5563', marginTop:6 }}>
-            VAL = valoración FIBA · EFI% = % de tiro real (TS%) · +/- solo disponible para {ourName} (el rival no registra cambios como evento)
+          <p style={{ fontSize:10, color:'#4b5563', marginTop:6, lineHeight:1.5 }}>
+            VAL = valoración FIBA · EFI% = % de tiro real (TS%) · MIN y +/- se calculan desde que se activó este seguimiento — las sustituciones de partidos/cambios anteriores a hoy no cuentan.
           </p>
+
+          {/* Marcador por cuarto */}
+          <div style={{ marginTop:18 }}>
+            <h4 style={{ fontSize:12, fontWeight:800, color:'#4b5563', marginBottom:8 }}>Por cuartos</h4>
+            <div style={{ overflowX:'auto' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', backgroundColor:'#111520', borderRadius:10, overflow:'hidden', border:'1px solid #1f2937' }}>
+                <thead>
+                  <tr>
+                    <th style={{ fontSize:10, fontWeight:700, color:'#6b7280', padding:'5px 8px', textAlign:'left', borderBottom:'1px solid #1f2937' }}>Equipo</th>
+                    {Object.keys(quarterScores).sort((a,b)=>a-b).map(q => (
+                      <th key={q} style={{ fontSize:10, fontWeight:700, color:'#6b7280', padding:'5px 3px', textAlign:'center', borderBottom:'1px solid #1f2937', minWidth:34 }}>{Q_LABEL(q)}</th>
+                    ))}
+                    <th style={{ fontSize:10, fontWeight:700, color:'#6b7280', padding:'5px 3px', textAlign:'center', borderBottom:'1px solid #1f2937', minWidth:34 }}>TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ fontSize:11, padding:'6px 8px', color:'#22c55e', fontWeight:700 }}>🟢 {ourName}</td>
+                    {Object.keys(quarterScores).sort((a,b)=>a-b).map(q => (
+                      <td key={q} style={{ fontSize:11, padding:'6px 3px', textAlign:'center', color:'#d1d5db' }}>{quarterScores[q].us}</td>
+                    ))}
+                    <td style={{ fontSize:11, padding:'6px 3px', textAlign:'center', fontWeight:800, color:'#f0f0f0' }}>{scores.us}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontSize:11, padding:'6px 8px', color:'#f97316', fontWeight:700 }}>🟡 {rivalName}</td>
+                    {Object.keys(quarterScores).sort((a,b)=>a-b).map(q => (
+                      <td key={q} style={{ fontSize:11, padding:'6px 3px', textAlign:'center', color:'#d1d5db' }}>{quarterScores[q].rival}</td>
+                    ))}
+                    <td style={{ fontSize:11, padding:'6px 3px', textAlign:'center', fontWeight:800, color:'#f0f0f0' }}>{scores.rival}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
           <div style={{ marginTop:18 }}>
             <h4 style={{ fontSize:12, fontWeight:800, color:'#4b5563', marginBottom:8 }}>
               Historial de acciones ({events.length})
@@ -1912,12 +2057,15 @@ export default function LivePage() {
               return (
                 <button key={n} disabled={st.out && !isOn} onClick={async () => {
                   if (st.out && !isOn) return
-                  let next = null
+                  let next = null, entering = false
                   if (isOn) { if (rivalOnCourt.length>1) next = rivalOnCourt.filter(x=>x!==n) }
-                  else { if (rivalOnCourt.length<5) next = [...rivalOnCourt,n] }
+                  else { if (rivalOnCourt.length<5) { next = [...rivalOnCourt,n]; entering = true } }
                   if (!next) return
                   setRivalOnCourt(next)
                   await supabase.from('games').update({ rival_current_lineup: next }).eq('id', id)
+                  const evPayload = { game_id:id, team:'rival', event_type:'substitution', quarter, points: entering?1:0, rival_jersey:n, shot_x:secsRef.current }
+                  const { data: savedEv } = await supabase.from('game_events').insert(evPayload).select().single()
+                  if (savedEv) setEvents(prev => [...prev, savedEv])
                 }}
                 style={{
                   display:'flex', alignItems:'center', gap:6, minWidth:0,

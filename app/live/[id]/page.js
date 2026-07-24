@@ -924,7 +924,9 @@ export default function LivePage() {
   const mm           = String(Math.floor(secs/60)).padStart(2,'0')
   const ss2          = String(secs%60).padStart(2,'0')
   const courtGps     = onCourt.map(pid => gps.find(g => g.player_id===pid)).filter(Boolean)
-  const rivalVisible = rivalOnCourt.length > 0 ? rivalOnCourt : rivals.slice(0,5)
+    .sort((a,b) => (a.players?.number ?? 999) - (b.players?.number ?? 999))
+  const rivalVisible = (rivalOnCourt.length > 0 ? rivalOnCourt : rivals.slice(0,5))
+    .slice().sort((a,b) => a - b)
 
   const ourFouls     = events.filter(e => e.team==='us'&&e.event_type.startsWith('foul')&&e.player_id!=null).length
   const rivalFouls   = events.filter(e => e.team==='rival'&&e.event_type.startsWith('foul')&&e.rival_jersey!=null).length

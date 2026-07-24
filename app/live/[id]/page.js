@@ -658,11 +658,23 @@ export default function LivePage() {
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
     const ps = rows || []
     setGps(ps)
-    setOnCourt(ps.slice(0,5).map(p => p.player_id))
     if (g.rival_roster?.length) setRivalOnCourt(g.rival_roster.slice(0,5))
 
     const { data: evs } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
     setEvents(evs || [])
+
+    // Reconstruir quién está en pista a partir del historial de sustituciones,
+    // en vez de asumir siempre "los 5 primeros del roster" (eso perdía los
+    // cambios hechos al recargar la página o volver de otra pestaña).
+    let court = ps.slice(0,5).map(p => p.player_id)
+    ;(evs || [])
+      .filter(ev => ev.team==='us' && ev.event_type==='substitution' && ev.player_id!=null)
+      .forEach(ev => {
+        const outIdx = court.indexOf(ev.linked_event_id)
+        if (outIdx !== -1) court[outIdx] = ev.player_id
+        else if (court.length < 5 && !court.includes(ev.player_id)) court.push(ev.player_id)
+      })
+    setOnCourt(court)
     setLoading(false)
   }
 

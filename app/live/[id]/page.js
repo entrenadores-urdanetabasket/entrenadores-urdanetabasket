@@ -808,7 +808,7 @@ export default function LivePage() {
     else setModal(null)
   }
 
-  async function confirmOurLineup(newCourt, initialCourt) {
+  async function confirmOurLineup(newCourt, initialCourt, nextModal) {
     const outPlayers = initialCourt.filter(p => !newCourt.includes(p))
     const inPlayers  = newCourt.filter(p => !initialCourt.includes(p))
     const maxPairs   = Math.max(outPlayers.length, inPlayers.length)
@@ -829,7 +829,7 @@ export default function LivePage() {
       setEvents(prev => [...prev, ...newEvs])
     }
     setOnCourt(newCourt)
-    setModal(null)
+    setModal(nextModal || null)
   }
 
   async function confirmSub(inPlayer) {
@@ -1679,7 +1679,12 @@ export default function LivePage() {
         return (
           <Overlay onClose={() => setModal(null)}>
             <div style={{ color:'#22c55e', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🔄 5 en pista — {ourName}</div>
-            <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Toca para activar/desactivar · máx. 5</div>
+            <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:modal.nextModal?8:14 }}>Toca para activar/desactivar · máx. 5</div>
+            {modal.nextModal && (
+              <div style={{ padding:'8px 12px', backgroundColor:'#1a0808', border:'1px solid #3a1010', borderRadius:9, color:'#fca5a5', fontSize:11, fontWeight:700, textAlign:'center', marginBottom:12 }}>
+                ⛔ Añade el sustituto del jugador eliminado
+              </div>
+            )}
             <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
               {gps.map(gp => {
                 const pid   = gp.player_id
@@ -1720,10 +1725,16 @@ export default function LivePage() {
             <div style={{ color:court.length===5?'#22c55e':'#f59e0b', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
               {court.length}/5 en pista
             </div>
-            <button onClick={() => confirmOurLineup(modal.court, modal.initialCourt)}
+            <button onClick={() => confirmOurLineup(modal.court, modal.initialCourt, modal.nextModal)}
               style={{ ...btnStyle('#16a34a'), marginBottom:8 }}>
               ✓ Confirmar cambios
             </button>
+            {!modal.nextModal && (
+              <button onClick={() => setModal({ type:'rival_lineup' })}
+                style={{ ...btnStyle('#d97706', 12), marginBottom:8 }}>
+                🔄 Cambiar a {rivalName}
+              </button>
+            )}
             <button onClick={() => setModal(null)}
               style={btnStyle('#1f2937',12)}>
               Cancelar
@@ -1777,7 +1788,11 @@ export default function LivePage() {
           <div style={{ color:rivalOnCourt.length===5?'#22c55e':'#f97316', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
             {rivalOnCourt.length}/5 en pista
           </div>
-          <button onClick={() => setModal(null)} style={{ width:'100%', padding:'11px', backgroundColor:'#16a34a', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:800, cursor:'pointer' }}>✓ Confirmar</button>
+          <button onClick={() => setModal(null)} style={{ width:'100%', padding:'11px', backgroundColor:'#16a34a', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:800, cursor:'pointer', marginBottom:8 }}>✓ Confirmar</button>
+          <button onClick={() => setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] })}
+            style={{ width:'100%', padding:'11px', backgroundColor:'#16a34a', border:'1px solid #22c55e', color:'#22c55e', borderRadius:10, fontSize:12, fontWeight:800, cursor:'pointer', background:'transparent' }}>
+            🔄 Cambiar a {ourName}
+          </button>
         </Overlay>
       )}
 
@@ -1970,7 +1985,7 @@ export default function LivePage() {
               : '⛔ Ha acumulado 5 faltas. Debe abandonar la pista y debe ser sustituido (salvo que el equipo tenga ≤4 jugadores disponibles).'}
           </div>
           <button onClick={() => {
-            setModal({ type:'sub', team:'us', currentCourt:[...onCourt], nextModal:modal.nextModal })
+            setModal({ type:'our_lineup', initialCourt:[...onCourt], court:onCourt.filter(p => p !== modal.pid), nextModal:modal.nextModal })
           }} style={{ ...btnStyle('#dc2626', 13), marginBottom:8 }}>
             🔄 Hacer sustitución ahora
           </button>

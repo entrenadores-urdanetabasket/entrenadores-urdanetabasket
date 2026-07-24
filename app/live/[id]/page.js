@@ -977,6 +977,13 @@ export default function LivePage() {
   const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
+  if (typeof window !== 'undefined') {
+    console.log('DEBUG rivals', rivals)
+    console.log('DEBUG rivBS', rivBS)
+    console.log('DEBUG gps ids', gps.map(g => g.player_id))
+    console.log('DEBUG ourBS', ourBS)
+    console.log('DEBUG events fouls', events.filter(e => e.event_type?.startsWith('foul')))
+  }
 
   const aActive = !!armed
   const bActive = !!armed

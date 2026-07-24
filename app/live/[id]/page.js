@@ -64,6 +64,18 @@ function calcPlayerStatus(counts) {
 function playerStatusFromEvents(evs, pid) {
   return calcPlayerStatus(getPlayerFoulCounts(evs, pid))
 }
+function getRivalFoulCounts(evs, jersey) {
+  const pe = evs.filter(e => e.team === 'rival' && e.rival_jersey === jersey)
+  return {
+    personal:   pe.filter(e => e.event_type === 'foul_personal').length,
+    technical:  pe.filter(e => e.event_type === 'foul_technical').length,
+    unsporting: pe.filter(e => e.event_type === 'foul_unsporting').length,
+    disq:       pe.filter(e => e.event_type === 'foul_disqualifying').length,
+  }
+}
+function rivalStatusFromEvents(evs, jersey) {
+  return calcPlayerStatus(getRivalFoulCounts(evs, jersey))
+}
 
 const Q_LABEL = q => ['P1','P2','P3','P4','PT'][(q||1)-1] || `P${q}`
 
@@ -1826,11 +1838,15 @@ export default function LivePage() {
         <Overlay onClose={() => setModal(null)}>
           <div style={{ color:'#f97316', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🔄 5 en pista — {rivalName}</div>
           <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Toca para activar/desactivar · máx. 5</div>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:8, justifyContent:'center', marginBottom:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6, marginBottom:12 }}>
             {rivals.map(n => {
               const isOn = rivalOnCourt.includes(n)
+              const st   = rivalStatusFromEvents(events, n)
+              const fc   = getRivalFoulCounts(events, n)
+              const totalFouls = fc.personal + fc.technical + fc.unsporting + fc.disq
               return (
-                <button key={n} onClick={async () => {
+                <button key={n} disabled={st.out && !isOn} onClick={async () => {
+                  if (st.out && !isOn) return
                   let next = null
                   if (isOn) { if (rivalOnCourt.length>1) next = rivalOnCourt.filter(x=>x!==n) }
                   else { if (rivalOnCourt.length<5) next = [...rivalOnCourt,n] }
@@ -1838,11 +1854,43 @@ export default function LivePage() {
                   setRivalOnCourt(next)
                   await supabase.from('games').update({ rival_current_lineup: next }).eq('id', id)
                 }}
-                style={{ width:54, height:54, borderRadius:10, cursor:'pointer',
-                  border:`2px solid ${isOn?'#f97316':'#374151'}`,
-                  backgroundColor:isOn?'#d97706':'#1a2030',
-                  color:isOn?'#fff':'#4b5563', fontSize:17, fontWeight:900 }}>
-                  #{n}
+                style={{
+                  display:'flex', alignItems:'center', gap:6, minWidth:0,
+                  padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#f97316':'#374151'}`,
+                  backgroundColor: st.out ? '#1a0505' : isOn ? '#7c2d12' : '#1a2030',
+                  cursor: (st.out && !isOn) ? 'not-allowed' : 'pointer', opacity: st.out ? 0.5 : 1,
+                }}>
+                  <span style={{ width:24, height:24, borderRadius:6, flexShrink:0,
+                    backgroundColor: isOn ? '#d97706' : '#374151',
+                    display:'inline-flex', alignItems:'center', justifyContent:'center',
+                    fontSize:11, fontWeight:900, color:'#fff' }}>
+                    {n}
+                  </span>
+                  <span style={{ flex:1, minWidth:0, textAlign:'left', fontSize:11, fontWeight:700,
+                    color: st.out ? '#5a3030' : isOn ? '#ffedd5' : '#9ca3af' }}>
+                    #{n}
+                  </span>
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:1, flexShrink:0, minWidth:16 }}>
+                    {st.out ? (
+                      <span style={{ fontSize:9, fontWeight:800, color:'#ef4444' }}>{st.disqualified ? 'DESC' : 'ELIM'}</span>
+                    ) : (
+                      <>
+                        {totalFouls > 0 ? (
+                          <span style={{ fontSize:10, fontWeight:900, lineHeight:1,
+                            color: totalFouls>=5 ? '#ef4444' : totalFouls>=4 ? '#f59e0b' : '#9ca3af' }}>
+                            {totalFouls}F
+                          </span>
+                        ) : isOn ? (
+                          <span style={{ fontSize:9, fontWeight:800, color:'#f97316' }}>✓</span>
+                        ) : null}
+                        {(fc.technical > 0 || fc.unsporting > 0) && (
+                          <span style={{ fontSize:7, fontWeight:800, color:'#f97316', lineHeight:1 }}>
+                            {fc.technical > 0 ? `T${fc.technical}` : ''}{fc.technical > 0 && fc.unsporting > 0 ? ' ' : ''}{fc.unsporting > 0 ? `U${fc.unsporting}` : ''}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </button>
               )
             })}

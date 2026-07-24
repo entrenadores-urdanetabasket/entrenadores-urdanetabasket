@@ -1685,7 +1685,7 @@ export default function LivePage() {
                 ⛔ Añade el sustituto del jugador eliminado
               </div>
             )}
-            <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6, marginBottom:12 }}>
               {gps.map(gp => {
                 const pid   = gp.player_id
                 const isOn  = court.includes(pid)
@@ -1699,24 +1699,25 @@ export default function LivePage() {
                       if (court.length < 5) setModal({ ...modal, court: [...court, pid] })
                     }
                   }} style={{
-                    display:'flex', alignItems:'center', gap:10,
-                    padding:'9px 12px', borderRadius:9, border:`2px solid ${isOn?'#22c55e':'#374151'}`,
+                    display:'flex', alignItems:'center', gap:6, minWidth:0,
+                    padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#22c55e':'#374151'}`,
                     backgroundColor: st.out ? '#1a0505' : isOn ? '#14532d' : '#1a2030',
                     cursor: st.out ? 'not-allowed' : 'pointer', opacity: st.out ? 0.5 : 1,
                   }}>
-                    <span style={{ width:32, height:32, borderRadius:8, flexShrink:0,
+                    <span style={{ width:24, height:24, borderRadius:6, flexShrink:0,
                       backgroundColor: isOn ? '#16a34a' : '#374151',
                       display:'inline-flex', alignItems:'center', justifyContent:'center',
-                      fontSize:14, fontWeight:900, color:'#fff' }}>
+                      fontSize:11, fontWeight:900, color:'#fff' }}>
                       {gp.players?.number ?? '?'}
                     </span>
-                    <span style={{ flex:1, textAlign:'left', fontSize:12, fontWeight:700,
+                    <span style={{ flex:1, minWidth:0, textAlign:'left', fontSize:11, fontWeight:700,
+                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
                       color: st.out ? '#5a3030' : isOn ? '#d1fae5' : '#9ca3af' }}>
-                      {gp.players?.full_name || '—'}
+                      {gp.players?.full_name?.split(' ')[0] || '—'}
                     </span>
-                    <span style={{ fontSize:11, fontWeight:800,
+                    <span style={{ fontSize:9, fontWeight:800, flexShrink:0,
                       color: isOn ? '#22c55e' : '#374151' }}>
-                      {st.out ? (st.disqualified ? 'DESC' : 'ELIM') : isOn ? '✓ Pista' : 'Banco'}
+                      {st.out ? (st.disqualified ? 'DESC' : 'ELIM') : isOn ? '✓' : ''}
                     </span>
                   </button>
                 )

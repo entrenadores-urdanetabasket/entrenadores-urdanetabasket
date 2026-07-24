@@ -562,6 +562,7 @@ export default function LivePage() {
   const intervalRef             = useRef(null)
   const timerExpiredRef         = useRef(false)
   const eventsRef               = useRef([])
+  const secsRef                 = useRef(600)
 
   const [editingClock, setEditingClock] = useState(false)
   const [clockInput, setClockInput]     = useState('')
@@ -573,6 +574,7 @@ export default function LivePage() {
   useEffect(() => { if (user) load() }, [user])
 
   useEffect(() => { eventsRef.current = events }, [events])
+  useEffect(() => { secsRef.current = secs }, [secs])
 
   useEffect(() => {
     clearInterval(intervalRef.current)
@@ -616,9 +618,26 @@ export default function LivePage() {
     const sync = setInterval(async () => {
       const { data } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
       if (data) setEvents(data)
+      await supabase.from('games').update({ clock_seconds: secsRef.current }).eq('id', id)
     }, 10000)
     return () => clearInterval(sync)
   }, [id, user])
+
+  // Guardar el reloj al salir/cambiar de pestaña, para no perder los últimos
+  // segundos si no hubo ninguna acción (tiro, falta, etc.) que lo persistiera.
+  useEffect(() => {
+    if (!id) return
+    function persistClock() {
+      supabase.from('games').update({ clock_seconds: secsRef.current }).eq('id', id)
+    }
+    function onVisibility() { if (document.visibilityState === 'hidden') persistClock() }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', persistClock)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', persistClock)
+    }
+  }, [id])
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   async function load() {
@@ -626,6 +645,7 @@ export default function LivePage() {
     if (!g) { router.replace('/dashboard/estadisticas'); return }
     setGame(g)
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
+    if (g.clock_seconds != null) setSecs(Number(g.clock_seconds))
 
     if (g.team_id) {
       // Same pattern as estadisticas/page.js — get teams via team_coaches then query by IDs
@@ -709,7 +729,7 @@ export default function LivePage() {
       let next = []
       setEvents(prev => { next = [...prev, ev]; return next })
       const sc = computeScores(next)
-      await supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival, status:'live', quarter }).eq('id', id)
+      await supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival, status:'live', quarter, clock_seconds:secs }).eq('id', id)
       setGame(prev => prev ? { ...prev, our_score:sc.us, rival_score:sc.rival, status:'live' } : prev)
       return ev
     }
@@ -1066,7 +1086,13 @@ export default function LivePage() {
                 {mm}:{ss2}
               </div>
             )}
-            <button onClick={() => setRunning(r => !r)} style={{
+            <button onClick={() => {
+              setRunning(r => {
+                const next = !r
+                supabase.from('games').update({ clock_seconds: secs }).eq('id', id)
+                return next
+              })
+            }} style={{
               marginTop:3, padding:'2px 10px', borderRadius:10, border:'none', cursor:'pointer', fontSize:9, fontWeight:800,
               backgroundColor:running?'rgba(239,68,68,0.12)':'rgba(34,197,94,0.12)',
               color:running?'#ef4444':'#22c55e',

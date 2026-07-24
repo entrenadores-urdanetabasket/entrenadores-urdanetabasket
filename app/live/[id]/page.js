@@ -1247,7 +1247,32 @@ export default function LivePage() {
         ::-webkit-scrollbar{width:3px;height:3px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px}
+        @keyframes rotateHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}}
+        .rotate-overlay{display:none}
+        @media (orientation:portrait) and (pointer:coarse){
+          .rotate-overlay{display:flex!important}
+        }
+        @media print{
+          .rotate-overlay{display:none!important}
+        }
       `}</style>
+
+      {/* ══ BLOQUEO DE ORIENTACIÓN (móvil/tablet en vertical) ═══════════════════ */}
+      <div className="rotate-overlay np" style={{
+        position:'fixed', inset:0, zIndex:9999, backgroundColor:'#0a0c10',
+        flexDirection:'column', alignItems:'center', justifyContent:'center', gap:18, padding:24, textAlign:'center',
+      }}>
+        <div style={{ animation:'rotateHint 1.6s ease-in-out infinite' }}>
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.6">
+            <rect x="7" y="2" width="10" height="16" rx="2"/>
+            <line x1="10" y1="15.6" x2="14" y2="15.6" strokeWidth="1.2"/>
+          </svg>
+        </div>
+        <div style={{ fontSize:16, fontWeight:900, color:'#e5e7eb' }}>Gira tu dispositivo</div>
+        <div style={{ fontSize:12, color:'#7a8da8', maxWidth:260, lineHeight:1.5 }}>
+          Esta pantalla está diseñada para usarse en horizontal. Gira el móvil o la tablet para continuar.
+        </div>
+      </div>
 
       {quarterToast && (
         <div className="np" style={{
@@ -1391,10 +1416,10 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'108px 76px 1fr 148px', flex:1, overflow:'hidden' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'108px 76px 80px minmax(160px,1fr)', flex:1, overflow:'hidden', minWidth:0 }}>
 
             {/* ── Col A: Our players ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
@@ -1416,7 +1441,7 @@ export default function LivePage() {
             </div>
 
             {/* ── Col B: Rival players ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column' }}>
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
                   background:'#1a0f00', border:'none', borderBottom:'2px solid #f97316',
@@ -1437,7 +1462,7 @@ export default function LivePage() {
             </div>
 
             {/* ── Col C: Log compacto (tap = editar) ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14' }}>
+            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14', minWidth:0 }}>
               <div style={{ padding:'4px 2px', borderBottom:'1px solid #141a26', flexShrink:0, textAlign:'center' }}>
                 <span style={{ fontSize:6, fontWeight:700, color:'#2d4060', letterSpacing:0.8 }}>LOG</span>
               </div>
@@ -1493,7 +1518,7 @@ export default function LivePage() {
             </div>
 
             {/* ── Col D: Action buttons ── */}
-            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', alignItems:'stretch', padding:'5px 6px', gap:4 }}>
+            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', alignItems:'stretch', padding:'5px 10px', gap:5, minWidth:0 }}>
               <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"              armed={armed} armAction={armAction}/>
               <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"             armed={armed} armAction={armAction}/>
               <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"             armed={armed} armAction={armAction}/>

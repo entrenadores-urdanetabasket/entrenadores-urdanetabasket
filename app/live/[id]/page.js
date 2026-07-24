@@ -1198,13 +1198,17 @@ export default function LivePage() {
                   color:'#f97316', fontSize:11, fontWeight:900, letterSpacing:1 }}>
                 {rivalName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'RIV'}
               </button>
-              {rivalVisible.map(n => (
-                <PlayerTile key={n}
-                  number={n}
-                  fouls={rivBS[n]?.fouls||0}
-                  active={bActive} color="#f97316"
-                  onClick={() => tapPlayer('rival', n)}/>
-              ))}
+              {rivalVisible.map(n => {
+                const rst = rivalStatusFromEvents(events, n)
+                return (
+                  <PlayerTile key={n}
+                    number={n}
+                    fouls={rivBS[n]?.fouls||0}
+                    active={bActive && !rst.out} color="#f97316"
+                    onClick={() => tapPlayer('rival', n)}
+                    status={rst.disqualified ? 'disqualified' : rst.eliminated ? 'eliminated' : null}/>
+                )
+              })}
             </div>
 
             {/* ── Col C: Log compacto (tap = editar) ── */}

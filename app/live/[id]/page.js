@@ -658,23 +658,20 @@ export default function LivePage() {
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
     const ps = rows || []
     setGps(ps)
-    if (g.rival_roster?.length) setRivalOnCourt(g.rival_roster.slice(0,5))
+
+    // "Quién está en pista ahora" se guarda directamente en games (current_lineup /
+    // rival_current_lineup) cada vez que cambia, así sobrevive a recargar la página
+    // o volver de otra pestaña. Si aún no hay nada guardado (partido recién creado),
+    // se cae por defecto a los 5 primeros del roster.
+    const savedLineup = Array.isArray(g.current_lineup) ? g.current_lineup : null
+    setOnCourt(savedLineup?.length ? savedLineup : ps.slice(0,5).map(p => p.player_id))
+
+    const savedRivalLineup = Array.isArray(g.rival_current_lineup) ? g.rival_current_lineup : null
+    if (savedRivalLineup?.length) setRivalOnCourt(savedRivalLineup)
+    else if (g.rival_roster?.length) setRivalOnCourt(g.rival_roster.slice(0,5))
 
     const { data: evs } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
     setEvents(evs || [])
-
-    // Reconstruir quién está en pista a partir del historial de sustituciones,
-    // en vez de asumir siempre "los 5 primeros del roster" (eso perdía los
-    // cambios hechos al recargar la página o volver de otra pestaña).
-    let court = ps.slice(0,5).map(p => p.player_id)
-    ;(evs || [])
-      .filter(ev => ev.team==='us' && ev.event_type==='substitution' && ev.player_id!=null)
-      .forEach(ev => {
-        const outIdx = court.indexOf(ev.linked_event_id)
-        if (outIdx !== -1) court[outIdx] = ev.player_id
-        else if (court.length < 5 && !court.includes(ev.player_id)) court.push(ev.player_id)
-      })
-    setOnCourt(court)
     setLoading(false)
   }
 
@@ -840,6 +837,7 @@ export default function LivePage() {
       const newEvs = inserts.map((ins, i) => ({ id:'sub_'+Date.now()+i, team:'us', event_type:'substitution', quarter, player_id:ins.player_id, linked_event_id:ins.linked_event_id }))
       setEvents(prev => [...prev, ...newEvs])
     }
+    await supabase.from('games').update({ current_lineup: newCourt }).eq('id', id)
     setOnCourt(newCourt)
     setModal(nextModal || null)
   }
@@ -1787,9 +1785,13 @@ export default function LivePage() {
             {rivals.map(n => {
               const isOn = rivalOnCourt.includes(n)
               return (
-                <button key={n} onClick={() => {
-                  if (isOn) { if (rivalOnCourt.length>1) setRivalOnCourt(rivalOnCourt.filter(x=>x!==n)) }
-                  else { if (rivalOnCourt.length<5) setRivalOnCourt([...rivalOnCourt,n]) }
+                <button key={n} onClick={async () => {
+                  let next = null
+                  if (isOn) { if (rivalOnCourt.length>1) next = rivalOnCourt.filter(x=>x!==n) }
+                  else { if (rivalOnCourt.length<5) next = [...rivalOnCourt,n] }
+                  if (!next) return
+                  setRivalOnCourt(next)
+                  await supabase.from('games').update({ rival_current_lineup: next }).eq('id', id)
                 }}
                 style={{ width:54, height:54, borderRadius:10, cursor:'pointer',
                   border:`2px solid ${isOn?'#f97316':'#374151'}`,

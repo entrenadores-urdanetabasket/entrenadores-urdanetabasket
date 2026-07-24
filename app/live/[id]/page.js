@@ -977,13 +977,13 @@ export default function LivePage() {
   const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
-  if (typeof window !== 'undefined') {
-    console.log('DEBUG rivals', rivals)
-    console.log('DEBUG rivBS', rivBS)
-    console.log('DEBUG gps ids', gps.map(g => g.player_id))
-    console.log('DEBUG ourBS', ourBS)
-    console.log('DEBUG events fouls', events.filter(e => e.event_type?.startsWith('foul')))
-  }
+  const debugText = JSON.stringify({
+    rivals,
+    rivBS_fouls: Object.fromEntries(Object.entries(rivBS).map(([k,v]) => [k, v.fouls])),
+    gps_ids: gps.map(g => g.player_id),
+    ourBS_fouls: Object.fromEntries(Object.entries(ourBS).map(([k,v]) => [k, v.fouls])),
+    foul_events: events.filter(e => e.event_type?.startsWith('foul')).map(e => ({team:e.team, type:e.event_type, player_id:e.player_id, rival_jersey:e.rival_jersey})),
+  }, null, 2)
 
   const aActive = !!armed
   const bActive = !!armed
@@ -1317,6 +1317,7 @@ export default function LivePage() {
               📄 PDF
             </button>
           </div>
+          <pre style={{ fontSize:10, backgroundColor:'#000', color:'#22c55e', padding:12, borderRadius:8, overflowX:'auto', marginBottom:16, whiteSpace:'pre-wrap' }}>{debugText}</pre>
           <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e"
             rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:ourBS[gp.player_id]||{} }))}/>
           <div style={{ marginTop:16 }}>

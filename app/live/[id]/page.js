@@ -1728,6 +1728,8 @@ export default function LivePage() {
                 const pid   = gp.player_id
                 const isOn  = court.includes(pid)
                 const st    = playerStatusFromEvents(events, pid)
+                const fc    = getPlayerFoulCounts(events, pid)
+                const totalFouls = fc.personal + fc.technical + fc.unsporting + fc.disq
                 return (
                   <button key={pid} disabled={st.out} onClick={() => {
                     if (st.out) return
@@ -1753,10 +1755,27 @@ export default function LivePage() {
                       color: st.out ? '#5a3030' : isOn ? '#d1fae5' : '#9ca3af' }}>
                       {gp.players?.full_name?.split(' ')[0] || '—'}
                     </span>
-                    <span style={{ fontSize:9, fontWeight:800, flexShrink:0,
-                      color: isOn ? '#22c55e' : '#374151' }}>
-                      {st.out ? (st.disqualified ? 'DESC' : 'ELIM') : isOn ? '✓' : ''}
-                    </span>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:1, flexShrink:0, minWidth:16 }}>
+                      {st.out ? (
+                        <span style={{ fontSize:9, fontWeight:800, color:'#ef4444' }}>{st.disqualified ? 'DESC' : 'ELIM'}</span>
+                      ) : (
+                        <>
+                          {totalFouls > 0 ? (
+                            <span style={{ fontSize:10, fontWeight:900, lineHeight:1,
+                              color: totalFouls>=5 ? '#ef4444' : totalFouls>=4 ? '#f59e0b' : '#9ca3af' }}>
+                              {totalFouls}F
+                            </span>
+                          ) : isOn ? (
+                            <span style={{ fontSize:9, fontWeight:800, color:'#22c55e' }}>✓</span>
+                          ) : null}
+                          {(fc.technical > 0 || fc.unsporting > 0) && (
+                            <span style={{ fontSize:7, fontWeight:800, color:'#f97316', lineHeight:1 }}>
+                              {fc.technical > 0 ? `T${fc.technical}` : ''}{fc.technical > 0 && fc.unsporting > 0 ? ' ' : ''}{fc.unsporting > 0 ? `U${fc.unsporting}` : ''}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </button>
                 )
               })}

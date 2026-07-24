@@ -747,6 +747,9 @@ export default function LivePage() {
 
   const [editingClock, setEditingClock] = useState(false)
   const [clockInput, setClockInput]     = useState('')
+  const [quarterToast, setQuarterToast] = useState(null)
+  const clockPressTimerRef  = useRef(null)
+  const clockLongPressedRef = useRef(false)
 
   const [armed, setArmed] = useState(null)
   const [modal, setModal] = useState(null)
@@ -770,15 +773,29 @@ export default function LivePage() {
     return () => clearInterval(intervalRef.current)
   }, [running])
 
-  // Fin de cuarto — detectar cuando el reloj llega a 0 de forma natural
+  // Fin de cuarto — detectar cuando el reloj llega a 0 de forma natural.
+  // En P1-P3 se pasa de cuarto solo, sin preguntar (evita toques accidentales).
+  // Solo en el ultimo cuarto/prorroga se pregunta si finalizar o jugar otra prorroga.
   useEffect(() => {
     if (timerExpiredRef.current && secs === 0 && !running) {
       timerExpiredRef.current = false
-      if (game && !game?.status?.includes('finished')) {
+      if (!game || game?.status?.includes('finished')) return
+      if (quarter < 4) {
+        const nq = quarter + 1
+        setQuarter(nq); setSecs(600)
+        supabase.from('games').update({ quarter:nq, clock_seconds:600 }).eq('id', id)
+        setQuarterToast(`⏱ Fin del ${Q_LABEL(quarter)} — comienza ${Q_LABEL(nq)}`)
+      } else {
         setModal(prev => prev ? prev : { type: 'quarter_end' })
       }
     }
   }, [running, secs])
+
+  useEffect(() => {
+    if (!quarterToast) return
+    const t = setTimeout(() => setQuarterToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [quarterToast])
 
   // Regla FIBA: si a 1:59 del Q4 un equipo no ha pedido TM en la 2ª parte, pierde uno
   useEffect(() => {
@@ -853,7 +870,7 @@ export default function LivePage() {
         setOurTeamName(teamName)
       }
       // Always show the club logo (all teams in this app belong to Club Deportivo Urdaneta)
-      setOurTeamLogo('/urdaneta-logo.svg')
+      setOurTeamLogo('/logo.png')
     }
 
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
@@ -887,6 +904,34 @@ export default function LivePage() {
       if (!isNaN(v)) setSecs(Math.max(0, v))
     }
     setEditingClock(false)
+  }
+
+  function toggleClockRunning() {
+    setRunning(r => {
+      const next = !r
+      supabase.from('games').update({ clock_seconds: secsRef.current }).eq('id', id)
+      return next
+    })
+  }
+
+  function clockPressStart() {
+    clockLongPressedRef.current = false
+    clearTimeout(clockPressTimerRef.current)
+    clockPressTimerRef.current = setTimeout(() => {
+      clockLongPressedRef.current = true
+      if (navigator.vibrate) navigator.vibrate(30)
+      setClockInput(`${String(Math.floor(secsRef.current/60)).padStart(2,'0')}:${String(secsRef.current%60).padStart(2,'0')}`)
+      setEditingClock(true)
+    }, 600)
+  }
+
+  function clockPressEnd() {
+    clearTimeout(clockPressTimerRef.current)
+    if (!clockLongPressedRef.current) toggleClockRunning()
+  }
+
+  function clockPressCancel() {
+    clearTimeout(clockPressTimerRef.current)
   }
 
   // ── Save event ───────────────────────────────────────────────────────────────
@@ -1204,6 +1249,16 @@ export default function LivePage() {
         ::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px}
       `}</style>
 
+      {quarterToast && (
+        <div className="np" style={{
+          position:'fixed', top:10, left:'50%', transform:'translateX(-50%)', zIndex:500,
+          backgroundColor:'#16a34a', color:'#fff', fontSize:12, fontWeight:800,
+          padding:'8px 16px', borderRadius:20, boxShadow:'0 4px 20px rgba(0,0,0,0.4)',
+        }}>
+          {quarterToast}
+        </div>
+      )}
+
       {/* ══ TOP BAR ════════════════════════════════════════════════════════════ */}
       <div className="np" style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 12px', height:38, backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
@@ -1253,44 +1308,33 @@ export default function LivePage() {
 
           {/* Period + Clock */}
           <div style={{ textAlign:'center', flexShrink:0, padding:'0 4px' }}>
-            <div style={{ display:'flex', gap:2, justifyContent:'center', marginBottom:3 }}>
-              {[1,2,3,4,5].map((q,i) => (
-                <button key={q}
-                  onClick={() => { setQuarter(q); setSecs(600); setRunning(false); supabase.from('games').update({quarter:q}).eq('id',id) }}
-                  style={{ padding:'1px 4px', borderRadius:3, border:'none', cursor:'pointer', fontSize:7, fontWeight:800,
-                    backgroundColor:quarter===q?'#f59e0b':'rgba(255,255,255,0.05)',
-                    color:quarter===q?'#000':'#374151' }}>
-                  {['P1','P2','P3','P4','PT'][i]}
-                </button>
-              ))}
+            <div style={{ fontSize:9, fontWeight:800, color:'#f59e0b', letterSpacing:1, marginBottom:3 }}>
+              {Q_LABEL(quarter)}
             </div>
             {editingClock ? (
               <input autoFocus value={clockInput}
                 onChange={e => setClockInput(e.target.value)}
                 onBlur={applyClockInput}
                 onKeyDown={e => { if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
-                style={{ fontSize:20, fontWeight:900, letterSpacing:2, fontFamily:'monospace', color:'#fbbf24',
-                  background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:60, textAlign:'center' }}/>
+                style={{ fontSize:24, fontWeight:900, letterSpacing:2, fontFamily:'monospace', color:'#fbbf24',
+                  background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:78, textAlign:'center' }}/>
             ) : (
-              <div onClick={() => { if(!running){ setClockInput(`${mm}:${ss2}`); setEditingClock(true) } }}
-                style={{ fontSize:22, fontWeight:900, letterSpacing:2, fontFamily:'monospace',
+              <div
+                onMouseDown={clockPressStart} onMouseUp={clockPressEnd} onMouseLeave={clockPressCancel}
+                onTouchStart={clockPressStart} onTouchEnd={clockPressEnd} onTouchCancel={clockPressCancel}
+                onContextMenu={e => e.preventDefault()}
+                style={{ fontSize:28, fontWeight:900, letterSpacing:2, fontFamily:'monospace',
                   color:secs<=60?'#ef4444':secs<=120?'#f59e0b':'#e5e7eb',
-                  cursor:running?'default':'pointer', lineHeight:1 }}>
+                  cursor:'pointer', lineHeight:1, padding:'5px 14px', borderRadius:12,
+                  backgroundColor:running?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.10)',
+                  outline:`1px solid ${running?'#22c55e30':'#ef444430'}`,
+                  userSelect:'none', WebkitUserSelect:'none', touchAction:'manipulation' }}>
                 {mm}:{ss2}
+                <div style={{ fontSize:7, fontWeight:700, color:running?'#22c55e':'#ef4444', marginTop:1, letterSpacing:0.5 }}>
+                  {running ? '▶ EN JUEGO' : '⏸ PARADO'}
+                </div>
               </div>
             )}
-            <button onClick={() => {
-              setRunning(r => {
-                const next = !r
-                supabase.from('games').update({ clock_seconds: secs }).eq('id', id)
-                return next
-              })
-            }} style={{
-              marginTop:3, padding:'2px 10px', borderRadius:10, border:'none', cursor:'pointer', fontSize:9, fontWeight:800,
-              backgroundColor:running?'rgba(239,68,68,0.12)':'rgba(34,197,94,0.12)',
-              color:running?'#ef4444':'#22c55e',
-              outline:`1px solid ${running?'#ef444430':'#22c55e30'}`,
-            }}>{running?'⏸':'▶'}</button>
           </div>
 
           {/* Score B */}
@@ -2226,50 +2270,29 @@ export default function LivePage() {
         </Overlay>
       )}
 
-      {/* Fin de cuarto / partido */}
+      {/* Fin del último cuarto / prórroga */}
       {modal?.type==='quarter_end' && (
         <Overlay>
           <div style={{ textAlign:'center', marginBottom:16 }}>
             <div style={{ fontSize:32, lineHeight:1, marginBottom:10 }}>⏱</div>
             <div style={{ fontSize:17, fontWeight:900, color:'#f59e0b', marginBottom:4 }}>
-              ¡Fin del {Q_LABEL(quarter)}!
+              ¿Desea finalizar el partido?
             </div>
             <div style={{ fontSize:13, color:'#6b7280' }}>
-              {quarter < 4 ? `Tiempo agotado — período ${quarter} finalizado` : `Tiempo agotado — ${scores.us} — ${scores.rival}`}
+              Tiempo agotado — {scores.us} — {scores.rival}
             </div>
           </div>
-          {quarter < 4 ? (
-            <>
-              <button onClick={() => {
-                const nq = quarter + 1
-                setQuarter(nq); setSecs(600); setRunning(false)
-                supabase.from('games').update({ quarter:nq }).eq('id', id)
-                setModal(null)
-              }} style={{ ...btnStyle('#f59e0b', 14), marginBottom:8 }}>
-                ✓ Pasar al {Q_LABEL(quarter + 1)}
-              </button>
-              <button onClick={() => setModal(null)} style={btnStyle('#1f2937', 12)}>
-                Continuar en {Q_LABEL(quarter)}
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => { setModal(null); handleFinish() }} style={{ ...btnStyle('#22c55e', 14), marginBottom:8 }}>
-                🏁 Finalizar partido
-              </button>
-              <button onClick={() => {
-                const nq = quarter + 1
-                setQuarter(nq); setSecs(300); setRunning(false)
-                supabase.from('games').update({ quarter:nq }).eq('id', id)
-                setModal(null)
-              }} style={{ ...btnStyle('#7c3aed', 12), marginBottom:8 }}>
-                → Prórroga (PT)
-              </button>
-              <button onClick={() => setModal(null)} style={btnStyle('#1f2937', 12)}>
-                Continuar
-              </button>
-            </>
-          )}
+          <button onClick={() => { setModal(null); handleFinish() }} style={{ ...btnStyle('#22c55e', 14), marginBottom:8 }}>
+            🏁 Finalizar partido
+          </button>
+          <button onClick={() => {
+            const nq = quarter + 1
+            setQuarter(nq); setSecs(300); setRunning(false)
+            supabase.from('games').update({ quarter:nq, clock_seconds:300 }).eq('id', id)
+            setModal(null)
+          }} style={btnStyle('#7c3aed', 12)}>
+            ➜ Comenzar período extra
+          </button>
         </Overlay>
       )}
 

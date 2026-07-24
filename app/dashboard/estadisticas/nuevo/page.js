@@ -121,7 +121,7 @@ export default function NuevoPartidoPage() {
         if (gpErr) throw gpErr
       }
 
-      router.replace(`/dashboard/estadisticas/${game.id}`)
+      router.replace(`/live/${game.id}`)
     } catch (e) {
       console.error(e)
       alert('Error al crear el partido: ' + e.message)

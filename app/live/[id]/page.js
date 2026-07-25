@@ -1384,17 +1384,30 @@ export default function LivePage() {
         </div>
       )}
 
-      {/* ══ TABS ══════════════════════════════════════════════════════════════ */}
-      <div className="np" style={{ display:'flex', backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
-        {[{k:'live',l:'🎮 En Vivo'},{k:'boxscore',l:'📊 Box Score'},{k:'shotmap',l:'🎯 Tiro'}].map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)} style={{
-            flex:1, padding:'5px 4px', border:'none', cursor:'pointer', fontSize:9.5, fontWeight:700,
-            backgroundColor:'transparent',
-            color:tab===t.k?'#22c55e':'#7a8da8',
-            borderBottom:tab===t.k?'2px solid #22c55e':'2px solid transparent',
-            transition:'color 0.15s, border-color 0.15s',
-          }}>{t.l}</button>
-        ))}
+      {/* ══ TABS (alineadas con las columnas de abajo: jugadores | log | acciones) ══ */}
+      <div className="np" style={{ display:'grid', gridTemplateColumns:'96px 96px 1fr minmax(190px,260px)',
+        backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
+        <button onClick={() => setTab('live')} style={{
+          gridColumn:'1 / 3', padding:'4px 4px', border:'none', cursor:'pointer', fontSize:9.5, fontWeight:700,
+          backgroundColor:'transparent',
+          color:tab==='live'?'#22c55e':'#7a8da8',
+          borderBottom:tab==='live'?'2px solid #22c55e':'2px solid transparent',
+          transition:'color 0.15s, border-color 0.15s',
+        }}>🎮 En Vivo</button>
+        <button onClick={() => setTab('boxscore')} style={{
+          padding:'4px 4px', border:'none', cursor:'pointer', fontSize:9.5, fontWeight:700,
+          backgroundColor:'transparent',
+          color:tab==='boxscore'?'#22c55e':'#7a8da8',
+          borderBottom:tab==='boxscore'?'2px solid #22c55e':'2px solid transparent',
+          transition:'color 0.15s, border-color 0.15s',
+        }}>📊 Box Score</button>
+        <button onClick={() => setTab('shotmap')} style={{
+          padding:'4px 4px', border:'none', cursor:'pointer', fontSize:9.5, fontWeight:700,
+          backgroundColor:'transparent',
+          color:tab==='shotmap'?'#22c55e':'#7a8da8',
+          borderBottom:tab==='shotmap'?'2px solid #22c55e':'2px solid transparent',
+          transition:'color 0.15s, border-color 0.15s',
+        }}>🎯 Tiro</button>
       </div>
 
       {/* ══ LIVE TAB ══════════════════════════════════════════════════════════ */}

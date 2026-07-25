@@ -1299,78 +1299,6 @@ export default function LivePage() {
         </div>
       )}
 
-      {/* ══ MARCADOR (barra superior + marcador fusionados en una fila) ══════════ */}
-      <div className="np" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-        padding:'3px 8px', backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
-
-        {/* Our team */}
-        <div style={{ minWidth:0 }}>
-          <div style={{ color:'#22c55e', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>URDANETA</div>
-          <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1 }}>
-            <span style={{ fontSize:6.5, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
-              F:{ourFoulsQ}{ourBonus&&' ⚡'}
-            </span>
-            <span style={{ fontSize:6.5, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
-              TM:{ourTOsLeft}/{_toMax}
-            </span>
-          </div>
-        </div>
-
-        {/* Score A */}
-        <div style={{ fontSize:22, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
-          {scores.us}
-        </div>
-
-        {/* Period + Clock */}
-        <div style={{ textAlign:'center', flexShrink:0 }}>
-          <div style={{ fontSize:7, fontWeight:800, color:'#f59e0b', letterSpacing:1, marginBottom:1 }}>
-            {Q_LABEL(quarter)}
-          </div>
-          {editingClock ? (
-            <input autoFocus value={clockInput}
-              onChange={e => setClockInput(e.target.value)}
-              onBlur={applyClockInput}
-              onKeyDown={e => { if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
-              style={{ fontSize:16, fontWeight:900, letterSpacing:1.5, fontFamily:'monospace', color:'#fbbf24',
-                background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:56, textAlign:'center' }}/>
-          ) : (
-            <div
-              onMouseDown={clockPressStart} onMouseUp={clockPressEnd} onMouseLeave={clockPressCancel}
-              onTouchStart={clockPressStart} onTouchEnd={clockPressEnd} onTouchCancel={clockPressCancel}
-              onContextMenu={e => e.preventDefault()}
-              style={{ fontSize:16, fontWeight:900, letterSpacing:1, fontFamily:'monospace',
-                color:secs<=60?'#ef4444':secs<=120?'#f59e0b':'#e5e7eb',
-                cursor:'pointer', lineHeight:1, padding:'2px 8px', borderRadius:8,
-                backgroundColor:running?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.10)',
-                outline:`1px solid ${running?'#22c55e30':'#ef444430'}`,
-                userSelect:'none', WebkitUserSelect:'none', touchAction:'manipulation' }}>
-              {mm}:{ss2}
-              <div style={{ fontSize:5.8, fontWeight:700, color:running?'#22c55e':'#ef4444', marginTop:0.5, letterSpacing:0.4 }}>
-                {running ? '▶ EN JUEGO' : '⏸ PARADO'}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Score B */}
-        <div style={{ fontSize:22, fontWeight:900, color:'#3b82f6', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
-          {scores.rival}
-        </div>
-
-        {/* Rival */}
-        <div style={{ minWidth:0, textAlign:'right' }}>
-          <div style={{ color:'#3b82f6', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>{rivalName.toUpperCase()}</div>
-          <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1, justifyContent:'flex-end' }}>
-            <span style={{ fontSize:6.5, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
-              F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
-            </span>
-            <span style={{ fontSize:6.5, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
-              TM:{rivalTOsLeft}/{_toMax}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* ══ ARMED BANNER ══════════════════════════════════════════════════════ */}
       {armed && (
         <div className="np" style={{ backgroundColor:'#0c1829', borderBottom:'1px solid #1e3a5f',
@@ -1414,11 +1342,12 @@ export default function LivePage() {
       {tab==='live' && (
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
-          {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'96px 96px 1fr minmax(190px,260px)', flex:1, overflow:'hidden', minWidth:0 }}>
+          {/* SWISH layout: [our players] [rival players] [marcador + log] [actions] */}
+          <div style={{ display:'grid', gridTemplateColumns:'96px 96px 1fr minmax(190px,260px)',
+            gridTemplateRows:'auto minmax(0,1fr)', flex:1, overflow:'hidden', minWidth:0 }}>
 
-            {/* ── Col A: Our players ── */}
-            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
+            {/* ── Col A: Our players (ocupa las 2 filas) ── */}
+            <div style={{ gridColumn:1, gridRow:'1 / 3', overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
@@ -1441,8 +1370,8 @@ export default function LivePage() {
               </div>
             </div>
 
-            {/* ── Col B: Rival players ── */}
-            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
+            {/* ── Col B: Rival players (ocupa las 2 filas) ── */}
+            <div style={{ gridColumn:2, gridRow:'1 / 3', overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1c33', border:'none', borderBottom:'2px solid #3b82f6',
@@ -1464,10 +1393,82 @@ export default function LivePage() {
               </div>
             </div>
 
-            {/* ── Col C: Log (lista tipo tabla, tap = editar) ── */}
-            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14', minWidth:0 }}>
+            {/* ── Marcador grande, solo sobre la columna central (fila 1) ── */}
+            <div style={{ gridColumn:3, gridRow:1, display:'flex', alignItems:'center', justifyContent:'center', gap:12,
+              padding:'8px', backgroundColor:'#0d1522', borderRight:'1px solid #1a2540', borderBottom:'1px solid #1a2540' }}>
+
+              {/* Our team */}
+              <div style={{ minWidth:0 }}>
+                <div style={{ color:'#22c55e', fontWeight:900, fontSize:12, lineHeight:1.15, whiteSpace:'nowrap' }}>URDANETA</div>
+                <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
+                  <span style={{ fontSize:8, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
+                    F:{ourFoulsQ}{ourBonus&&' ⚡'}
+                  </span>
+                  <span style={{ fontSize:8, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
+                    TM:{ourTOsLeft}/{_toMax}
+                  </span>
+                </div>
+              </div>
+
+              {/* Score A */}
+              <div style={{ fontSize:34, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center' }}>
+                {scores.us}
+              </div>
+
+              {/* Period + Clock */}
+              <div style={{ textAlign:'center', flexShrink:0 }}>
+                <div style={{ fontSize:9, fontWeight:800, color:'#f59e0b', letterSpacing:1.5, marginBottom:2 }}>
+                  {Q_LABEL(quarter)}
+                </div>
+                {editingClock ? (
+                  <input autoFocus value={clockInput}
+                    onChange={e => setClockInput(e.target.value)}
+                    onBlur={applyClockInput}
+                    onKeyDown={e => { if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
+                    style={{ fontSize:22, fontWeight:900, letterSpacing:2, fontFamily:'monospace', color:'#fbbf24',
+                      background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:74, textAlign:'center' }}/>
+                ) : (
+                  <div
+                    onMouseDown={clockPressStart} onMouseUp={clockPressEnd} onMouseLeave={clockPressCancel}
+                    onTouchStart={clockPressStart} onTouchEnd={clockPressEnd} onTouchCancel={clockPressCancel}
+                    onContextMenu={e => e.preventDefault()}
+                    style={{ fontSize:23, fontWeight:900, letterSpacing:1.5, fontFamily:'monospace',
+                      color:secs<=60?'#ef4444':secs<=120?'#f59e0b':'#e5e7eb',
+                      cursor:'pointer', lineHeight:1, padding:'3px 12px', borderRadius:10,
+                      backgroundColor:running?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.10)',
+                      outline:`1px solid ${running?'#22c55e30':'#ef444430'}`,
+                      userSelect:'none', WebkitUserSelect:'none', touchAction:'manipulation' }}>
+                    {mm}:{ss2}
+                    <div style={{ fontSize:7, fontWeight:700, color:running?'#22c55e':'#ef4444', marginTop:1, letterSpacing:0.5 }}>
+                      {running ? '▶ EN JUEGO' : '⏸ PARADO'}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Score B */}
+              <div style={{ fontSize:34, fontWeight:900, color:'#3b82f6', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center' }}>
+                {scores.rival}
+              </div>
+
+              {/* Rival */}
+              <div style={{ minWidth:0, textAlign:'right' }}>
+                <div style={{ color:'#3b82f6', fontWeight:900, fontSize:12, lineHeight:1.15, whiteSpace:'nowrap' }}>{rivalName.toUpperCase()}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2, justifyContent:'flex-end' }}>
+                  <span style={{ fontSize:8, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
+                    F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
+                  </span>
+                  <span style={{ fontSize:8, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
+                    TM:{rivalTOsLeft}/{_toMax}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Col C: Play by play (lista tipo tabla, tap = editar) ── */}
+            <div style={{ gridColumn:3, gridRow:2, overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14', minWidth:0 }}>
               <div style={{ padding:'3px 2px', borderBottom:'1px solid #141a26', flexShrink:0, textAlign:'center' }}>
-                <span style={{ fontSize:7, fontWeight:800, color:'#3a5578', letterSpacing:1 }}>LOG</span>
+                <span style={{ fontSize:7, fontWeight:800, color:'#3a5578', letterSpacing:1 }}>PLAY BY PLAY</span>
               </div>
               <div style={{ flex:1, overflowY:'auto' }}>
               {events.length === 0
@@ -1530,8 +1531,8 @@ export default function LivePage() {
               </div>
             </div>
 
-            {/* ── Col D: Action buttons (rejilla uniforme 2 columnas, sin scroll) ── */}
-            <div style={{ overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
+            {/* ── Col D: Action buttons (rejilla uniforme 2 columnas, sin scroll, ocupa las 2 filas) ── */}
+            <div style={{ gridColumn:4, gridRow:'1 / 3', overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
               gridTemplateColumns:'1fr 1fr', gridAutoRows:'minmax(0,1fr)', gap:4, padding:'5px 7px', minWidth:0 }}>
               <ActionBtn label="TIROS LIBRES" color="#4ade80" bg="#14532d" aKey="ft"              armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>

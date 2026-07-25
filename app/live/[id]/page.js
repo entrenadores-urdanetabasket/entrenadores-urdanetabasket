@@ -1239,7 +1239,9 @@ export default function LivePage() {
 
   // ── RENDER ───────────────────────────────────────────────────────────────────
   return (
-    <div className="live-root" style={{ height:'100dvh', overflow:'hidden', display:'flex', flexDirection:'column', backgroundColor:'#0a0c10' }}>
+    <div className="live-root" style={{ height:'100dvh', overflow:'hidden', display:'flex', flexDirection:'column', backgroundColor:'#0a0c10',
+      paddingLeft:'env(safe-area-inset-left)', paddingRight:'env(safe-area-inset-right)',
+      paddingTop:'env(safe-area-inset-top)', paddingBottom:'env(safe-area-inset-bottom)' }}>
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}

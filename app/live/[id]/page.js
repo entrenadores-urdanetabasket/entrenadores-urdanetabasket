@@ -385,14 +385,14 @@ function PlayerTile({ number, name, fouls = 0, active, color = '#22c55e', onClic
   return (
     <button onClick={isOut ? undefined : onClick} className="tb" style={{
       background: 'none', border: 'none', cursor: isOut ? 'not-allowed' : (active ? 'pointer' : 'default'),
-      padding: '3px 5px', width: '100%', opacity: isOut ? 0.6 : 1,
+      padding: '2px 4px', width: '100%', height: '100%', minHeight: 0, opacity: isOut ? 0.6 : 1,
     }}>
       <div style={{
-        width: '100%', borderRadius: 8, backgroundColor: cardBg,
+        width: '100%', height: '100%', minHeight: 0, borderRadius: 8, backgroundColor: cardBg,
         border: `1px solid ${cardBorder}`,
         boxShadow: active && !isOut ? `0 0 14px ${color}40` : 'none',
-        padding: '8px 5px 6px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+        padding: '4px 5px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
         transition: 'all 0.12s', position: 'relative', overflow: 'hidden',
       }}>
         <div style={{
@@ -752,6 +752,7 @@ export default function LivePage() {
   const [quarterToast, setQuarterToast] = useState(null)
   const clockPressTimerRef  = useRef(null)
   const clockLongPressedRef = useRef(false)
+  const clockTouchActiveRef = useRef(0)
 
   const [armed, setArmed] = useState(null)
   const [modal, setModal] = useState(null)
@@ -916,7 +917,15 @@ export default function LivePage() {
     })
   }
 
-  function clockPressStart() {
+  function clockPressStart(e) {
+    // En moviles, touchstart va seguido de un mousedown sintetico ~300ms despues;
+    // sin esto el reloj se pulsaba "dos veces" (arrancaba y se paraba al instante).
+    if (e?.type === 'touchstart') {
+      clockTouchActiveRef.current = Date.now()
+      if (e.cancelable) e.preventDefault()
+    } else if (e?.type === 'mousedown' && Date.now() - clockTouchActiveRef.current < 700) {
+      return
+    }
     clockLongPressedRef.current = false
     clearTimeout(clockPressTimerRef.current)
     clockPressTimerRef.current = setTimeout(() => {
@@ -927,7 +936,9 @@ export default function LivePage() {
     }, 600)
   }
 
-  function clockPressEnd() {
+  function clockPressEnd(e) {
+    if (e?.type === 'touchend' && e.cancelable) e.preventDefault()
+    if (e?.type === 'mouseup' && Date.now() - clockTouchActiveRef.current < 700) return
     clearTimeout(clockPressTimerRef.current)
     if (!clockLongPressedRef.current) toggleClockRunning()
   }
@@ -1418,16 +1429,17 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'96px 68px 1fr minmax(210px,300px)', flex:1, overflow:'hidden', minWidth:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'96px 68px 1fr minmax(190px,260px)', flex:1, overflow:'hidden', minWidth:0 }}>
 
             {/* ── Col A: Our players ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
+            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'our_lineup', initialCourt:[...onCourt], court:[...onCourt] }); setArmed(null) }}
-                style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
+                style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
                   color:'#22c55e', fontSize:11, fontWeight:900, letterSpacing:1 }}>
                 {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'URD'}
               </button>
+              <div style={{ flex:1, minHeight:0, display:'grid', gridAutoRows:'minmax(0,1fr)', gap:2, padding:'2px 3px' }}>
               {courtGps.map(gp => {
                 const st = playerStatusFromEvents(events, gp.player_id)
                 return (
@@ -1440,16 +1452,18 @@ export default function LivePage() {
                     status={st.disqualified?'disqualified':st.eliminated?'eliminated':null}/>
                 )
               })}
+              </div>
             </div>
 
             {/* ── Col B: Rival players ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
+            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
-                style={{ flexShrink:0, width:'100%', padding:'8px 4px', cursor:'pointer', textAlign:'center',
+                style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
                   background:'#1a0f00', border:'none', borderBottom:'2px solid #f97316',
                   color:'#f97316', fontSize:11, fontWeight:900, letterSpacing:1 }}>
                 {rivalName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'RIV'}
               </button>
+              <div style={{ flex:1, minHeight:0, display:'grid', gridAutoRows:'minmax(0,1fr)', gap:2, padding:'2px 3px' }}>
               {rivalVisible.map(n => {
                 const rst = rivalStatusFromEvents(events, n)
                 return (
@@ -1461,6 +1475,7 @@ export default function LivePage() {
                     status={rst.disqualified ? 'disqualified' : rst.eliminated ? 'eliminated' : null}/>
                 )
               })}
+              </div>
             </div>
 
             {/* ── Col C: Log (lista tipo tabla, tap = editar) ── */}
@@ -1503,17 +1518,24 @@ export default function LivePage() {
                         <button key={ev.id||i}
                           onClick={() => setModal({ type:'edit_event', ev })}
                           style={{ background:'none', cursor:'pointer', width:'100%',
-                            padding:'2.5px 7px', border:'none', borderBottom:'1px solid #10182a',
+                            padding:'3px 8px', border:'none', borderBottom:'1px solid #10182a',
                             backgroundColor: i===0 ? '#101c2e' : (idx%2===0 ? '#0d1320' : 'transparent'),
-                            display:'flex', alignItems:'center', gap:6, textAlign:'left' }}>
-                          <span style={{ width:16, height:16, borderRadius:4, flexShrink:0,
+                            display:'flex', alignItems:'center', gap:7, textAlign:'left' }}>
+                          <span style={{ width:3, height:15, borderRadius:2, backgroundColor:teamColor, flexShrink:0 }}/>
+                          <span style={{ width:16, fontSize:7.5, fontWeight:900, color:teamColor, flexShrink:0, letterSpacing:0.3 }}>
+                            {isOur ? 'NOS' : 'RIV'}
+                          </span>
+                          <span style={{ width:18, height:16, borderRadius:4, flexShrink:0,
                             display:'flex', alignItems:'center', justifyContent:'center',
                             fontSize:8, fontWeight:900, color:teamColor, backgroundColor:teamBg }}>
                             {ev.event_type==='substitution' ? '🔄' : pNum}
                           </span>
-                          <span style={{ fontSize:8.5, fontWeight:600, color:'#8fa3bf', lineHeight:1.2,
+                          <span style={{ flex:1, fontSize:9, fontWeight:600, color:'#c3d2e6', lineHeight:1.2,
                             overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {label}
+                          </span>
+                          <span style={{ fontSize:7.5, fontWeight:800, color:'#f59e0b', flexShrink:0, letterSpacing:0.3 }}>
+                            {Q_LABEL(Number(ev.quarter)||1)}
                           </span>
                         </button>
                       )
@@ -1522,47 +1544,35 @@ export default function LivePage() {
               </div>
             </div>
 
-            {/* ── Col D: Action buttons (agrupados en filas, sin scroll) ── */}
+            {/* ── Col D: Action buttons (rejilla uniforme 2 columnas, sin scroll) ── */}
             <div style={{ overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
-              gridTemplateRows:'minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,0.95fr) minmax(0,0.95fr) minmax(0,0.85fr)',
-              gap:4, padding:'5px 7px', minWidth:0 }}>
-              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:4 }}>
-                <ActionBtn label="TIROS LIBRES" color="#4ade80" bg="#14532d" aKey="ft"  armed={armed} armAction={armAction} fontSize={10.5}/>
-                <ActionBtn label="2 PUNTOS"     color="#60a5fa" bg="#1e3a5f" aKey="2pt" armed={armed} armAction={armAction} fontSize={10.5}/>
-                <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt" armed={armed} armAction={armAction} fontSize={10.5}/>
-              </div>
-              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
-                <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout" armed={armed} armAction={armAction} fontSize={9.5}/>
-                <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"     armed={armed} armAction={armAction} fontSize={9.5}/>
-              </div>
-              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:4 }}>
-                <ActionBtn label="FALTA"    color="#fca5a5" bg="#4c1414" aKey="foul"          armed={armed} armAction={armAction} fontSize={7.5}/>
-                <ActionBtn label="TÉCNICA"  color="#fca5a5" bg="#5c1a1a" aKey="technical"     armed={armed} armAction={armAction} fontSize={7.5}/>
-                <ActionBtn label="ANTIDEP." color="#fdba74" bg="#4a2508" aKey="unsporting"    armed={armed} armAction={armAction} fontSize={7.5}/>
-                <ActionBtn label="DESCAL."  color="#fca5a5" bg="#450a0a" aKey="disqualifying" armed={armed} armAction={armAction} fontSize={7.5}/>
-              </div>
-              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:4 }}>
-                <ActionBtn label="ROB" color="#5eead4" bg="#0f2e26" aKey="steal"    armed={armed} armAction={armAction} fontSize={9}/>
-                <ActionBtn label="TAP" color="#7dd3fc" bg="#0c2d48" aKey="block"    armed={armed} armAction={armAction} fontSize={9}/>
-                <ActionBtn label="PÉR" color="#fcd34d" bg="#402c07" aKey="turnover" armed={armed} armAction={armAction} fontSize={9}/>
-              </div>
-              <div style={{ minHeight:0, height:'100%', display:'grid',
-                gridTemplateColumns: isFinished ? '1fr' : '1fr 1fr', gap:4 }}>
-                <button onClick={handleUndo}
+              gridTemplateColumns:'1fr 1fr', gridAutoRows:'minmax(0,1fr)', gap:4, padding:'5px 7px', minWidth:0 }}>
+              <ActionBtn label="TIROS LIBRES" color="#4ade80" bg="#14532d" aKey="ft"              armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="2 PUNTOS"     color="#60a5fa" bg="#1e3a5f" aKey="2pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout"         armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="FALTA"        color="#fca5a5" bg="#4c1414" aKey="foul"            armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="TÉCNICA"      color="#fca5a5" bg="#5c1a1a" aKey="technical"       armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="ANTIDEP."     color="#fdba74" bg="#4a2508" aKey="unsporting"      armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="DESCAL."      color="#fca5a5" bg="#450a0a" aKey="disqualifying"   armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="ROBO"         color="#5eead4" bg="#0f2e26" aKey="steal"           armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="TAPÓN"        color="#7dd3fc" bg="#0c2d48" aKey="block"           armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
+              <button onClick={handleUndo}
+                style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+                  padding:'2px 4px', backgroundColor:'transparent', borderRadius:8,
+                  border:'1px solid #2a3548', color:'#94a3b8', fontSize:9.5, fontWeight:700, cursor:'pointer' }}>
+                ↩ Deshacer
+              </button>
+              {!isFinished && (
+                <button onClick={handleFinish}
                   style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
-                    padding:'2px 4px', backgroundColor:'transparent', borderRadius:8,
-                    border:'1px solid #2a3548', color:'#94a3b8', fontSize:9, fontWeight:700, cursor:'pointer' }}>
-                  ↩ Deshacer
+                    padding:'2px 4px', backgroundColor:'#2a0a0a', borderRadius:8,
+                    border:'none', color:'#fca5a5', fontSize:9.5, fontWeight:800, cursor:'pointer' }}>
+                  🏁 Finalizar
                 </button>
-                {!isFinished && (
-                  <button onClick={handleFinish}
-                    style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
-                      padding:'2px 4px', backgroundColor:'#2a0a0a', borderRadius:8,
-                      border:'none', color:'#fca5a5', fontSize:9, fontWeight:800, cursor:'pointer' }}>
-                    🏁 Finalizar
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
 

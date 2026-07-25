@@ -1431,7 +1431,7 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'96px 68px 1fr minmax(190px,260px)', flex:1, overflow:'hidden', minWidth:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'96px 96px 1fr minmax(190px,260px)', flex:1, overflow:'hidden', minWidth:0 }}>
 
             {/* ── Col A: Our players ── */}
             <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
@@ -1550,17 +1550,17 @@ export default function LivePage() {
             <div style={{ overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
               gridTemplateColumns:'1fr 1fr', gridAutoRows:'minmax(0,1fr)', gap:4, padding:'5px 7px', minWidth:0 }}>
               <ActionBtn label="TIROS LIBRES" color="#4ade80" bg="#14532d" aKey="ft"              armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="2 PUNTOS"     color="#60a5fa" bg="#1e3a5f" aKey="2pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout"         armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="FALTA"        color="#fca5a5" bg="#4c1414" aKey="foul"            armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="TÉCNICA"      color="#fca5a5" bg="#5c1a1a" aKey="technical"       armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="ANTIDEP."     color="#fdba74" bg="#4a2508" aKey="unsporting"      armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="TÉCNICA"      color="#fca5a5" bg="#5c1a1a" aKey="technical"       armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="DESCAL."      color="#fca5a5" bg="#450a0a" aKey="disqualifying"   armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout"         armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="ROBO"         color="#5eead4" bg="#0f2e26" aKey="steal"           armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="TAPÓN"        color="#7dd3fc" bg="#0c2d48" aKey="block"           armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
               <button onClick={handleUndo}
                 style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
                   padding:'2px 4px', backgroundColor:'transparent', borderRadius:8,

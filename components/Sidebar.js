@@ -41,13 +41,14 @@ export default function Sidebar() {
   const items = profile?.role === 'director' ? directorItems : coachItems
   const isDirector = profile?.role === 'director'
 
-  const sidebar = (
+  const sidebarPanel = (extraStyle = {}) => (
     <div style={{
       width: 256, height: '100%',
       background: 'linear-gradient(180deg, #0a1f0e 0%, #122818 60%, #1a3820 100%)',
       display: 'flex', flexDirection: 'column',
       position: 'fixed', top: 0, left: 0, zIndex: 50,
       boxShadow: '4px 0 24px rgba(0,0,0,0.25)',
+      ...extraStyle,
     }}>
 
       {/* ── Header ── */}
@@ -188,12 +189,12 @@ export default function Sidebar() {
         boxShadow: '0 4px 12px rgba(28,92,42,0.4)',
       }} className="mobile-menu-btn">☰</button>
 
-      <div className="sidebar-desktop">{sidebar}</div>
+      <div className="sidebar-desktop">{sidebarPanel()}</div>
 
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(3px)' }} />
-          <div className="sidebar-mobile" style={{ animation: 'slideInLeft 0.22s ease both' }}>{sidebar}</div>
+          <div className="sidebar-mobile">{sidebarPanel({ animation: 'slideInLeft 0.22s ease both' })}</div>
         </>
       )}
     </>

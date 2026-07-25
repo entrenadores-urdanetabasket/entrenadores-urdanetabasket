@@ -1353,13 +1353,13 @@ export default function LivePage() {
         </div>
 
         {/* Score B */}
-        <div style={{ fontSize:22, fontWeight:900, color:'#f97316', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
+        <div style={{ fontSize:22, fontWeight:900, color:'#3b82f6', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
           {scores.rival}
         </div>
 
         {/* Rival */}
         <div style={{ minWidth:0, textAlign:'right' }}>
-          <div style={{ color:'#f97316', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>{rivalName.toUpperCase()}</div>
+          <div style={{ color:'#3b82f6', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>{rivalName.toUpperCase()}</div>
           <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1, justifyContent:'flex-end' }}>
             <span style={{ fontSize:6.5, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
               F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
@@ -1410,7 +1410,7 @@ export default function LivePage() {
                 style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
                   background:'#0c1f15', border:'none', borderBottom:'2px solid #22c55e',
                   color:'#22c55e', fontSize:11, fontWeight:900, letterSpacing:1 }}>
-                {ourName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'URD'}
+                A
               </button>
               <div style={{ flex:1, minHeight:0, display:'grid', gridAutoRows:'minmax(0,1fr)', gap:2, padding:'2px 3px' }}>
               {courtGps.map(gp => {
@@ -1432,9 +1432,9 @@ export default function LivePage() {
             <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
               <button onClick={() => { setModal({ type:'rival_lineup' }); setArmed(null) }}
                 style={{ flexShrink:0, width:'100%', padding:'6px 4px', cursor:'pointer', textAlign:'center',
-                  background:'#1a0f00', border:'none', borderBottom:'2px solid #f97316',
-                  color:'#f97316', fontSize:11, fontWeight:900, letterSpacing:1 }}>
-                {rivalName.split(' ').filter(w=>w.length>1).map(w=>w[0]).join('').slice(0,3).toUpperCase() || 'RIV'}
+                  background:'#0c1c33', border:'none', borderBottom:'2px solid #3b82f6',
+                  color:'#3b82f6', fontSize:11, fontWeight:900, letterSpacing:1 }}>
+                B
               </button>
               <div style={{ flex:1, minHeight:0, display:'grid', gridAutoRows:'minmax(0,1fr)', gap:2, padding:'2px 3px' }}>
               {rivalVisible.map(n => {
@@ -1443,7 +1443,7 @@ export default function LivePage() {
                   <PlayerTile key={n}
                     number={n}
                     fouls={rivBS[n]?.fouls||0}
-                    active={bActive && !rst.out} color="#f97316"
+                    active={bActive && !rst.out} color="#3b82f6"
                     onClick={() => tapPlayer('rival', n)}
                     status={rst.disqualified ? 'disqualified' : rst.eliminated ? 'eliminated' : null}/>
                 )
@@ -1484,8 +1484,8 @@ export default function LivePage() {
                       const pNum = isOur
                         ? (gp?.players?.number != null ? gp.players.number : '?')
                         : (ev.rival_jersey != null ? ev.rival_jersey : '?')
-                      const teamColor = isOur ? '#4ade80' : '#fb923c'
-                      const teamBg = isOur ? '#123420' : '#3a1c05'
+                      const teamColor = isOur ? '#4ade80' : '#60a5fa'
+                      const teamBg = isOur ? '#123420' : '#12233d'
                       const label = EV_LABEL[ev.event_type] || ev.event_type
                       return (
                         <button key={ev.id||i}
@@ -1496,7 +1496,7 @@ export default function LivePage() {
                             display:'flex', alignItems:'center', gap:7, textAlign:'left' }}>
                           <span style={{ width:3, height:15, borderRadius:2, backgroundColor:teamColor, flexShrink:0 }}/>
                           <span style={{ width:16, fontSize:7.5, fontWeight:900, color:teamColor, flexShrink:0, letterSpacing:0.3 }}>
-                            {isOur ? 'NOS' : 'RIV'}
+                            {isOur ? 'A' : 'B'}
                           </span>
                           <span style={{ width:18, height:16, borderRadius:4, flexShrink:0,
                             display:'flex', alignItems:'center', justifyContent:'center',
@@ -1579,7 +1579,7 @@ export default function LivePage() {
               streak: computeStreak(events, 'us', gp.player_id),
             } }))}/>
           <div style={{ marginTop:16 }}>
-            <BSSection title={`🟡 ${rivalName} — ${scores.rival} pts`} color="#f97316" showPM
+            <BSSection title={`🔵 ${rivalName} — ${scores.rival} pts`} color="#3b82f6" showPM
               rows={rivals.map(n => ({ num:n, name:`#${n}`, s:{
                 ...(rivBS[n]||{}), pm: plusMinusRival[n], min: minutesRival[n],
                 streak: computeStreak(events, 'rival', n),
@@ -1612,7 +1612,7 @@ export default function LivePage() {
                     <td style={{ fontSize:11, padding:'6px 3px', textAlign:'center', fontWeight:800, color:'#f0f0f0' }}>{scores.us}</td>
                   </tr>
                   <tr>
-                    <td style={{ fontSize:11, padding:'6px 8px', color:'#f97316', fontWeight:700 }}>🟡 {rivalName}</td>
+                    <td style={{ fontSize:11, padding:'6px 8px', color:'#3b82f6', fontWeight:700 }}>🔵 {rivalName}</td>
                     {Object.keys(quarterScores).sort((a,b)=>a-b).map(q => (
                       <td key={q} style={{ fontSize:11, padding:'6px 3px', textAlign:'center', color:'#d1d5db' }}>{quarterScores[q].rival}</td>
                     ))}
@@ -1658,7 +1658,7 @@ export default function LivePage() {
             <ShotInfo shots={ourShots}/>
           </div>
           <div>
-            <div style={{ fontSize:11, fontWeight:700, color:'#f97316', marginBottom:6 }}>🟡 {rivalName}</div>
+            <div style={{ fontSize:11, fontWeight:700, color:'#3b82f6', marginBottom:6 }}>🔵 {rivalName}</div>
             <CourtSVG shots={rivalShots}/>
             <ShotInfo shots={rivalShots}/>
           </div>
@@ -1783,7 +1783,7 @@ export default function LivePage() {
             {rivalTOsLeft > 0 ? (
               <button onClick={async () => { setModal(null); setArmed(null); await saveEv('timeout','rival',null) }}
                 style={btnStyle('#d97706')}>
-                🟡 {rivalName}<span style={{ display:'block', fontSize:11, fontWeight:600, marginTop:3 }}>{rivalTOsLeft} restante{rivalTOsLeft!==1?'s':''}</span>
+                🔵 {rivalName}<span style={{ display:'block', fontSize:11, fontWeight:600, marginTop:3 }}>{rivalTOsLeft} restante{rivalTOsLeft!==1?'s':''}</span>
               </button>
             ) : (
               <div style={{ flex:1, padding:'12px', backgroundColor:'#1a2030', borderRadius:10, textAlign:'center', border:'1px solid #1f2937' }}>
@@ -1881,7 +1881,7 @@ export default function LivePage() {
             </div>
           </div>
           <div style={{ marginBottom:14 }}>
-            <div style={{ color:'#f97316', fontSize:11, fontWeight:800, marginBottom:6 }}>🟡 {rivalName}</div>
+            <div style={{ color:'#3b82f6', fontSize:11, fontWeight:800, marginBottom:6 }}>🔵 {rivalName}</div>
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
               {rivalVisible.map(n => (
                 <button key={n} onClick={async () => {
@@ -1937,8 +1937,8 @@ export default function LivePage() {
             <div style={{ color:'#ef4444', fontSize:11, fontWeight:800, textAlign:'center', marginBottom:8 }}>⚡ En bonus — se aplicarán 2 TL</div>
           )}
           <div style={{ color:'#fff', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🎯 ¿Quién recibió la falta?</div>
-          <div style={{ color:modal.ftTeam==='us'?'#22c55e':'#f97316', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:14 }}>
-            {modal.ftTeam==='us'?`🟢 ${ourName}`:`🟡 ${rivalName}`}
+          <div style={{ color:modal.ftTeam==='us'?'#22c55e':'#3b82f6', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:14 }}>
+            {modal.ftTeam==='us'?`🟢 ${ourName}`:`🔵 ${rivalName}`}
           </div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:14 }}>
             {(modal.ftTeam==='us'
@@ -1972,8 +1972,8 @@ export default function LivePage() {
               {modal.foulType==='foul_technical'?'Técnica · 1 TL':modal.foulType==='foul_unsporting'?'Antideportiva · 2 TL + posesión':'Descalificante · 2 TL + posesión'}
             </div>
           )}
-          <div style={{ color:modal.ftTeam==='us'?'#22c55e':'#f97316', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
-            Para: {modal.ftTeam==='us'?`🟢 ${ourName}`:`🟡 ${rivalName}`}
+          <div style={{ color:modal.ftTeam==='us'?'#22c55e':'#3b82f6', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
+            Para: {modal.ftTeam==='us'?`🟢 ${ourName}`:`🔵 ${rivalName}`}
             {modal.shooterRef && (
               <span style={{ fontWeight:500, color:'#9ca3af' }}>
                 {' '}— #{modal.ftTeam==='us'
@@ -2012,7 +2012,7 @@ export default function LivePage() {
           </button>
           <button onClick={() => setModal({ type:'rival_lineup' })}
             style={btnStyle('#d97706')}>
-            🟡 {rivalName}
+            🔵 {rivalName}
           </button>
         </Overlay>
       )}
@@ -2075,7 +2075,7 @@ export default function LivePage() {
                             <span style={{ fontSize:9, fontWeight:800, color:'#22c55e' }}>✓</span>
                           ) : null}
                           {(fc.technical > 0 || fc.unsporting > 0) && (
-                            <span style={{ fontSize:7, fontWeight:800, color:'#f97316', lineHeight:1 }}>
+                            <span style={{ fontSize:7, fontWeight:800, color:'#3b82f6', lineHeight:1 }}>
                               {fc.technical > 0 ? `T${fc.technical}` : ''}{fc.technical > 0 && fc.unsporting > 0 ? ' ' : ''}{fc.unsporting > 0 ? `U${fc.unsporting}` : ''}
                             </span>
                           )}
@@ -2130,7 +2130,7 @@ export default function LivePage() {
       {/* Alineación rival */}
       {modal?.type==='rival_lineup' && (
         <Overlay onClose={() => setModal(null)}>
-          <div style={{ color:'#f97316', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🔄 5 en pista — {rivalName}</div>
+          <div style={{ color:'#3b82f6', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🔄 5 en pista — {rivalName}</div>
           <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Toca para activar/desactivar · máx. 5</div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6, marginBottom:12 }}>
             {rivals.map(n => {
@@ -2153,7 +2153,7 @@ export default function LivePage() {
                 }}
                 style={{
                   display:'flex', alignItems:'center', gap:6, minWidth:0,
-                  padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#f97316':'#374151'}`,
+                  padding:'7px 8px', borderRadius:8, border:`2px solid ${isOn?'#3b82f6':'#374151'}`,
                   backgroundColor: st.out ? '#1a0505' : isOn ? '#7c2d12' : '#1a2030',
                   cursor: (st.out && !isOn) ? 'not-allowed' : 'pointer', opacity: (st.out && !isOn) ? 0.5 : 1,
                 }}>
@@ -2178,10 +2178,10 @@ export default function LivePage() {
                             {totalFouls}F
                           </span>
                         ) : isOn ? (
-                          <span style={{ fontSize:9, fontWeight:800, color:'#f97316' }}>✓</span>
+                          <span style={{ fontSize:9, fontWeight:800, color:'#3b82f6' }}>✓</span>
                         ) : null}
                         {(fc.technical > 0 || fc.unsporting > 0) && (
-                          <span style={{ fontSize:7, fontWeight:800, color:'#f97316', lineHeight:1 }}>
+                          <span style={{ fontSize:7, fontWeight:800, color:'#3b82f6', lineHeight:1 }}>
                             {fc.technical > 0 ? `T${fc.technical}` : ''}{fc.technical > 0 && fc.unsporting > 0 ? ' ' : ''}{fc.unsporting > 0 ? `U${fc.unsporting}` : ''}
                           </span>
                         )}
@@ -2192,7 +2192,7 @@ export default function LivePage() {
               )
             })}
           </div>
-          <div style={{ color:rivalOnCourt.length===5?'#22c55e':'#f97316', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
+          <div style={{ color:rivalOnCourt.length===5?'#22c55e':'#3b82f6', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:12 }}>
             {rivalOnCourt.length}/5 en pista
           </div>
           <button onClick={() => setModal(null)} style={{ width:'100%', padding:'11px', backgroundColor:'#16a34a', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:800, cursor:'pointer', marginBottom:8 }}>✓ Confirmar</button>
@@ -2219,8 +2219,8 @@ export default function LivePage() {
           </div>
           {modal.shotType && (
             <>
-              <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#f97316', fontSize:11, fontWeight:800, marginBottom:8 }}>
-                {modal.otherTeam==='us'?`🟢 ${ourName}`:`🟡 ${rivalName}`}
+              <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#3b82f6', fontSize:11, fontWeight:800, marginBottom:8 }}>
+                {modal.otherTeam==='us'?`🟢 ${ourName}`:`🔵 ${rivalName}`}
               </div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:12 }}>
                 {(modal.otherTeam==='us'
@@ -2250,8 +2250,8 @@ export default function LivePage() {
       {modal?.type==='ask_steal_chain' && (
         <Overlay onClose={() => setModal(null)}>
           <div style={{ color:'#059669', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🤿 Robo — ¿quién perdió el balón?</div>
-          <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#f97316', fontSize:11, fontWeight:800, marginBottom:8 }}>
-            {modal.otherTeam==='us'?`🟢 ${ourName}`:`🟡 ${rivalName}`}
+          <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#3b82f6', fontSize:11, fontWeight:800, marginBottom:8 }}>
+            {modal.otherTeam==='us'?`🟢 ${ourName}`:`🔵 ${rivalName}`}
           </div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:12 }}>
             {(modal.otherTeam==='us'
@@ -2273,8 +2273,8 @@ export default function LivePage() {
       {modal?.type==='ask_turnover_chain' && (
         <Overlay onClose={() => setModal(null)}>
           <div style={{ color:'#d97706', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>💸 Pérdida — ¿quién robó el balón?</div>
-          <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#f97316', fontSize:11, fontWeight:800, marginBottom:8 }}>
-            {modal.otherTeam==='us'?`🟢 ${ourName}`:`🟡 ${rivalName}`}
+          <div style={{ color:modal.otherTeam==='us'?'#22c55e':'#3b82f6', fontSize:11, fontWeight:800, marginBottom:8 }}>
+            {modal.otherTeam==='us'?`🟢 ${ourName}`:`🔵 ${rivalName}`}
           </div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:12 }}>
             {(modal.otherTeam==='us'
@@ -2339,8 +2339,8 @@ export default function LivePage() {
             </div>
           )}
           {modal.rivDeducted && (
-            <div style={{ padding:'6px 10px', backgroundColor:'#1a0f00', borderRadius:8,
-              border:'1px solid #f9731644', marginBottom:6, fontSize:12, color:'#f97316', fontWeight:700 }}>
+            <div style={{ padding:'6px 10px', backgroundColor:'#0c1c33', borderRadius:8,
+              border:'1px solid #3b82f644', marginBottom:6, fontSize:12, color:'#3b82f6', fontWeight:700 }}>
               📉 {rivalName}: −1 tiempo muerto
             </div>
           )}
@@ -2386,7 +2386,7 @@ export default function LivePage() {
       {modal?.type==='edit_event' && (() => {
         const ev = modal.ev
         const isOur = ev.team === 'us'
-        const teamColor = isOur ? '#22c55e' : '#f97316'
+        const teamColor = isOur ? '#22c55e' : '#3b82f6'
         const teamName  = isOur ? ourName : rivalName
         const gp = isOur ? gps.find(g => g.player_id === ev.player_id) : null
         const pLabel = isOur

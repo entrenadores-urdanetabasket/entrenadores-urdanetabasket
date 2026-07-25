@@ -1329,7 +1329,7 @@ export default function LivePage() {
           <div style={{ display:'flex', alignItems:'center', gap:5, flex:1, minWidth:0 }}>
             <TeamBadge name={ourName} color="#22c55e" size={24} logoUrl={ourTeamLogo}/>
             <div style={{ minWidth:0 }}>
-              <div style={{ color:'#22c55e', fontWeight:900, fontSize:10, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{ourName}</div>
+              <div style={{ color:'#22c55e', fontWeight:900, fontSize:10, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>URDANETA</div>
               <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1 }}>
                 <span style={{ fontSize:7, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
                   F:{ourFoulsQ}{ourBonus&&' ⚡'}

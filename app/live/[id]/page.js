@@ -1525,13 +1525,13 @@ export default function LivePage() {
             {/* ── Col D: Action buttons ── */}
             <div style={{ overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
               gridTemplateRows: isFinished
-                ? '1.15fr 1.15fr 1.15fr 1fr 1.15fr 1.15fr 8px 1fr 8px 0.9fr'
-                : '1.15fr 1.15fr 1.15fr 1fr 1.15fr 1.15fr 8px 1fr 8px 0.9fr 0.9fr',
-              gap:4, alignItems:'stretch', padding:'6px 8px', minWidth:0 }}>
+                ? 'minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.15fr) 8px minmax(0,1fr) 8px minmax(0,0.9fr)'
+                : 'minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1.15fr) minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.15fr) 8px minmax(0,1fr) 8px minmax(0,0.9fr) minmax(0,0.9fr)',
+              gap:4, padding:'6px 8px', minWidth:0 }}>
               <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"              armed={armed} armAction={armAction}/>
               <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"             armed={armed} armAction={armAction}/>
               <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"             armed={armed} armAction={armAction}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'1fr 1fr', gap:3, height:'100%' }}>
+              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'1fr 1fr', gap:3 }}>
                 <ActionBtn label="FALTA"    color="#dc2626" aKey="foul"          armed={armed} armAction={armAction} small/>
                 <ActionBtn label="TÉCNICA"  color="#b91c1c" aKey="technical"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="ANTIDEP." color="#b45309" aKey="unsporting"   armed={armed} armAction={armAction} small/>
@@ -1540,21 +1540,21 @@ export default function LivePage() {
               <ActionBtn label="T. MUERTO"    color="#0369a1" aKey="timeout"     armed={armed} armAction={armAction}/>
               <ActionBtn label="SUSTITUCIÓN"  color="#059669" aKey="sub"         armed={armed} armAction={armAction}/>
               <div style={{ height:1, backgroundColor:'#1a2540', alignSelf:'center' }}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3, height:'100%' }}>
+              <div style={{ minHeight:0, height:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
                 <ActionBtn label="ROB"  color="#059669" aKey="steal"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="TAP"  color="#0284c7" aKey="block"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="PÉR"  color="#d97706" aKey="turnover" armed={armed} armAction={armAction} small/>
               </div>
               <div style={{ height:1, backgroundColor:'#1a2540', alignSelf:'center' }}/>
               <button onClick={handleUndo}
-                style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+                style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
                   padding:'2px 4px', backgroundColor:'transparent',
                   border:'1px solid #1f2937', color:'#ef4444', borderRadius:6, fontSize:9, fontWeight:700, cursor:'pointer' }}>
                 ↩ Deshacer
               </button>
               {!isFinished && (
                 <button onClick={handleFinish}
-                  style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+                  style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
                     padding:'2px 4px', backgroundColor:'#1c0505',
                     border:'1px solid #3a0c0c', color:'#fca5a5', borderRadius:6, fontSize:9, fontWeight:800, cursor:'pointer' }}>
                   🏁 Finalizar

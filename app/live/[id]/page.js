@@ -434,8 +434,9 @@ function ActionBtn({ label, color, aKey, armed, armAction, small }) {
   const isActive = armed === aKey
   return (
     <button onClick={() => armAction(aKey)} style={{
-      width: '100%',
-      padding: small ? '8px 6px' : '11px 10px',
+      width: '100%', height: '100%', minHeight: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: small ? '2px 4px' : '2px 10px',
       borderRadius: 6, cursor: 'pointer',
       backgroundColor: isActive ? color + '1a' : '#0e1826',
       color: isActive ? '#fff' : '#c8d5e8',
@@ -1416,7 +1417,7 @@ export default function LivePage() {
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
           {/* SWISH layout: [our players] [rival players] [log] [actions] */}
-          <div style={{ display:'grid', gridTemplateColumns:'108px 76px 80px minmax(160px,1fr)', flex:1, overflow:'hidden', minWidth:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'108px 76px 1fr minmax(168px,260px)', flex:1, overflow:'hidden', minWidth:0 }}>
 
             {/* ── Col A: Our players ── */}
             <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>
@@ -1462,12 +1463,15 @@ export default function LivePage() {
             </div>
 
             {/* ── Col C: Log compacto (tap = editar) ── */}
-            <div style={{ overflowY:'auto', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14', minWidth:0 }}>
+            <div style={{ overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', backgroundColor:'#090d14', minWidth:0 }}>
               <div style={{ padding:'4px 2px', borderBottom:'1px solid #141a26', flexShrink:0, textAlign:'center' }}>
-                <span style={{ fontSize:6, fontWeight:700, color:'#2d4060', letterSpacing:0.8 }}>LOG</span>
+                <span style={{ fontSize:7, fontWeight:700, color:'#2d4060', letterSpacing:0.8 }}>LOG</span>
               </div>
+              <div style={{ flex:1, overflowY:'auto', display:'grid',
+                gridTemplateColumns:'repeat(auto-fill, minmax(58px, 1fr))', gridAutoRows:'min-content',
+                alignContent:'start', gap:3, padding:4 }}>
               {events.length === 0
-                ? <div style={{ color:'#1e2d42', fontSize:9, textAlign:'center', padding:'12px 2px' }}>—</div>
+                ? <div style={{ gridColumn:'1/-1', color:'#1e2d42', fontSize:9, textAlign:'center', padding:'12px 2px' }}>—</div>
                 : (() => {
                     // Group by quarter, most recent quarter first
                     const entries = []
@@ -1480,9 +1484,9 @@ export default function LivePage() {
                     return entries.map((item, idx) => {
                       if (item.type === 'qheader') {
                         return (
-                          <div key={`qh-${item.q}`} style={{ padding:'3px 2px', backgroundColor:'#0a1020',
-                            borderBottom:'1px solid #1a2540', textAlign:'center', flexShrink:0 }}>
-                            <span style={{ fontSize:7, fontWeight:900, color:'#f59e0b', letterSpacing:1 }}>
+                          <div key={`qh-${item.q}`} style={{ gridColumn:'1/-1', padding:'3px 2px', backgroundColor:'#0a1020',
+                            borderBottom:'1px solid #1a2540', borderRadius:4, textAlign:'center' }}>
+                            <span style={{ fontSize:8, fontWeight:900, color:'#f59e0b', letterSpacing:1 }}>
                               — {Q_LABEL(item.q)} —
                             </span>
                           </div>
@@ -1499,30 +1503,35 @@ export default function LivePage() {
                       return (
                         <button key={ev.id||i}
                           onClick={() => setModal({ type:'edit_event', ev })}
-                          style={{ background:'none', border:'none', cursor:'pointer', width:'100%',
-                            padding:'5px 2px', borderBottom:'1px solid #0d1520',
+                          style={{ background:'none', border:'none', cursor:'pointer', width:'100%', borderRadius:5,
+                            padding:'5px 2px', border:'1px solid #141c2c',
                             backgroundColor: i===0 ? '#101c2e' : 'transparent',
                             borderLeft: `2px solid ${teamColor}55`,
                             textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
                           <span style={{ fontSize:12, fontWeight:900, color:teamColor, lineHeight:1 }}>
                             {ev.event_type==='substitution' ? '🔄' : `#${pNum}`}
                           </span>
-                          <span style={{ fontSize:6.5, fontWeight:700, color:'#7a9ab8', lineHeight:1.2,
-                            maxWidth:52, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          <span style={{ fontSize:7, fontWeight:700, color:'#7a9ab8', lineHeight:1.2,
+                            maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {label}
                           </span>
                         </button>
                       )
                     })
                   })()}
+              </div>
             </div>
 
             {/* ── Col D: Action buttons ── */}
-            <div style={{ overflowY:'auto', borderLeft:'1px solid #1a2540', display:'flex', flexDirection:'column', alignItems:'stretch', padding:'5px 10px', gap:5, minWidth:0 }}>
+            <div style={{ overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
+              gridTemplateRows: isFinished
+                ? '1.15fr 1.15fr 1.15fr 1fr 1.15fr 1.15fr 8px 1fr 8px 0.9fr'
+                : '1.15fr 1.15fr 1.15fr 1fr 1.15fr 1.15fr 8px 1fr 8px 0.9fr 0.9fr',
+              gap:4, alignItems:'stretch', padding:'6px 8px', minWidth:0 }}>
               <ActionBtn label="TIROS LIBRES" color="#16a34a" aKey="ft"              armed={armed} armAction={armAction}/>
               <ActionBtn label="2 PUNTOS"     color="#2563eb" aKey="2pt"             armed={armed} armAction={armAction}/>
               <ActionBtn label="3 PUNTOS"     color="#7c3aed" aKey="3pt"             armed={armed} armAction={armAction}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'1fr 1fr', gap:3, height:'100%' }}>
                 <ActionBtn label="FALTA"    color="#dc2626" aKey="foul"          armed={armed} armAction={armAction} small/>
                 <ActionBtn label="TÉCNICA"  color="#b91c1c" aKey="technical"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="ANTIDEP." color="#b45309" aKey="unsporting"   armed={armed} armAction={armAction} small/>
@@ -1530,21 +1539,23 @@ export default function LivePage() {
               </div>
               <ActionBtn label="T. MUERTO"    color="#0369a1" aKey="timeout"     armed={armed} armAction={armAction}/>
               <ActionBtn label="SUSTITUCIÓN"  color="#059669" aKey="sub"         armed={armed} armAction={armAction}/>
-              <div style={{ height:1, backgroundColor:'#1a2540', margin:'1px 0' }}/>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3 }}>
+              <div style={{ height:1, backgroundColor:'#1a2540', alignSelf:'center' }}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:3, height:'100%' }}>
                 <ActionBtn label="ROB"  color="#059669" aKey="steal"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="TAP"  color="#0284c7" aKey="block"    armed={armed} armAction={armAction} small/>
                 <ActionBtn label="PÉR"  color="#d97706" aKey="turnover" armed={armed} armAction={armAction} small/>
               </div>
-              <div style={{ height:1, backgroundColor:'#1a2540', margin:'1px 0' }}/>
+              <div style={{ height:1, backgroundColor:'#1a2540', alignSelf:'center' }}/>
               <button onClick={handleUndo}
-                style={{ width:'100%', padding:'7px 4px', backgroundColor:'transparent',
+                style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+                  padding:'2px 4px', backgroundColor:'transparent',
                   border:'1px solid #1f2937', color:'#ef4444', borderRadius:6, fontSize:9, fontWeight:700, cursor:'pointer' }}>
                 ↩ Deshacer
               </button>
               {!isFinished && (
                 <button onClick={handleFinish}
-                  style={{ width:'100%', padding:'7px 4px', backgroundColor:'#1c0505',
+                  style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center',
+                    padding:'2px 4px', backgroundColor:'#1c0505',
                     border:'1px solid #3a0c0c', color:'#fca5a5', borderRadius:6, fontSize:9, fontWeight:800, cursor:'pointer' }}>
                   🏁 Finalizar
                 </button>

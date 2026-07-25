@@ -1299,103 +1299,74 @@ export default function LivePage() {
         </div>
       )}
 
-      {/* ══ TOP BAR ════════════════════════════════════════════════════════════ */}
-      <div className="np" style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'0 10px', height:24, backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
-        <Link href="/dashboard/estadisticas" style={{ color:'#7a8da8', fontSize:9.5, fontWeight:700, textDecoration:'none' }}>
-          ← Estadísticas
-        </Link>
-        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-          {game.status==='live' && (
-            <div style={{ width:5, height:5, borderRadius:3, backgroundColor:'#ef4444',
-              boxShadow:'0 0 6px #ef4444', animation:'pulse 1.5s infinite' }}/>
-          )}
-          <span style={{ color:'#8899aa', fontSize:9, fontWeight:600 }}>
-            {TYPE_LABEL[game.game_type]||''}{dateStr ? ` · ${dateStr}` : ''}
-          </span>
+      {/* ══ MARCADOR (barra superior + marcador fusionados en una fila) ══════════ */}
+      <div className="np" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+        padding:'3px 8px', backgroundColor:'#0d1018', borderBottom:'1px solid #141a26', flexShrink:0 }}>
+
+        {/* Our team */}
+        <div style={{ minWidth:0 }}>
+          <div style={{ color:'#22c55e', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>URDANETA</div>
+          <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1 }}>
+            <span style={{ fontSize:6.5, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
+              F:{ourFoulsQ}{ourBonus&&' ⚡'}
+            </span>
+            <span style={{ fontSize:6.5, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
+              TM:{ourTOsLeft}/{_toMax}
+            </span>
+          </div>
         </div>
-        {isFinished
-          ? <span style={{ color:'#22c55e', fontSize:9, fontWeight:700 }}>✓ Final</span>
-          : <button onClick={handleFinish} style={{ background:'none', border:'none', color:'#7a8da8', fontSize:9, fontWeight:700, cursor:'pointer' }}>🏁 Fin</button>
-        }
-      </div>
 
-      {/* ══ SCOREBOARD ═════════════════════════════════════════════════════════ */}
-      <div className="np" style={{ backgroundColor:'#0d1018', padding:'4px 10px', borderBottom:'1px solid #141a26', flexShrink:0 }}>
+        {/* Score A */}
+        <div style={{ fontSize:22, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
+          {scores.us}
+        </div>
 
-        {/* Row: Team info + Score + Rival info */}
-        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-          {/* Our team */}
-          <div style={{ display:'flex', alignItems:'center', gap:5, flex:1, minWidth:0 }}>
-            <TeamBadge name={ourName} color="#22c55e" size={24} logoUrl={ourTeamLogo}/>
-            <div style={{ minWidth:0 }}>
-              <div style={{ color:'#22c55e', fontWeight:900, fontSize:10, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>URDANETA</div>
-              <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1 }}>
-                <span style={{ fontSize:7, color:ourBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
-                  F:{ourFoulsQ}{ourBonus&&' ⚡'}
-                </span>
-                <span style={{ fontSize:7, color:ourTOsLeft===0?'#ef4444':ourTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
-                  TM:{ourTOsLeft}/{_toMax}
-                </span>
+        {/* Period + Clock */}
+        <div style={{ textAlign:'center', flexShrink:0 }}>
+          <div style={{ fontSize:7, fontWeight:800, color:'#f59e0b', letterSpacing:1, marginBottom:1 }}>
+            {Q_LABEL(quarter)}
+          </div>
+          {editingClock ? (
+            <input autoFocus value={clockInput}
+              onChange={e => setClockInput(e.target.value)}
+              onBlur={applyClockInput}
+              onKeyDown={e => { if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
+              style={{ fontSize:16, fontWeight:900, letterSpacing:1.5, fontFamily:'monospace', color:'#fbbf24',
+                background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:56, textAlign:'center' }}/>
+          ) : (
+            <div
+              onMouseDown={clockPressStart} onMouseUp={clockPressEnd} onMouseLeave={clockPressCancel}
+              onTouchStart={clockPressStart} onTouchEnd={clockPressEnd} onTouchCancel={clockPressCancel}
+              onContextMenu={e => e.preventDefault()}
+              style={{ fontSize:16, fontWeight:900, letterSpacing:1, fontFamily:'monospace',
+                color:secs<=60?'#ef4444':secs<=120?'#f59e0b':'#e5e7eb',
+                cursor:'pointer', lineHeight:1, padding:'2px 8px', borderRadius:8,
+                backgroundColor:running?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.10)',
+                outline:`1px solid ${running?'#22c55e30':'#ef444430'}`,
+                userSelect:'none', WebkitUserSelect:'none', touchAction:'manipulation' }}>
+              {mm}:{ss2}
+              <div style={{ fontSize:5.8, fontWeight:700, color:running?'#22c55e':'#ef4444', marginTop:0.5, letterSpacing:0.4 }}>
+                {running ? '▶ EN JUEGO' : '⏸ PARADO'}
               </div>
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* Score A */}
-          <div style={{ fontSize:28, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:38, textAlign:'center' }}>
-            {scores.us}
-          </div>
+        {/* Score B */}
+        <div style={{ fontSize:22, fontWeight:900, color:'#f97316', fontFamily:'monospace', lineHeight:1, minWidth:30, textAlign:'center' }}>
+          {scores.rival}
+        </div>
 
-          {/* Period + Clock */}
-          <div style={{ textAlign:'center', flexShrink:0, padding:'0 3px' }}>
-            <div style={{ fontSize:8, fontWeight:800, color:'#f59e0b', letterSpacing:1, marginBottom:2 }}>
-              {Q_LABEL(quarter)}
-            </div>
-            {editingClock ? (
-              <input autoFocus value={clockInput}
-                onChange={e => setClockInput(e.target.value)}
-                onBlur={applyClockInput}
-                onKeyDown={e => { if(e.key==='Enter') applyClockInput(); if(e.key==='Escape') setEditingClock(false) }}
-                style={{ fontSize:18, fontWeight:900, letterSpacing:2, fontFamily:'monospace', color:'#fbbf24',
-                  background:'transparent', border:'none', borderBottom:'2px solid #fbbf24', outline:'none', width:64, textAlign:'center' }}/>
-            ) : (
-              <div
-                onMouseDown={clockPressStart} onMouseUp={clockPressEnd} onMouseLeave={clockPressCancel}
-                onTouchStart={clockPressStart} onTouchEnd={clockPressEnd} onTouchCancel={clockPressCancel}
-                onContextMenu={e => e.preventDefault()}
-                style={{ fontSize:19, fontWeight:900, letterSpacing:1.5, fontFamily:'monospace',
-                  color:secs<=60?'#ef4444':secs<=120?'#f59e0b':'#e5e7eb',
-                  cursor:'pointer', lineHeight:1, padding:'3px 10px', borderRadius:9,
-                  backgroundColor:running?'rgba(34,197,94,0.10)':'rgba(239,68,68,0.10)',
-                  outline:`1px solid ${running?'#22c55e30':'#ef444430'}`,
-                  userSelect:'none', WebkitUserSelect:'none', touchAction:'manipulation' }}>
-                {mm}:{ss2}
-                <div style={{ fontSize:6.5, fontWeight:700, color:running?'#22c55e':'#ef4444', marginTop:0.5, letterSpacing:0.5 }}>
-                  {running ? '▶ EN JUEGO' : '⏸ PARADO'}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Score B */}
-          <div style={{ fontSize:28, fontWeight:900, color:'#f97316', fontFamily:'monospace', lineHeight:1, minWidth:38, textAlign:'center' }}>
-            {scores.rival}
-          </div>
-
-          {/* Rival */}
-          <div style={{ display:'flex', alignItems:'center', gap:5, flex:1, minWidth:0, justifyContent:'flex-end' }}>
-            <div style={{ minWidth:0, textAlign:'right' }}>
-              <div style={{ color:'#f97316', fontWeight:900, fontSize:10, lineHeight:1.1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{rivalName}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1, justifyContent:'flex-end' }}>
-                <span style={{ fontSize:7, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
-                  F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
-                </span>
-                <span style={{ fontSize:7, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
-                  TM:{rivalTOsLeft}/{_toMax}
-                </span>
-              </div>
-            </div>
-            <TeamBadge name={rivalName} color="#f97316" size={24}/>
+        {/* Rival */}
+        <div style={{ minWidth:0, textAlign:'right' }}>
+          <div style={{ color:'#f97316', fontWeight:900, fontSize:9, lineHeight:1.1, whiteSpace:'nowrap' }}>{rivalName.toUpperCase()}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1, justifyContent:'flex-end' }}>
+            <span style={{ fontSize:6.5, color:rivalBonus?'#ef4444':'#7a8da8', fontWeight:700 }}>
+              F:{rivalFoulsQ}{rivalBonus&&' ⚡'}
+            </span>
+            <span style={{ fontSize:6.5, color:rivalTOsLeft===0?'#ef4444':rivalTOsLeft===1?'#f59e0b':'#7a8da8', fontWeight:700 }}>
+              TM:{rivalTOsLeft}/{_toMax}
+            </span>
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
+import ModalPortal from '@/components/ModalPortal'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -72,13 +73,15 @@ export default function TacticasPage() {
       ? { title: editingTactic.title, description: editingTactic.description || '', steps: editingTactic.play_data?.steps || [] }
       : null
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
-        <CourtEditor
-          initialData={initData}
-          onSave={handleSave}
-          onClose={() => { setOpenEditor(false); setEditingTactic(null) }}
-        />
-      </div>
+      <ModalPortal>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+          <CourtEditor
+            initialData={initData}
+            onSave={handleSave}
+            onClose={() => { setOpenEditor(false); setEditingTactic(null) }}
+          />
+        </div>
+      </ModalPortal>
     )
   }
 

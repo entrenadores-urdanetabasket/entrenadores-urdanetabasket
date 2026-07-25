@@ -1453,6 +1453,34 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100vh',background:'#111827',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',overflow:'hidden'}}>
 
+      <style>{`
+        @keyframes ceRotateHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}}
+        .ce-rotate-overlay{display:none}
+        @media (orientation:portrait) and (pointer:coarse){
+          .ce-rotate-overlay{display:flex!important}
+        }
+        @media print{
+          .ce-rotate-overlay{display:none!important}
+        }
+      `}</style>
+
+      {/* ── BLOQUEO DE ORIENTACIÓN (móvil/tablet en vertical) ── */}
+      <div className="ce-rotate-overlay" style={{
+        position:'fixed', inset:0, zIndex:9999, backgroundColor:'#111827',
+        flexDirection:'column', alignItems:'center', justifyContent:'center', gap:18, padding:24, textAlign:'center',
+      }}>
+        <div style={{ animation:'ceRotateHint 1.6s ease-in-out infinite' }}>
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.6">
+            <rect x="7" y="2" width="10" height="16" rx="2"/>
+            <line x1="10" y1="15.6" x2="14" y2="15.6" strokeWidth="1.2"/>
+          </svg>
+        </div>
+        <div style={{ fontSize:16, fontWeight:900, color:'#e5e7eb' }}>Gira tu dispositivo</div>
+        <div style={{ fontSize:12, color:'#9ca3af', maxWidth:260, lineHeight:1.5 }}>
+          El editor de tácticas está diseñado para usarse en horizontal. Gira el móvil o la tablet para continuar.
+        </div>
+      </div>
+
       {/* ── TOP BAR ── */}
       <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',background:'#1f2937',borderBottom:'1px solid #374151',flexShrink:0}}>
         {onClose && (

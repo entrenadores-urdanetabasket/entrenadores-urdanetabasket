@@ -205,13 +205,15 @@ export default function EntrenamientosPage() {
       ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [] }
       : { title: editorExercise.title, description: '', steps: [] }
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
-        <CourtEditor
-          initialData={initData}
-          onSave={handleSaveExercisePlay}
-          onClose={() => setEditorExercise(null)}
-        />
-      </div>
+      <ModalPortal>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+          <CourtEditor
+            initialData={initData}
+            onSave={handleSaveExercisePlay}
+            onClose={() => setEditorExercise(null)}
+          />
+        </div>
+      </ModalPortal>
     )
   }
 

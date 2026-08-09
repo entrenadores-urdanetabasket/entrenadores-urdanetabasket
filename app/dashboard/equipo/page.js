@@ -33,7 +33,7 @@ export default function EquipoPage() {
     setError(null)
     try {
       if (isDirector) {
-        const { data: t, error: tErr } = await supabase.from('teams').select('*').order('name')
+        const { data: t, error: tErr } = await supabase.from('teams').select('*').eq('active', true).order('name')
         if (tErr) { console.error('teams query error:', tErr); setError(tErr.message); return }
         const teamList = t || []
         // Cargar entrenadores vía team_coaches

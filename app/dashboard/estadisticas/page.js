@@ -41,7 +41,7 @@ export default function EstadisticasPage() {
   async function loadData() {
     setLoading(true)
     if (isDirector) {
-      const { data: t } = await supabase.from('teams').select('*').order('name')
+      const { data: t } = await supabase.from('teams').select('*').eq('active', true).order('name')
       const teamList = t || []
       setAllTeams(teamList)
       if (teamList.length > 0) {

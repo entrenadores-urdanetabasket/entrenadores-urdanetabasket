@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
         const { data: tc } = await withTimeout(supabase.from('team_coaches').select('team_id').eq('coach_id', userId))
         const teamIds = (tc || []).map(r => r.team_id)
         if (teamIds.length > 0) {
-          const { data: teams } = await withTimeout(supabase.from('teams').select('*').in('id', teamIds).order('name'))
+          const { data: teams } = await withTimeout(supabase.from('teams').select('*').in('id', teamIds).eq('active', true).order('name'))
           setMyTeams(teams || [])
           setActiveTeam(prev => prev ? (teams || []).find(t => t.id === prev.id) || teams?.[0] || null : teams?.[0] || null)
         }

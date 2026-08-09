@@ -8,6 +8,12 @@ import ModalPortal from '@/components/ModalPortal'
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
+function nextSeason(season) {
+  const [a, b] = String(season || '').split('-').map(n => parseInt(n, 10))
+  if (!a || !b) return '—'
+  return `${a + 1}-${b + 1}`
+}
+
 const INCIDENT_COLORS = {
   lesion:     { label: 'Lesión',     color: '#ef4444', bg: '#fef2f2' },
   sancion:    { label: 'Sanción',    color: '#d97706', bg: '#fffbeb' },
@@ -30,8 +36,15 @@ export default function DirectorPage() {
   const [overview, setOverview]               = useState(null)
   const [loadingOverview, setLoadingOverview] = useState(true)
 
+  // ── Cerrar temporada ─────────────────────────────────────
+  const [showCloseSeasonModal, setShowCloseSeasonModal] = useState(false)
+  const [closingSeason, setClosingSeason]     = useState(false)
+  const [closeSeasonError, setCloseSeasonError] = useState('')
+  const [closeSeasonDone, setCloseSeasonDone] = useState(null) // { teamsClosed }
+
   // ── Equipos ────────────────────────────────────────────
   const [teams, setTeams]           = useState([])
+  const [teamsView, setTeamsView]   = useState('active') // 'active' | 'archived'
   const [coaches, setCoaches]       = useState([])
   const [loading, setLoading]       = useState(true)
   const [expandedTeam, setExpandedTeam] = useState(null)
@@ -75,7 +88,7 @@ export default function DirectorPage() {
     try {
       // Counts
       const [{ data: tList }, { data: cList }, { data: pList }] = await Promise.all([
-        supabase.from('teams').select('id, name, category'),
+        supabase.from('teams').select('id, name, category, season').eq('active', true),
         supabase.from('profiles').select('id').eq('role', 'coach'),
         supabase.from('players').select('id').eq('active', true),
       ])
@@ -117,12 +130,29 @@ export default function DirectorPage() {
         playersCount: (pList  || []).length,
         incidents:    (incList || []).map(i => ({ ...i, teamName: teamMap[i.team_id] || '—' })),
         attSummary,
+        teamsList: tList || [],
       })
     } catch (err) {
       console.error('loadOverview error:', err)
       setOverview({ teamsCount: 0, coachesCount: 0, playersCount: 0, incidents: [], attSummary: [] })
     } finally {
       setLoadingOverview(false)
+    }
+  }
+
+  async function handleCloseSeason() {
+    setClosingSeason(true)
+    setCloseSeasonError('')
+    try {
+      const { data, error } = await supabase.rpc('close_season')
+      if (error) throw error
+      setCloseSeasonDone({ teamsClosed: data?.teams_closed ?? 0 })
+      await Promise.all([loadOverview(), loadTeams()])
+    } catch (err) {
+      console.error('close_season error:', err)
+      setCloseSeasonError(err.message || 'No se pudo cerrar la temporada')
+    } finally {
+      setClosingSeason(false)
     }
   }
 
@@ -226,11 +256,13 @@ export default function DirectorPage() {
   }
 
   // ── EQUIPOS ──────────────────────────────────────────────
-  async function loadTeams() {
+  async function loadTeams(view = teamsView) {
     setLoading(true)
     try {
+      const isArchived = view === 'archived'
       const [{ data: t }, { data: c }] = await Promise.all([
-        supabase.from('teams').select('*').order('name'),
+        supabase.from('teams').select('*').eq('active', !isArchived)
+          .order(isArchived ? 'season' : 'name', { ascending: !isArchived }),
         supabase.from('profiles').select('id, full_name').eq('role', 'coach').order('full_name'),
       ])
       const teamList  = t || []
@@ -357,13 +389,13 @@ export default function DirectorPage() {
               : 'Cargando...'}
           </p>
         </div>
-        {tab === 'equipos'
+        {tab === 'equipos' && teamsView === 'active'
           ? <button onClick={openNew} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo equipo</button>
           : <div style={{ fontSize: 48, opacity: 0.35 }}>🛡️</div>}
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
         {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }].map(t => {
           const active = tab === t.key
           return (
@@ -377,6 +409,22 @@ export default function DirectorPage() {
             }}>{t.label}</button>
           )
         })}
+        {tab === 'equipos' && (
+          <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', backgroundColor: '#f1f5f9', borderRadius: 20, padding: 3 }}>
+            {[{ key: 'active', label: 'Activos' }, { key: 'archived', label: '🗂 Históricos' }].map(v => {
+              const active = teamsView === v.key
+              return (
+                <button key={v.key} onClick={() => { setTeamsView(v.key); setExpandedTeam(null); loadTeams(v.key) }} style={{
+                  padding: '7px 14px', borderRadius: 16, cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+                  background: active ? '#1f2937' : 'transparent',
+                  color: active ? '#fff' : '#64748b',
+                  border: 'none',
+                }}>{v.label}</button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── RESUMEN ── */}
@@ -399,6 +447,32 @@ export default function DirectorPage() {
                 </div>
               ))}
             </div>
+
+            {/* Cerrar temporada */}
+            {overview.teamsList?.length > 0 && (
+              <div style={{
+                backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', overflow: 'hidden',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+                padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
+                    🗓 Temporada {overview.teamsList[0].season}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, maxWidth: 460 }}>
+                    Cuando termine la temporada, cierra aquí para archivar los {overview.teamsList.length} equipos
+                    actuales y empezar {nextSeason(overview.teamsList[0].season)} con plantillas nuevas. Nada se borra:
+                    podrás consultar el histórico en cualquier momento.
+                  </div>
+                </div>
+                <button onClick={() => setShowCloseSeasonModal(true)} style={{
+                  padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  backgroundColor: '#1f2937', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0,
+                }}>
+                  Cerrar temporada →
+                </button>
+              </div>
+            )}
 
             {/* Asistencia */}
             {overview.attSummary.length > 0 && (
@@ -457,7 +531,9 @@ export default function DirectorPage() {
         ) : teams.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🏀</div>
-            <div className="empty-state-title">No hay equipos todavía</div>
+            <div className="empty-state-title">
+              {teamsView === 'archived' ? 'Aún no has cerrado ninguna temporada' : 'No hay equipos todavía'}
+            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -492,8 +568,14 @@ export default function DirectorPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      <button onClick={e => openEdit(team, e)} style={{ padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Gestionar</button>
-                      <button onClick={e => handleDelete(team.id, e)} disabled={deleting === team.id} style={{ width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
+                      {teamsView === 'active' ? (
+                        <>
+                          <button onClick={e => openEdit(team, e)} style={{ padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Gestionar</button>
+                          <button onClick={e => handleDelete(team.id, e)} disabled={deleting === team.id} style={{ width: 32, height: 32, borderRadius: 9, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑</button>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 10px', borderRadius: 6 }}>🗂 Archivado</span>
+                      )}
                       <span style={{ fontSize: 18, color: '#94a3b8', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
                     </div>
                   </div>
@@ -642,6 +724,67 @@ export default function DirectorPage() {
             Al pulsar "Resetear contraseña" se envía un email al entrenador con un enlace para crear una nueva contraseña.
           </p>
         </div>
+      )}
+
+      {/* ── MODAL CERRAR TEMPORADA ── */}
+      {showCloseSeasonModal && (
+        <ModalPortal>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget && !closingSeason) { setShowCloseSeasonModal(false); setCloseSeasonDone(null); setCloseSeasonError('') } }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 440, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+            {closeSeasonDone ? (
+              <>
+                <div style={{ fontSize: 40, marginBottom: 10, textAlign: 'center' }}>✅</div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 8px', letterSpacing: -0.3, textAlign: 'center' }}>
+                  Temporada cerrada
+                </h2>
+                <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 22px', textAlign: 'center' }}>
+                  Se archivaron {closeSeasonDone.teamsClosed} equipos y se crearon sus equipos para la temporada nueva,
+                  con la plantilla vacía. El histórico sigue disponible en "Equipos → Históricos".
+                </p>
+                <button onClick={() => { setShowCloseSeasonModal(false); setCloseSeasonDone(null) }} className="btn-primary" style={{ width: '100%', padding: 12 }}>
+                  Entendido
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px', letterSpacing: -0.3 }}>
+                  ¿Cerrar la temporada {overview?.teamsList?.[0]?.season}?
+                </h2>
+                <p style={{ fontSize: 13, color: '#64748b', margin: '10px 0 14px' }}>
+                  Se van a archivar estos {overview?.teamsList?.length || 0} equipos y crear sus equivalentes para la
+                  temporada <b>{nextSeason(overview?.teamsList?.[0]?.season)}</b>, sin jugadores:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 180, overflowY: 'auto' }}>
+                  {(overview?.teamsList || []).map(t => (
+                    <div key={t.id} style={{ fontSize: 13, fontWeight: 600, color: '#334155', backgroundColor: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 8, padding: '7px 10px' }}>
+                      {t.name} <span style={{ color: '#94a3b8', fontWeight: 500 }}>· {t.category}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '10px 12px', borderRadius: 9, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: 12, marginBottom: 16 }}>
+                  Nada se borra: los partidos, estadísticas, convocatorias, entrenamientos, tácticas e incidencias de
+                  esta temporada se quedan guardados y consultables. Los entrenadores empiezan la temporada nueva con
+                  la plantilla vacía.
+                </div>
+                {closeSeasonError && (
+                  <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13, marginBottom: 14 }}>{closeSeasonError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setShowCloseSeasonModal(false)} disabled={closingSeason} style={{
+                    flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0',
+                    backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer'
+                  }}>Cancelar</button>
+                  <button onClick={handleCloseSeason} disabled={closingSeason} style={{
+                    flex: 1, padding: '12px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                    ...(closingSeason ? { background: '#e2e8f0', color: '#94a3b8', cursor: 'not-allowed' } : { backgroundColor: '#1f2937', color: '#fff' })
+                  }}>{closingSeason ? 'Cerrando...' : 'Cerrar temporada'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+        </ModalPortal>
       )}
 
       {/* ── MODAL CONTRASEÑA ── */}

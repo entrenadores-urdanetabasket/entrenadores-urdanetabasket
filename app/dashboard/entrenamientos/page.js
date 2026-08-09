@@ -48,7 +48,7 @@ export default function EntrenamientosPage() {
   async function loadTeams() {
     setLoading(true)
     if (isDirector) {
-      const { data } = await supabase.from('teams').select('*').order('name')
+      const { data } = await supabase.from('teams').select('*').eq('active', true).order('name')
       setTeams(data || [])
       if (data?.length > 0) await loadSessions(data[0])
       else setLoading(false)
@@ -69,7 +69,7 @@ export default function EntrenamientosPage() {
   async function loadSharedSessions() {
     setSharedLoading(true)
     // Cargamos todos los equipos del club para buscar sesiones compartidas de cualquier equipo
-    const { data: allTeams } = await supabase.from('teams').select('id')
+    const { data: allTeams } = await supabase.from('teams').select('id').eq('active', true)
     const teamIds = (allTeams || []).map(t => t.id)
     if (teamIds.length === 0) { setSharedLoading(false); return }
 

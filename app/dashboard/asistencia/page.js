@@ -135,7 +135,7 @@ export default function AsistenciaPage() {
   async function loadTeams() {
     setLoading(true)
     if (isDirector) {
-      const { data } = await supabase.from('teams').select('*').order('name')
+      const { data } = await supabase.from('teams').select('*').eq('active', true).order('name')
       setTeams(data || [])
       if (data?.length > 0) await loadTeamData(data[0], 'historial')
       else setLoading(false)

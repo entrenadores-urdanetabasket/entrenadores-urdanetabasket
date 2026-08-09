@@ -24,13 +24,13 @@ export default function TacticasPage() {
     setLoading(true)
     let t = []
     if (profile?.role === 'director') {
-      const { data } = await supabase.from('teams').select('*').order('name')
+      const { data } = await supabase.from('teams').select('*').eq('active', true).order('name')
       t = data || []
     } else {
       const { data: tc } = await supabase.from('team_coaches').select('team_id').eq('coach_id', user.id)
       const ids = (tc || []).map(r => r.team_id)
       if (ids.length > 0) {
-        const { data } = await supabase.from('teams').select('*').in('id', ids).order('name')
+        const { data } = await supabase.from('teams').select('*').in('id', ids).eq('active', true).order('name')
         t = data || []
       }
     }

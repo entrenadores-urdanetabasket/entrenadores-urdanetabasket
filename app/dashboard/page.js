@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
   async function loadDirectorData() {
     const [{ data: teams }, { data: coaches }, { data: players }, { count: inc }] = await Promise.all([
-      supabase.from('teams').select('id'),
+      supabase.from('teams').select('id').eq('active', true),
       supabase.from('profiles').select('id').eq('role', 'coach'),
       supabase.from('players').select('id').eq('active', true),
       supabase.from('incidents').select('*', { count: 'exact', head: true }).eq('resolved', false),

@@ -40,6 +40,7 @@ export default function NuevoPartidoPage() {
       .from('teams')
       .select('id, name, category')
       .in('id', teamIds)
+      .eq('active', true)
 
     if (!teams || teams.length === 0) return
     setTeam(teams[0])

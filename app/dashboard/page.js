@@ -116,10 +116,10 @@ export default function DashboardPage() {
                 Vista general del club
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13, margin: 0, fontWeight: 500 }}>
-                Temporada 2025-2026
+                Temporada 2026-2027
               </p>
             </div>
-            <div style={{ fontSize: 72, opacity: 0.35 }}>🛡️</div>
+            <img src="/logo.png" alt="Escudo C.D. Urdaneta" style={{ width: 72, height: 72, objectFit: 'contain', opacity: 0.9 }}/>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
             {[

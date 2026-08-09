@@ -158,7 +158,7 @@ export default function DashboardPage() {
                 </p>
               )}
             </div>
-            <div style={{ fontSize: 72, opacity: 0.35 }}>🏀</div>
+            <img src="/logo.png" alt="Escudo C.D. Urdaneta" style={{ width: 72, height: 72, objectFit: 'contain', opacity: 0.9 }}/>
           </div>
 
           {team && (

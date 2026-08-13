@@ -560,7 +560,12 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       if (d < bestD2) { bestD2 = d; p2id = pe.id }
     }
     if (!p2id) continue
-    targets[p1id] = { x: basePos[p2id].x, y: basePos[p2id].y }
+    // p1 (el que entrega el balón) sigue el trazo real de la flecha, no una linea recta al hueco del compañero
+    const p1StartX = basePos[p1id].x, p1StartY = basePos[p1id].y
+    const p2Base = basePos[p2id]
+    targets[p1id] = isCurved(p1StartX, p1StartY, p2Base.x, p2Base.y, el.cx, el.cy)
+      ? { x: p2Base.x, y: p2Base.y, x1: p1StartX, y1: p1StartY, cx: el.cx, cy: el.cy }
+      : { x: p2Base.x, y: p2Base.y }
     targets[p2id] = { x: basePos[p1id].x, y: basePos[p1id].y }
   }
 
@@ -586,6 +591,17 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   }
 
   const et = easeInOut(stepT)
+
+  // Posición interpolada de un elemento en el instante t, respetando la
+  // curva de su flecha si la tiene (en vez de una línea recta al target)
+  function posAt(id, t) {
+    const base = basePos[id]
+    if (!base) return null
+    const tgt = targets[id]
+    if (!tgt || t <= 0) return { x: base.x, y: base.y }
+    if (tgt.cx !== undefined) return bezierPt(t, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
+    return { x: base.x + (tgt.x - base.x) * t, y: base.y + (tgt.y - base.y) * t }
+  }
 
   // Ball animation for this step (pass / handoff swap / shot arc)
   let ballAnimX = null, ballAnimY = null, ballReceiverId = null, ballAnimR = 8, isShotAnim = false
@@ -616,14 +632,12 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       : null
 
     if (handoffEl && handoffP1 && handoffP2) {
-      const b1 = basePos[handoffP1.id], b2 = basePos[handoffP2.id]
-      if (et < 0.5) {
-        ballAnimX = b1.x + (b2.x - b1.x) * et
-        ballAnimY = b1.y + (b2.y - b1.y) * et
-      } else {
-        ballAnimX = b2.x + (b1.x - b2.x) * et
-        ballAnimY = b2.y + (b1.y - b2.y) * et
-      }
+      // El balón viaja pegado al jugador que lo lleva en cada instante:
+      // con p1 (siguiendo su flecha) hasta el cruce, luego con p2 — nunca
+      // se separa en una línea recta inventada que va y vuelve sobre sí misma.
+      const carrying = et < 0.5 ? posAt(handoffP1.id, et) : posAt(handoffP2.id, et)
+      ballAnimX = carrying.x
+      ballAnimY = carrying.y
       ballReceiverId = handoffP2.id
 
     // ── SHOT: ball flies in parabolic arc, shrinks into basket ──
@@ -686,17 +700,8 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     const base = basePos[el.id]
     let drawData = base ? { ...el, x: base.x, y: base.y } : el
     if (base && targets[el.id] && stepT > 0) {
-      const tgt = targets[el.id]
-      if (tgt.cx !== undefined) {
-        // Follow the curved arrow the coach drew, not a straight shortcut
-        const p = bezierPt(et, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
-        drawData = { ...drawData, x: p.x, y: p.y }
-      } else {
-        drawData = { ...drawData,
-          x: base.x + (tgt.x - base.x) * et,
-          y: base.y + (tgt.y - base.y) * et,
-        }
-      }
+      const p = posAt(el.id, et)
+      drawData = { ...drawData, x: p.x, y: p.y }
     }
     if (PLAYER_TYPES.includes(el.type)) {
       if (ballAnimX !== null) {

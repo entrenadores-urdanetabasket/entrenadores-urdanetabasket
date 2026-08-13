@@ -527,7 +527,13 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       }
       pid = bestId
     }
-    if (pid) targets[pid] = { x: el.x2, y: el.y2 }
+    if (pid) {
+      const startX = basePos[pid]?.x ?? el.x1
+      const startY = basePos[pid]?.y ?? el.y1
+      targets[pid] = isCurved(startX, startY, el.x2, el.y2, el.cx, el.cy)
+        ? { x: el.x2, y: el.y2, x1: startX, y1: startY, cx: el.cx, cy: el.cy }
+        : { x: el.x2, y: el.y2 }
+    }
   }
 
   // Handoff targets: both players swap positions
@@ -680,9 +686,16 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     const base = basePos[el.id]
     let drawData = base ? { ...el, x: base.x, y: base.y } : el
     if (base && targets[el.id] && stepT > 0) {
-      drawData = { ...drawData,
-        x: base.x + (targets[el.id].x - base.x) * et,
-        y: base.y + (targets[el.id].y - base.y) * et,
+      const tgt = targets[el.id]
+      if (tgt.cx !== undefined) {
+        // Follow the curved arrow the coach drew, not a straight shortcut
+        const p = bezierPt(et, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
+        drawData = { ...drawData, x: p.x, y: p.y }
+      } else {
+        drawData = { ...drawData,
+          x: base.x + (tgt.x - base.x) * et,
+          y: base.y + (tgt.y - base.y) * et,
+        }
       }
     }
     if (PLAYER_TYPES.includes(el.type)) {

@@ -48,6 +48,9 @@ export default function Sidebar() {
       display: 'flex', flexDirection: 'column',
       position: 'fixed', top: 0, left: 0, zIndex: 50,
       boxShadow: '4px 0 24px rgba(0,0,0,0.25)',
+      paddingLeft: 'env(safe-area-inset-left)',
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingBottom: 'env(safe-area-inset-bottom)',
       ...extraStyle,
     }}>
 
@@ -181,7 +184,7 @@ export default function Sidebar() {
   return (
     <>
       <button onClick={() => setOpen(true)} style={{
-        display: 'none', position: 'fixed', top: 14, left: 14, zIndex: 60,
+        display: 'none', position: 'fixed', top: 'calc(14px + env(safe-area-inset-top))', left: 'calc(14px + env(safe-area-inset-left))', zIndex: 60,
         width: 42, height: 42, borderRadius: 11,
         border: 'none', background: 'linear-gradient(135deg, #1C5C2A, #52B043)',
         cursor: 'pointer', fontSize: 18, color: '#fff',

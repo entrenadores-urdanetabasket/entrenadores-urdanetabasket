@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }) {
       </main>
       <style>{`
         @media (min-width: 1024px) { main { margin-left: 256px; } }
-        .dash-content { padding-top: 74px !important; }
+        .dash-content { padding-top: calc(74px + env(safe-area-inset-top)) !important; }
         @media (min-width: 1024px) { .dash-content { padding-top: 32px !important; } }
       `}</style>
     </div>

@@ -35,7 +35,6 @@ export default function EntrenamientosPage() {
 
   // Entrenamientos compartidos
   const [sharedSessions, setSharedSessions] = useState([])
-  const [sharedProfiles, setSharedProfiles] = useState({}) // created_by → full_name
   const [sharedLoading, setSharedLoading] = useState(false)
   const [sharingId, setSharingId] = useState(null) // sesión que se está compartiendo/descompartiendo
 
@@ -84,18 +83,7 @@ export default function EntrenamientosPage() {
       .in('team_id', teamIds)
       .order('date', { ascending: false })
 
-    const list = data || []
-    setSharedSessions(list)
-
-    // Cargamos nombres de los creadores
-    const creatorIds = [...new Set(list.map(s => s.created_by).filter(Boolean))]
-    if (creatorIds.length > 0) {
-      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', creatorIds)
-      const map = {}
-      for (const p of (profs || [])) map[p.id] = p.full_name || 'Entrenador'
-      setSharedProfiles(map)
-    }
-
+    setSharedSessions(data || [])
     setSharedLoading(false)
   }
 
@@ -286,11 +274,11 @@ export default function EntrenamientosPage() {
           <div style={{ borderRadius: 18, marginBottom: 20, background: detailSession.completed ? 'linear-gradient(135deg,#475569,#64748b)' : 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)', boxShadow: detailSession.completed ? '0 4px 20px rgba(71,85,105,0.20)' : '0 4px 20px rgba(28,92,42,0.25)', padding: '22px 24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
-                {/* Si es de otro entrenador, mostrar de quién es */}
+                {/* Si es de otro equipo, mostrar de cuál es */}
                 {isReadOnly && (
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,0.18)', borderRadius: 6, padding: '3px 8px', marginBottom: 8 }}>
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
-                      📤 Compartido por {sharedProfiles[detailSession.created_by] || 'Entrenador'} · {detailSession.teams?.name || ''}
+                      📤 Compartido por el equipo {detailSession.teams?.name || '—'}
                     </span>
                   </div>
                 )}
@@ -372,7 +360,7 @@ export default function EntrenamientosPage() {
               <span style={{ fontSize: 18 }}>👁️</span>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>Entrenamiento de solo lectura</div>
-                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 2 }}>Puedes ver los ejercicios diseñados por {sharedProfiles[detailSession.created_by] || 'otro entrenador'}, pero no editarlos.</div>
+                <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 2 }}>Puedes ver los ejercicios diseñados por el equipo {detailSession.teams?.name || 'otro equipo'}, pero no editarlos.</div>
               </div>
               <button onClick={handleDuplicateClick} disabled={duplicating} style={{
                 padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
@@ -557,9 +545,7 @@ export default function EntrenamientosPage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {sharedSessions.map(session => {
-                    const authorName = sharedProfiles[session.created_by] || 'Entrenador'
-                    const teamName   = session.teams?.name || ''
-                    const isOwn      = session.created_by === user?.id
+                    const teamName = session.teams?.name || 'Equipo'
                     return (
                       <div key={session.id} onClick={() => openDetail(session)} style={{
                         backgroundColor: '#fff', borderRadius: 14, padding: '16px 18px',
@@ -587,14 +573,8 @@ export default function EntrenamientosPage() {
                             <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{session.title}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                               {/* Badge equipo */}
-                              {teamName && (
-                                <span style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 5 }}>
-                                  🏀 {teamName}
-                                </span>
-                              )}
-                              {/* Badge autor */}
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '2px 7px', borderRadius: 5 }}>
-                                {isOwn ? '👤 Tú' : `👤 ${authorName}`}
+                              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#5b21b6', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '2px 8px', borderRadius: 5 }}>
+                                🏀 {teamName}
                               </span>
                               {/* Duración */}
                               <span style={{ fontSize: 11, color: '#9ca3af' }}>

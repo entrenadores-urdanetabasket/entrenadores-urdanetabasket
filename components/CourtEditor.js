@@ -972,7 +972,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1513,6 +1513,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           {tabBtn('notes',   '📝 Notas')}
           {tabBtn('output',  '📤 Exportar')}
         </div>
+        {readOnly && readOnlyLabel && (
+          <span style={{background:'#3b1f6b',color:'#c4b5fd',padding:'5px 12px',borderRadius:8,fontSize:12,fontWeight:700,whiteSpace:'nowrap'}}>
+            {readOnlyLabel}
+          </span>
+        )}
         <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Sin título..." readOnly={readOnly}
           style={{flex:1,background:'transparent',border:'none',outline:'none',color:'#fff',fontSize:15,fontWeight:700,textAlign:'center'}} />
         <div style={{display:'flex',background:'#111827',borderRadius:8,padding:3,gap:1}}>

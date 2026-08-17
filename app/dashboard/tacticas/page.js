@@ -22,7 +22,6 @@ export default function TacticasPage() {
 
   // Tácticas compartidas
   const [sharedTactics, setSharedTactics]   = useState([])
-  const [sharedProfiles, setSharedProfiles] = useState({}) // created_by → full_name
   const [sharedLoading, setSharedLoading]   = useState(false)
   const [sharingId, setSharingId]           = useState(null)
   const [viewingShared, setViewingShared]   = useState(null) // táctica ajena, solo lectura
@@ -69,16 +68,7 @@ export default function TacticasPage() {
       .in('team_id', teamIds)
       .order('created_at', { ascending: false })
 
-    const list = data || []
-    setSharedTactics(list)
-
-    const creatorIds = [...new Set(list.map(t => t.created_by).filter(Boolean))]
-    if (creatorIds.length > 0) {
-      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', creatorIds)
-      const map = {}
-      for (const p of (profs || [])) map[p.id] = p.full_name || 'Entrenador'
-      setSharedProfiles(map)
-    }
+    setSharedTactics(data || [])
     setSharedLoading(false)
   }
 
@@ -174,6 +164,7 @@ export default function TacticasPage() {
             onClose={() => setViewingShared(null)}
             onDuplicate={handleDuplicateClick}
             duplicating={duplicating}
+            readOnlyLabel={`🏀 ${viewingShared.teams?.name || 'Equipo'}`}
           />
         </div>
         {showTeamPicker && (
@@ -269,9 +260,7 @@ export default function TacticasPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {sharedTactics.map(tac => {
-              const authorName = sharedProfiles[tac.created_by] || 'Entrenador'
-              const teamName   = tac.teams?.name || ''
-              const isOwn      = tac.created_by === user?.id
+              const teamName   = tac.teams?.name || 'Equipo'
               const stepCount  = tac.play_data?.steps?.length || 0
               return (
                 <div key={tac.id} onClick={() => setViewingShared(tac)} style={{
@@ -286,12 +275,7 @@ export default function TacticasPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{tac.title}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                      {teamName && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: '#1C5C2A', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 5 }}>🏀 {teamName}</span>
-                      )}
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#7c3aed', backgroundColor: '#f5f3ff', padding: '2px 7px', borderRadius: 5 }}>
-                        {isOwn ? '👤 Tú' : `👤 ${authorName}`}
-                      </span>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#5b21b6', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '2px 8px', borderRadius: 5 }}>🏀 {teamName}</span>
                       <span style={{ fontSize: 11, color: '#9ca3af' }}>{stepCount} {stepCount === 1 ? 'fase' : 'fases'}</span>
                     </div>
                   </div>

@@ -1575,7 +1575,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         </div>
 
         {/* ── CENTER: CANVAS ── */}
-        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:tab==='3d'?'stretch':'center',justifyContent:tab==='3d'?'flex-start':'center',background:'#0f172a',padding:tab==='3d'?0:12,gap:10,overflow:'hidden',minHeight:0}}>
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:tab==='3d'?'stretch':'center',justifyContent:tab==='3d'?'flex-start':'center',background:'#0f172a',padding:tab==='3d'?0:12,gap:10,overflowY:tab==='3d'?'hidden':'auto',overflowX:'hidden',minHeight:0}}>
 
           {/* 3D VIEW */}
           {tab==='3d' && (
@@ -1647,7 +1647,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
             ref={canvasRef}
             width={CW} height={CH}
             style={{
-              maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
+              maxWidth:'100%', maxHeight: tab==='animate' ? 'calc(100vh - 290px)' : 'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
               cursor: (hoverEP||draggingEP) ? 'move'

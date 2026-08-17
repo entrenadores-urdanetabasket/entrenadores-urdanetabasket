@@ -1469,7 +1469,9 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
      RENDER
   ══════════════════════════════════════════════════ */
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100vh',background:'#111827',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',overflow:'hidden'}}>
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',background:'#111827',fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',overflow:'hidden',
+      paddingLeft:'env(safe-area-inset-left)', paddingRight:'env(safe-area-inset-right)',
+      paddingTop:'env(safe-area-inset-top)', paddingBottom:'env(safe-area-inset-bottom)'}}>
 
       <style>{`
         @keyframes ceRotateHint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-90deg)}}
@@ -1500,7 +1502,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       </div>
 
       {/* ── TOP BAR ── */}
-      <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',background:'#1f2937',borderBottom:'1px solid #374151',flexShrink:0}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 14px',background:'#1f2937',borderBottom:'1px solid #374151',flexShrink:0,overflowX:'auto'}}>
         {onClose && (
           <button onClick={onClose} style={{background:'#374151',border:'none',borderRadius:8,color:'#e5e7eb',padding:'7px 12px',fontSize:13,fontWeight:600,cursor:'pointer'}}>
             ✕ Cerrar

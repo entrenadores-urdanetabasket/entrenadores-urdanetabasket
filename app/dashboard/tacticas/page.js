@@ -26,6 +26,8 @@ export default function TacticasPage() {
   const [sharedLoading, setSharedLoading]   = useState(false)
   const [sharingId, setSharingId]           = useState(null)
   const [viewingShared, setViewingShared]   = useState(null) // táctica ajena, solo lectura
+  const [duplicating, setDuplicating]       = useState(false)
+  const [showTeamPicker, setShowTeamPicker] = useState(false)
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
 
@@ -103,6 +105,32 @@ export default function TacticasPage() {
     setTactics(t => t.filter(x => x.id !== id))
   }
 
+  function handleDuplicateClick() {
+    if (!viewingShared) return
+    if (teams.length === 1) duplicateTacticTo(teams[0].id)
+    else setShowTeamPicker(true)
+  }
+
+  async function duplicateTacticTo(teamId) {
+    if (!viewingShared) return
+    setDuplicating(true)
+    const payload = {
+      team_id: teamId,
+      title: viewingShared.title,
+      description: viewingShared.description || '',
+      play_data: viewingShared.play_data,
+      created_by: user.id,
+      shared: false,
+    }
+    await supabase.from('tactics').insert(payload)
+    setDuplicating(false)
+    setShowTeamPicker(false)
+    setViewingShared(null)
+    setTab('mias')
+    setSelectedTeam(teamId)
+    await loadTactics(teamId)
+  }
+
   async function handleToggleShared(tactic, e) {
     e?.stopPropagation()
     const newShared = !tactic.shared
@@ -144,8 +172,28 @@ export default function TacticasPage() {
               steps: viewingShared.play_data?.steps || [],
             }}
             onClose={() => setViewingShared(null)}
+            onDuplicate={handleDuplicateClick}
+            duplicating={duplicating}
           />
         </div>
+        {showTeamPicker && (
+          <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+            onClick={e => { if (e.target === e.currentTarget) setShowTeamPicker(false) }}>
+            <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 360, boxShadow: '0 24px 70px rgba(0,0,0,0.3)' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: '0 0 4px' }}>¿A qué equipo la duplico?</h3>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 16px' }}>Se creará una copia propia que podrás editar sin afectar a la original.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {teams.map(t => (
+                  <button key={t.id} onClick={() => duplicateTacticTo(t.id)} disabled={duplicating} style={{
+                    padding: '11px 14px', borderRadius: 10, border: '1.5px solid #ede9fe', background: '#f5f3ff',
+                    color: '#5b21b6', fontWeight: 700, fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                  }}>{t.name}</button>
+                ))}
+              </div>
+              <button onClick={() => setShowTeamPicker(false)} style={{ marginTop: 14, width: '100%', padding: 10, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
+            </div>
+          </div>
+        )}
       </ModalPortal>
     )
   }

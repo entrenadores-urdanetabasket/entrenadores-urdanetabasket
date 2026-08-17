@@ -972,7 +972,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1523,6 +1523,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         {!readOnly && (
           <button onClick={handleSave} style={{background:'#16a34a',border:'none',borderRadius:8,color:'#fff',padding:'8px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
             💾 Guardar
+          </button>
+        )}
+        {readOnly && onDuplicate && (
+          <button onClick={onDuplicate} disabled={duplicating} style={{background:'#7c3aed',border:'none',borderRadius:8,color:'#fff',padding:'8px 20px',fontSize:13,fontWeight:700,cursor:'pointer',opacity:duplicating?0.6:1}}>
+            {duplicating ? '⏳ Duplicando...' : '📋 Duplicar a mi equipo'}
           </button>
         )}
       </div>

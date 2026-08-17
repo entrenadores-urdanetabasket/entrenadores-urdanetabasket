@@ -39,6 +39,10 @@ export default function EntrenamientosPage() {
   const [sharedLoading, setSharedLoading] = useState(false)
   const [sharingId, setSharingId] = useState(null) // sesión que se está compartiendo/descompartiendo
 
+  // Duplicar entrenamiento compartido
+  const [duplicating, setDuplicating] = useState(false)
+  const [showTeamPicker, setShowTeamPicker] = useState(false)
+
   useEffect(() => {
     if (!user || !profile) return
     if (!isDirector && !activeTeam) return
@@ -166,6 +170,48 @@ export default function EntrenamientosPage() {
   async function handleDeleteExercise(id) {
     await supabase.from('training_exercises').delete().eq('id', id)
     await loadExercises(detailSession.id)
+  }
+
+  function handleDuplicateClick() {
+    if (!detailSession) return
+    if (teams.length === 1) duplicateSessionTo(teams[0].id)
+    else setShowTeamPicker(true)
+  }
+
+  async function duplicateSessionTo(teamId) {
+    if (!detailSession) return
+    setDuplicating(true)
+    const { data: newSession, error } = await supabase.from('training_sessions').insert({
+      team_id: teamId,
+      title: detailSession.title,
+      date: new Date().toISOString().split('T')[0],
+      start_time: detailSession.start_time,
+      duration_minutes: detailSession.duration_minutes,
+      objectives: detailSession.objectives,
+      notes: detailSession.notes,
+      created_by: user.id,
+      completed: false,
+      shared: false,
+    }).select().single()
+
+    if (!error && newSession && exercises.length > 0) {
+      const exPayload = exercises.map(ex => ({
+        session_id: newSession.id,
+        title: ex.title,
+        duration_minutes: ex.duration_minutes,
+        description: ex.description,
+        order_index: ex.order_index,
+        play_data: ex.play_data,
+      }))
+      await supabase.from('training_exercises').insert(exPayload)
+    }
+
+    setDuplicating(false)
+    setShowTeamPicker(false)
+    const targetTeam = teams.find(t => t.id === teamId)
+    setDetailSession(null)
+    setTab('proximos')
+    if (targetTeam) await loadSessions(targetTeam)
   }
 
   async function handleSaveExercisePlay({ title, description, steps }) {
@@ -322,12 +368,19 @@ export default function EntrenamientosPage() {
 
           {/* Aviso si es solo lectura */}
           {isReadOnly && (
-            <div style={{ backgroundColor: '#f5f3ff', borderRadius: 12, padding: '12px 16px', border: '1px solid #ddd6fe', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ backgroundColor: '#f5f3ff', borderRadius: 12, padding: '12px 16px', border: '1px solid #ddd6fe', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 18 }}>👁️</span>
-              <div>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>Entrenamiento de solo lectura</div>
                 <div style={{ fontSize: 12, color: '#7c3aed', marginTop: 2 }}>Puedes ver los ejercicios diseñados por {sharedProfiles[detailSession.created_by] || 'otro entrenador'}, pero no editarlos.</div>
               </div>
+              <button onClick={handleDuplicateClick} disabled={duplicating} style={{
+                padding: '9px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff', flexShrink: 0,
+                opacity: duplicating ? 0.6 : 1,
+              }}>
+                {duplicating ? '⏳ Duplicando...' : '📋 Duplicar a mi equipo'}
+              </button>
             </div>
           )}
 
@@ -673,6 +726,28 @@ export default function EntrenamientosPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      {/* Modal elegir equipo para duplicar */}
+      {showTeamPicker && (
+        <ModalPortal>
+        <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={e => { if (e.target === e.currentTarget) setShowTeamPicker(false) }}>
+          <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 360, boxShadow: '0 24px 70px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: '0 0 4px' }}>¿A qué equipo lo duplico?</h3>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 16px' }}>Se creará una copia propia (con sus ejercicios) que podrás editar sin afectar a la original.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {teams.map(t => (
+                <button key={t.id} onClick={() => duplicateSessionTo(t.id)} disabled={duplicating} style={{
+                  padding: '11px 14px', borderRadius: 10, border: '1.5px solid #ede9fe', background: '#f5f3ff',
+                  color: '#5b21b6', fontWeight: 700, fontSize: 13, cursor: 'pointer', textAlign: 'left',
+                }}>{t.name}</button>
+              ))}
+            </div>
+            <button onClick={() => setShowTeamPicker(false)} style={{ marginTop: 14, width: '100%', padding: 10, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
           </div>
         </div>
         </ModalPortal>

@@ -1647,7 +1647,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
             ref={canvasRef}
             width={CW} height={CH}
             style={{
-              maxWidth:'100%', maxHeight: tab==='animate' ? 'calc(100vh - 290px)' : 'calc(100vh - 200px)',
+              maxWidth:'100%', maxHeight:'calc(100vh - 200px)',
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
               cursor: (hoverEP||draggingEP) ? 'move'

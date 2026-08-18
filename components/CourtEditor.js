@@ -972,7 +972,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1512,7 +1512,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           {tabBtn('draw',    '✏️ Dibujar')}
           {tabBtn('animate', '▶ Animar')}
           {tabBtn('3d',      '🎬 3D')}
-          {tabBtn('notes',   '📝 Notas')}
+          {!notesPanel && tabBtn('notes', '📝 Notas')}
           {tabBtn('output',  '📤 Exportar')}
         </div>
         {readOnly && readOnlyLabel && (
@@ -1814,6 +1814,17 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── RIGHT: NOTAS PERSISTENTES (solo cuando notesPanel, visible en Dibujar y Animar) ── */}
+        {notesPanel && (tab==='draw' || tab==='animate') && (
+          <div style={{width:250,background:'#1f2937',borderLeft:'1px solid #374151',padding:'14px 12px',overflowY:'auto',flexShrink:0,display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{color:'#9ca3af',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>📝 Explicación del concepto</div>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} readOnly={readOnly}
+              placeholder="Describe el concepto: cuándo usarlo, claves, variantes..."
+              style={{flex:1,minHeight:300,width:'100%',background:'#111827',border:'1px solid #374151',borderRadius:10,color:'#e5e7eb',fontSize:13,padding:'12px',resize:'vertical',outline:'none',fontFamily:'inherit',lineHeight:1.6,boxSizing:'border-box'}}
+            />
           </div>
         )}
       </div>

@@ -75,6 +75,7 @@ export default function ConceptosPage() {
             initialData={initData}
             onSave={handleSave}
             onClose={() => { setOpenEditor(false); setEditingConcept(null) }}
+            notesPanel
           />
         </div>
       </ModalPortal>
@@ -96,6 +97,7 @@ export default function ConceptosPage() {
             }}
             onClose={() => setViewingConcept(null)}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}
+            notesPanel
           />
         </div>
       </ModalPortal>

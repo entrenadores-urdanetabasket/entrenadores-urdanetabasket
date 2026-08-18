@@ -17,7 +17,7 @@ function fileIcon(type = '') {
 }
 
 function isPreviewable(type = '') {
-  return type.includes('pdf') || type.includes('image')
+  return type.includes('image')
 }
 
 function fmtSize(bytes) {
@@ -156,14 +156,37 @@ export default function DocumentosPage() {
   }
 
   async function handleView(doc) {
-    setViewingDoc(doc)
-    setViewUrl(null)
-    setViewError('')
+    const isPdf = (doc.file_type || '').includes('pdf')
+
+    // Los PDF se abren en una pestaña nueva con el visor nativo del navegador:
+    // Safari en iPhone no renderiza PDFs embebidos en un iframe dentro de
+    // nuestro modal (solo se ve la cabecera), así que en vez de intentar
+    // mostrarlo dentro de la app le dejamos usar su propio visor a pantalla
+    // completa. La pestaña se abre ANTES del fetch (gesto de usuario) para
+    // que Safari no la bloquee como popup.
+    const newTab = isPdf ? window.open('', '_blank') : null
+
+    if (!isPdf) {
+      setViewingDoc(doc)
+      setViewUrl(null)
+      setViewError('')
+    }
     setViewLoading(true)
     const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 3600)
     setViewLoading(false)
-    if (error || !data?.signedUrl) { setViewError('No se pudo abrir el documento.'); return }
-    setViewUrl(data.signedUrl)
+
+    if (error || !data?.signedUrl) {
+      if (newTab) newTab.close()
+      else setViewError('No se pudo abrir el documento.')
+      return
+    }
+
+    if (isPdf) {
+      if (newTab) newTab.location.href = data.signedUrl
+      else window.open(data.signedUrl, '_blank')
+    } else {
+      setViewUrl(data.signedUrl)
+    }
   }
 
   function closeView() {
@@ -374,9 +397,6 @@ export default function DocumentosPage() {
             <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: viewUrl && viewingDoc.file_type?.includes('image') ? 20 : 0 }}>
               {viewLoading && <div style={{ color: '#9ca3af', fontSize: 14 }}>⏳ Cargando documento...</div>}
               {!viewLoading && viewError && <div style={{ color: '#fca5a5', fontSize: 14 }}>{viewError}</div>}
-              {!viewLoading && !viewError && viewUrl && viewingDoc.file_type?.includes('pdf') && (
-                <iframe src={viewUrl} title={viewingDoc.title} style={{ width: '100%', height: '100%', border: 'none' }} />
-              )}
               {!viewLoading && !viewError && viewUrl && viewingDoc.file_type?.includes('image') && (
                 <img src={viewUrl} alt={viewingDoc.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
               )}

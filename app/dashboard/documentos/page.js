@@ -95,11 +95,12 @@ export default function DocumentosPage() {
     const path = `${selectedTeam.id}/${crypto.randomUUID()}-${file.name}`
     const { error: upErr } = await supabase.storage.from('documents').upload(path, file)
     if (upErr) {
-      setUploadError('No se pudo subir el archivo. Inténtalo de nuevo.')
+      console.error('Error subiendo a Storage:', upErr)
+      setUploadError(`No se pudo subir el archivo: ${upErr.message || upErr.error || 'error desconocido'}`)
       setUploading(false)
       return
     }
-    await supabase.from('documents').insert({
+    const { error: insErr } = await supabase.from('documents').insert({
       team_id: selectedTeam.id,
       uploaded_by: user.id,
       title: file.name,
@@ -108,6 +109,10 @@ export default function DocumentosPage() {
       file_size: file.size,
       file_type: file.type,
     })
+    if (insErr) {
+      console.error('Error insertando en la tabla documents:', insErr)
+      setUploadError(`Se subió el archivo pero no se pudo registrar: ${insErr.message}`)
+    }
     setUploading(false)
     await loadDocuments(selectedTeam)
   }

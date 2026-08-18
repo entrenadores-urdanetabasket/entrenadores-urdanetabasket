@@ -505,7 +505,7 @@ function BSSection({ title, color, rows, showPM }) {
             <tr>
               <th style={{ ...th, textAlign:'left', paddingLeft:8, minWidth:80 }}>Jugador</th>
               <th style={{ ...th, minWidth:38 }}>MIN</th>
-              {['PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
+              {['PTS','2P','3P','TC','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
               {showPM && <th style={{ ...th, minWidth:34 }}>+/-</th>}
               <th style={{ ...th, minWidth:34 }}>RACHA</th>
             </tr>
@@ -515,6 +515,8 @@ function BSSection({ title, color, rows, showPM }) {
               const s = r.s||{}
               const pir = computePIR(s)
               const ts = computeTS(s)
+              const fgm = (s.fg2m||0)+(s.fg3m||0), fga = (s.fg2a||0)+(s.fg3a||0)
+              const fgPct = fga>0 ? Math.round(fgm/fga*100) : null
               return (
                 <tr key={i}>
                   <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:600 }}>
@@ -524,6 +526,10 @@ function BSSection({ title, color, rows, showPM }) {
                   <td style={{ ...td, fontWeight:800, color:(s.pts||0)>0?'#f0f0f0':'#374151' }}>{s.pts||0}</td>
                   <td style={td}>{s.fg2m||0}/{s.fg2a||0}</td>
                   <td style={td}>{s.fg3m||0}/{s.fg3a||0}</td>
+                  <td style={{ ...td, fontWeight:700 }}>
+                    {fgm}/{fga}
+                    <div style={{ fontSize:9, color:'#6b7280', fontWeight:400 }}>{fgPct!==null ? `${fgPct}%` : '—'}</div>
+                  </td>
                   <td style={td}>{s.ftm||0}/{s.fta||0}</td>
                   <td style={td}>{s.reb||0}</td>
                   <td style={td}>{s.ast||0}</td>
@@ -551,6 +557,12 @@ function BSSection({ title, color, rows, showPM }) {
                 <td style={{ ...td, fontWeight:800, color:'#f0f0f0' }}>{tot.pts}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg2m}/{tot.fg2a}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg3m}/{tot.fg3a}</td>
+                <td style={{ ...td, fontWeight:700 }}>
+                  {tot.fg2m+tot.fg3m}/{tot.fg2a+tot.fg3a}
+                  <div style={{ fontSize:9, color:'#9ca3af', fontWeight:400 }}>
+                    {(tot.fg2a+tot.fg3a)>0 ? `${Math.round((tot.fg2m+tot.fg3m)/(tot.fg2a+tot.fg3a)*100)}%` : '—'}
+                  </div>
+                </td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ftm}/{tot.fta}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.reb}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ast}</td>
@@ -576,7 +588,7 @@ function PrintBS({ rows }) {
     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
       <thead>
         <tr style={{ backgroundColor:'#f3f4f6' }}>
-          {['#','Jugador','PTS','TC','3P','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(h => (
+          {['#','Jugador','PTS','2P','3P','TC','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(h => (
             <th key={h} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:h==='Jugador'?'left':'center' }}>{h}</th>
           ))}
         </tr>
@@ -584,11 +596,13 @@ function PrintBS({ rows }) {
       <tbody>
         {rows.map((r, i) => {
           const s = r.s||{}
+          const fgm = (s.fg2m||0)+(s.fg3m||0), fga = (s.fg2a||0)+(s.fg3a||0)
+          const fgPct = fga>0 ? Math.round(fgm/fga*100) : null
           return (
             <tr key={i}>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{r.num}</td>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb' }}>{r.name}</td>
-              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
+              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${fgm}/${fga}${fgPct!==null?` (${fgPct}%)`:''}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
                 <td key={j} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{v}</td>
               ))}
             </tr>

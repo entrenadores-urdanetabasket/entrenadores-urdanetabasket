@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/components/AuthProvider'
+import ModalPortal from '@/components/ModalPortal'
 
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
 
@@ -13,6 +14,10 @@ function fileIcon(type = '') {
   if (type.includes('presentation') || type.includes('powerpoint')) return '📽️'
   if (type.includes('zip') || type.includes('compressed')) return '🗜️'
   return '📁'
+}
+
+function isPreviewable(type = '') {
+  return type.includes('pdf') || type.includes('image')
 }
 
 function fmtSize(bytes) {
@@ -39,6 +44,11 @@ export default function DocumentosPage() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [downloadingId, setDownloadingId] = useState(null)
+
+  const [viewingDoc, setViewingDoc] = useState(null)
+  const [viewUrl, setViewUrl] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewError, setViewError] = useState('')
 
   useEffect(() => {
     if (!user || !profile) return
@@ -143,6 +153,23 @@ export default function DocumentosPage() {
     a.href = url; a.download = doc.file_name || doc.title
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  async function handleView(doc) {
+    setViewingDoc(doc)
+    setViewUrl(null)
+    setViewError('')
+    setViewLoading(true)
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 3600)
+    setViewLoading(false)
+    if (error || !data?.signedUrl) { setViewError('No se pudo abrir el documento.'); return }
+    setViewUrl(data.signedUrl)
+  }
+
+  function closeView() {
+    setViewingDoc(null)
+    setViewUrl(null)
+    setViewError('')
   }
 
   const tabStyle = (t) => ({
@@ -256,12 +283,20 @@ export default function DocumentosPage() {
                     {doc.file_size && <span style={{ fontSize: 11, color: '#9ca3af' }}>{fmtSize(doc.file_size)}</span>}
                   </div>
                 </div>
-                <button onClick={() => handleDownload(doc)} disabled={downloadingId === doc.id} style={{
-                  padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                  background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff', flexShrink: 0,
-                }}>
-                  {downloadingId === doc.id ? '⏳' : '⬇ Descargar'}
-                </button>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => handleView(doc)} style={{
+                    padding: '8px 14px', borderRadius: 10, border: '1.5px solid #ddd6fe', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    background: '#f5f3ff', color: '#7c3aed',
+                  }}>
+                    👁 Ver
+                  </button>
+                  <button onClick={() => handleDownload(doc)} disabled={downloadingId === doc.id} style={{
+                    padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                    background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#fff',
+                  }}>
+                    {downloadingId === doc.id ? '⏳' : '⬇ Descargar'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -291,6 +326,9 @@ export default function DocumentosPage() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => handleView(doc)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#f5f3ff', color: '#7c3aed', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                    👁
+                  </button>
                   <button onClick={() => handleDownload(doc)} disabled={downloadingId === doc.id} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#eff6ff', color: '#2563eb', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
                     {downloadingId === doc.id ? '⏳' : '⬇'}
                   </button>
@@ -313,6 +351,44 @@ export default function DocumentosPage() {
             ))}
           </div>
         </>
+      )}
+
+      {viewingDoc && (
+        <ModalPortal>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, backgroundColor: 'rgba(15,23,42,0.85)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px',
+              backgroundColor: '#1f2937', borderBottom: '1px solid #374151', flexShrink: 0,
+              paddingTop: 'calc(12px + env(safe-area-inset-top))',
+            }}>
+              <button onClick={closeView} style={{ background: '#374151', border: 'none', borderRadius: 8, color: '#e5e7eb', padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                ✕ Cerrar
+              </button>
+              <div style={{ flex: 1, color: '#fff', fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {fileIcon(viewingDoc.file_type)} {viewingDoc.title}
+              </div>
+              <button onClick={() => handleDownload(viewingDoc)} disabled={downloadingId === viewingDoc.id} style={{ background: '#16a34a', border: 'none', borderRadius: 8, color: '#fff', padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {downloadingId === viewingDoc.id ? '⏳' : '⬇ Descargar'}
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: viewUrl && viewingDoc.file_type?.includes('image') ? 20 : 0 }}>
+              {viewLoading && <div style={{ color: '#9ca3af', fontSize: 14 }}>⏳ Cargando documento...</div>}
+              {!viewLoading && viewError && <div style={{ color: '#fca5a5', fontSize: 14 }}>{viewError}</div>}
+              {!viewLoading && !viewError && viewUrl && viewingDoc.file_type?.includes('pdf') && (
+                <iframe src={viewUrl} title={viewingDoc.title} style={{ width: '100%', height: '100%', border: 'none' }} />
+              )}
+              {!viewLoading && !viewError && viewUrl && viewingDoc.file_type?.includes('image') && (
+                <img src={viewUrl} alt={viewingDoc.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+              )}
+              {!viewLoading && !viewError && viewUrl && !isPreviewable(viewingDoc.file_type) && (
+                <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: 14, maxWidth: 320, padding: 24 }}>
+                  <div style={{ fontSize: 44, marginBottom: 14 }}>{fileIcon(viewingDoc.file_type)}</div>
+                  Vista previa no disponible para este tipo de archivo. Descárgalo para verlo.
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   )

@@ -13,6 +13,8 @@ const coachItems = [
   { href: '/dashboard/tacticas',      label: 'Tácticas',       emoji: '🏀' },
   { href: '/dashboard/convocatorias', label: 'Convocatorias',  emoji: '📋' },
   { href: '/dashboard/entrenamientos',label: 'Entrenamientos', emoji: '📝' },
+  { href: '/dashboard/documentos',    label: 'Documentos',     emoji: '📁' },
+  { href: '/dashboard/conceptos',     label: 'Conceptos',      emoji: '📖' },
   { href: '/dashboard/incidencias',   label: 'Incidencias',    emoji: '⚠️' },
 ]
 
@@ -24,6 +26,8 @@ const directorItems = [
   { href: '/dashboard/tacticas',      label: 'Tácticas',       emoji: '🏀' },
   { href: '/dashboard/convocatorias', label: 'Convocatorias',  emoji: '📋' },
   { href: '/dashboard/entrenamientos',label: 'Entrenamientos', emoji: '📝' },
+  { href: '/dashboard/documentos',    label: 'Documentos',     emoji: '📁' },
+  { href: '/dashboard/conceptos',     label: 'Conceptos',      emoji: '📖' },
   { href: '/dashboard/incidencias',   label: 'Incidencias',    emoji: '⚠️' },
   { href: '/dashboard/director',      label: 'Panel Director', emoji: '🛡️' },
 ]

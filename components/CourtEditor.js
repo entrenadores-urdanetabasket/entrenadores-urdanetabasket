@@ -511,8 +511,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   /* ─────────── ANIMATION MODE ─────────── */
   const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx, H, courtType)
 
-  // Targets for this step (only MOVE_ARROW_TYPES)
+  // Targets for this step (only MOVE_ARROW_TYPES). Un mismo jugador puede
+  // tener VARIAS flechas encadenadas en la misma acción (p.ej. el receptor
+  // mete a su defensor en el bloqueo y luego sale a otro sitio, o el
+  // bloqueador hace roll justo después de poner el bloqueo). En ese caso
+  // targets[pid] guarda la cadena completa de tramos en orden, para que la
+  // animación recorra cada flecha en vez de saltar directamente al destino
+  // de la última.
   const targets = {}
+  const chainTip = {} // pid → punto actual del extremo de su cadena mientras se construye
   for (const el of elems) {
     if (!MOVE_ARROW_TYPES.includes(el.type)) continue
     if ((el.step ?? 0) !== animStepIdx) continue
@@ -521,19 +528,32 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       let bestD = PR * 3, bestId = null
       for (const pe of elems) {
         if (!PLAYER_TYPES.includes(pe.type)) continue
-        const bp = basePos[pe.id]; if (!bp) continue
+        const bp = chainTip[pe.id] || basePos[pe.id]; if (!bp) continue
         const d = Math.hypot(bp.x - el.x1, bp.y - el.y1)
         if (d < bestD) { bestD = d; bestId = pe.id }
       }
       pid = bestId
     }
     if (pid) {
-      const startX = basePos[pid]?.x ?? el.x1
-      const startY = basePos[pid]?.y ?? el.y1
-      targets[pid] = isCurved(startX, startY, el.x2, el.y2, el.cx, el.cy)
+      const tip    = chainTip[pid] || basePos[pid]
+      const startX = tip?.x ?? el.x1
+      const startY = tip?.y ?? el.y1
+      const seg = isCurved(startX, startY, el.x2, el.y2, el.cx, el.cy)
         ? { x: el.x2, y: el.y2, x1: startX, y1: startY, cx: el.cx, cy: el.cy }
-        : { x: el.x2, y: el.y2 }
+        : { x: el.x2, y: el.y2, x1: startX, y1: startY }
+      if (!targets[pid]) targets[pid] = []
+      targets[pid].push(seg)
+      chainTip[pid] = { x: el.x2, y: el.y2 }
     }
+  }
+
+  // Posición final de la cadena de un jugador (o su target simple), usada
+  // por lógica que solo necesita saber dónde ACABA el movimiento
+  function finalTargetPos(pid) {
+    const tgt = targets[pid]
+    if (!tgt) return basePos[pid]
+    if (Array.isArray(tgt)) { const last = tgt[tgt.length - 1]; return { x: last.x, y: last.y } }
+    return { x: tgt.x, y: tgt.y }
   }
 
   // Handoff targets: both players swap positions
@@ -582,10 +602,8 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     if (!att || !basePos[att.id]) continue
     const attMoved = !!targets[att.id]
     if (!attMoved && !hasBallTransfer) continue   // nothing relevant happened
-    const attEndPos  = targets[att.id] || basePos[att.id]
-    const ballEndPos = baseCarrierId
-      ? (targets[baseCarrierId] || basePos[baseCarrierId])
-      : null
+    const attEndPos  = finalTargetPos(att.id)
+    const ballEndPos = baseCarrierId ? finalTargetPos(baseCarrierId) : null
     const ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
     targets[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
   }
@@ -593,12 +611,34 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   const et = easeInOut(stepT)
 
   // Posición interpolada de un elemento en el instante t, respetando la
-  // curva de su flecha si la tiene (en vez de una línea recta al target)
+  // curva de su flecha si la tiene (en vez de una línea recta al target).
+  // Si el target es una CADENA de flechas (varios tramos del mismo jugador
+  // en la misma acción), reparte t entre los tramos según su longitud, para
+  // que el jugador recorra cada flecha en orden en vez de saltar al final.
   function posAt(id, t) {
     const base = basePos[id]
     if (!base) return null
     const tgt = targets[id]
     if (!tgt || t <= 0) return { x: base.x, y: base.y }
+
+    if (Array.isArray(tgt)) {
+      const lens = tgt.map(seg => seg.cx !== undefined
+        ? bezierLen(seg.x1, seg.y1, seg.cx, seg.cy, seg.x, seg.y)
+        : Math.hypot(seg.x - seg.x1, seg.y - seg.y1))
+      const totalLen = lens.reduce((a, b) => a + b, 0) || 1
+      let acc = 0
+      for (let i = 0; i < tgt.length; i++) {
+        const segFrac = lens[i] / totalLen
+        if (t <= acc + segFrac || i === tgt.length - 1) {
+          const localT = segFrac > 0 ? Math.min(1, (t - acc) / segFrac) : 1
+          const seg = tgt[i]
+          if (seg.cx !== undefined) return bezierPt(localT, seg.x1, seg.y1, seg.cx, seg.cy, seg.x, seg.y)
+          return { x: seg.x1 + (seg.x - seg.x1) * localT, y: seg.y1 + (seg.y - seg.y1) * localT }
+        }
+        acc += segFrac
+      }
+    }
+
     if (tgt.cx !== undefined) return bezierPt(t, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
     return { x: base.x + (tgt.x - base.x) * t, y: base.y + (tgt.y - base.y) * t }
   }
@@ -661,18 +701,13 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
           el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === baseCarrierId
         )
         if (passEl && cBase) {
-          const cTgt = targets[baseCarrierId]
-          const cX = cTgt ? cBase.x + (cTgt.x - cBase.x) * et : cBase.x
-          const cY = cTgt ? cBase.y + (cTgt.y - cBase.y) * et : cBase.y
-          ballAnimX = cX + (passEl.x2 - cX) * et
-          ballAnimY = cY + (passEl.y2 - cY) * et
+          const carrierNow = targets[baseCarrierId] ? posAt(baseCarrierId, et) : cBase
+          ballAnimX = carrierNow.x + (passEl.x2 - carrierNow.x) * et
+          ballAnimY = carrierNow.y + (passEl.y2 - carrierNow.y) * et
           let bestDist = PR + 30, bestId = null
           for (const el of elems) {
             if (!PLAYER_TYPES.includes(el.type) || el.id === baseCarrierId) continue
-            const ep = basePos[el.id] || { x: el.x, y: el.y }
-            const et2 = targets[el.id]
-            const fx = et2 ? ep.x + (et2.x - ep.x) : ep.x
-            const fy = et2 ? ep.y + (et2.y - ep.y) : ep.y
+            const { x: fx, y: fy } = finalTargetPos(el.id)
             const d = Math.hypot(fx - passEl.x2, fy - passEl.y2)
             if (d < bestDist) { bestDist = d; bestId = el.id }
           }

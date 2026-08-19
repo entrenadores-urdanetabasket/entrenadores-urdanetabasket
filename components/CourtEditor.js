@@ -977,6 +977,8 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
   const animRunningRef = useRef(false)
+  const elapsedRef      = useRef(0)   // ms transcurridos en la animación actual
+  const pausedElapsedRef = useRef(0)  // punto (ms) desde el que reanudar al pulsar play
   const phasesRef      = useRef(null)
   const courtTypeRef   = useRef('half')
   const selIdRef       = useRef(null)
@@ -998,6 +1000,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const [title,      setTitle]       = useState(initialData?.title||'')
   const [notes,      setNotes]       = useState(initialData?.description||'')
   const [animating,  setAnimating]   = useState(false)
+  const [paused,     setPaused]      = useState(false)  // animación parada a mitad, lista para continuar
   const [animPh,     setAnimPh]      = useState(0)      // display-only indicator
   const [recording,  setRecording]   = useState(false)
   const [offNum,     setOffNum]      = useState(1)
@@ -1260,10 +1263,14 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   function clearPhase() { setPhases(p=>p.map((ph,i)=>i!==cur?ph:{...ph,elements:[]})); setSelId(null) }
 
   /* ── Animation ───────────────────────────────────── */
+  // stopAnimate: parada COMPLETA — resetea el progreso (fin natural de la secuencia)
   function stopAnimate() {
-    if (animLoopRef.current) cancelAnimationFrame(animLoopRef.current)
+    if (animLoopRef.current) { cancelAnimationFrame(animLoopRef.current); clearTimeout(animLoopRef.current) }
     animRunningRef.current = false
     setAnimating(false)
+    setPaused(false)
+    elapsedRef.current = 0
+    pausedElapsedRef.current = 0
     // Re-render editor view
     setTimeout(() => {
       const canvas = canvasRef.current; if (!canvas) return
@@ -1273,12 +1280,22 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     }, 0)
   }
 
+  // pauseAnimate: para el bucle pero deja el fotograma actual congelado en pantalla,
+  // guardando el punto exacto (ms) para que el siguiente play continúe desde ahí
+  function pauseAnimate() {
+    if (animLoopRef.current) cancelAnimationFrame(animLoopRef.current)
+    animRunningRef.current = false
+    setAnimating(false)
+    setPaused(true)
+    pausedElapsedRef.current = elapsedRef.current
+  }
+
   function startAnimate() {
-    if (animRunningRef.current) { stopAnimate(); return }
+    if (animRunningRef.current) { pauseAnimate(); return }
 
     animRunningRef.current = true
     setAnimating(true)
-    setAnimPh(0)
+    setPaused(false)
 
     const phases   = phasesRef.current
     const nPhases  = phases.length
@@ -1292,11 +1309,13 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     for (let i = 0; i < nPhases; i++) phaseStarts.push(phaseStarts[i] + phaseMeta[i].phaseDur)
     const totalDur = phaseStarts[nPhases]
 
-    const startTs = performance.now()
+    // Reanuda desde donde se pausó (0 si es un play desde el principio)
+    const startTs = performance.now() - pausedElapsedRef.current
 
     function frame(ts) {
       if (!animRunningRef.current) return
       const elapsed = ts - startTs
+      elapsedRef.current = elapsed
 
       if (elapsed >= totalDur) {
         const canvas = canvasRef.current
@@ -1681,11 +1700,13 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
                   color:'#fff',padding:'12px 32px',fontSize:15,fontWeight:700,cursor:'pointer',
                   boxShadow:animating?'none':'0 4px 20px rgba(59,130,246,0.4)',
                 }}>
-                  {animating ? '⏹ Parar' : '▶ Animar jugada completa'}
+                  {animating ? '⏸ Pausar' : paused ? '▶ Continuar' : '▶ Animar jugada completa'}
                 </button>
               </div>
               {animating
                 ? <span style={{color:'#9ca3af',fontSize:13}}>Fase {animPh+1} / {phases.length} — Los jugadores se están moviendo…</span>
+                : paused
+                ? <span style={{color:'#f59e0b',fontSize:13}}>⏸ Pausado en fase {animPh+1} / {phases.length}</span>
                 : <span style={{color:'#6b7280',fontSize:12}}>
                     {phases.length} fase{phases.length!==1?'s':''} ·{' '}
                     {phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements),0)} acción{phases.reduce((acc,ph)=>acc+getNumSteps(ph.elements),0)!==1?'es':''} ·{' '}

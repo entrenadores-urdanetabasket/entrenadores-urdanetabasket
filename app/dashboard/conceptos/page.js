@@ -76,6 +76,7 @@ export default function ConceptosPage() {
             onSave={handleSave}
             onClose={() => { setOpenEditor(false); setEditingConcept(null) }}
             notesPanel
+            visionCones={(editingConcept ? editingConcept.category : tab) === 'defensivo'}
           />
         </div>
       </ModalPortal>
@@ -98,6 +99,7 @@ export default function ConceptosPage() {
             onClose={() => setViewingConcept(null)}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}
             notesPanel
+            visionCones={viewingConcept.category === 'defensivo'}
           />
         </div>
       </ModalPortal>

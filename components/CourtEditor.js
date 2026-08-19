@@ -342,7 +342,29 @@ function drawBallBadge(ctx, cx, cy) {
   ctx.beginPath(); ctx.arc(bx,by,br*0.6,Math.PI,Math.PI*2); ctx.stroke()
 }
 
-function drawEl(ctx, el, selected) {
+/* Campo de visión de un defensor: cono orientable a mano (guía, no un
+   objeto de juego). Se dibuja ANTES del jugador para que quede debajo. */
+const VISION_CONE_R          = 130
+const VISION_CONE_HALF_ANGLE = Math.PI / 4        // 45° a cada lado = 90° total
+const VISION_DEFAULT_ANGLE   = Math.PI / 2         // por defecto mirando hacia abajo
+
+function drawVisionCone(ctx, x, y, angle) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(x, y)
+  ctx.arc(x, y, VISION_CONE_R, angle - VISION_CONE_HALF_ANGLE, angle + VISION_CONE_HALF_ANGLE)
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(56,189,248,0.14)'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(56,189,248,0.55)'
+  ctx.lineWidth = 1.3
+  ctx.setLineDash([4,4])
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.restore()
+}
+
+function drawEl(ctx, el, selected, showVisionCone) {
   ctx.save()
   if (selected) { ctx.shadowColor='#3b82f6'; ctx.shadowBlur=16 }
   const { type } = el
@@ -359,6 +381,7 @@ function drawEl(ctx, el, selected) {
   }
 
   if (type === 'defense') {
+    if (showVisionCone) drawVisionCone(ctx, el.x, el.y, el.face ?? VISION_DEFAULT_ANGLE)
     ctx.fillStyle='#fff'; ctx.strokeStyle='#111827'; ctx.lineWidth=2.5
     ctx.beginPath(); ctx.arc(el.x,el.y,PR,0,Math.PI*2); ctx.fill(); ctx.stroke()
     ctx.fillStyle='#111827'
@@ -370,6 +393,7 @@ function drawEl(ctx, el, selected) {
   }
 
   if (type === 'xdefense') {
+    if (showVisionCone) drawVisionCone(ctx, el.x, el.y, el.face ?? VISION_DEFAULT_ANGLE)
     const r = PR-4
     ctx.strokeStyle='#111827'; ctx.lineWidth=3; ctx.lineCap='round'
     ctx.beginPath()
@@ -436,7 +460,7 @@ function drawEl(ctx, el, selected) {
      Base positions come from accumulateSteps(elems, animStepIdx)
 ══════════════════════════════════════════════════ */
 function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
-                          isEditing = false, selId = null, activeDrawStep = 0) {
+                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false) {
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
@@ -476,7 +500,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       let drawData = p ? { ...el, x: p.x, y: p.y } : el
       if (PLAYER_TYPES.includes(el.type))
         drawData = { ...drawData, hasBall: el.id === baseCarrierId }
-      drawEl(ctx, drawData, el.id === selId)
+      drawEl(ctx, drawData, el.id === selId, showVisionCone)
     }
 
     // CP handles (all arrows, so any can be curved at any time)
@@ -747,7 +771,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
         drawData = { ...drawData, hasBall: el.id === baseCarrierId }
       }
     }
-    drawEl(ctx, drawData, false)
+    drawEl(ctx, drawData, false, showVisionCone)
   }
 
   // Shot ring (expands + fades at basket)
@@ -785,7 +809,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 /* ══════════════════════════════════════════════════
    PHASE THUMBNAIL
 ══════════════════════════════════════════════════ */
-function PhaseThumb({ elements, active, index, onClick, courtType }) {
+function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }) {
   const ref = useRef(null)
   const CH = getCanvasH(courtType)
   const TW = 132, TH = Math.round(132 * CH / CW)
@@ -796,9 +820,9 @@ function PhaseThumb({ elements, active, index, onClick, courtType }) {
     const s = TW / CW
     ctx.clearRect(0,0,TW,TH)
     ctx.save(); ctx.scale(s,s)
-    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0)
+    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones)
     ctx.restore()
-  }, [elements, TW, TH, courtType, CH])
+  }, [elements, TW, TH, courtType, CH, visionCones])
 
   return (
     <div onClick={onClick} style={{ cursor:'pointer', borderRadius:8, overflow:'hidden', border:`2px solid ${active?'#3b82f6':'#374151'}`, position:'relative', flexShrink:0, transition:'border-color 0.15s' }}>
@@ -1007,7 +1031,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false, visionCones = false }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1047,6 +1071,8 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const [hoverCP,    setHoverCP]     = useState(false)
   const [draggingEP, setDraggingEP]  = useState(null)  // { id, which:'start'|'end' }
   const [hoverEP,    setHoverEP]     = useState(false)
+  const [draggingVision, setDraggingVision] = useState(null) // { id } — girando el cono de visión de un defensor
+  const [hoverVision,    setHoverVision]    = useState(false)
   const [drawStep,   setDrawStep]    = useState(0)     // which action-step new arrows go to
   const drawStepRef  = useRef(0)
 
@@ -1068,7 +1094,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, visionCones)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
@@ -1089,7 +1115,25 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         ctx.restore()
       })
     }
-  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep, draggingEP])
+
+    // Vision cone rotation handle (arrastrable, solo en modo edición)
+    if (visionCones && !readOnly) {
+      for (const el of elems) {
+        if (el.type!=='defense' && el.type!=='xdefense') continue
+        const h = visionHandlePos(el)
+        const active = draggingVision?.id === el.id
+        ctx.save()
+        ctx.strokeStyle = 'rgba(56,189,248,0.4)'; ctx.lineWidth = 1
+        ctx.setLineDash([3,3])
+        ctx.beginPath(); ctx.moveTo(el.x, el.y); ctx.lineTo(h.x, h.y); ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = active ? '#0ea5e9' : '#38bdf8'
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5
+        ctx.beginPath(); ctx.arc(h.x, h.y, 7, 0, Math.PI*2); ctx.fill(); ctx.stroke()
+        ctx.restore()
+      }
+    }
+  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep, draggingEP, draggingVision, visionCones, readOnly])
 
   useEffect(() => { render() }, [render])
 
@@ -1132,6 +1176,19 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     }
     return null
   }
+  function visionHandlePos(el) {
+    const a = el.face ?? VISION_DEFAULT_ANGLE
+    return { x: el.x + Math.cos(a) * VISION_CONE_R, y: el.y + Math.sin(a) * VISION_CONE_R }
+  }
+  function findVisionHandleHit(x, y) {
+    if (!visionCones) return null
+    for (const el of [...(phases[cur]?.elements||[])].reverse()) {
+      if (el.type!=='defense' && el.type!=='xdefense') continue
+      const h = visionHandlePos(el)
+      if (Math.hypot(x-h.x, y-h.y) < 10) return { id: el.id }
+    }
+    return null
+  }
   function undoLastArrow() {
     setPhases(prev => prev.map((ph, i) => {
       if (i !== cur) return ph
@@ -1164,9 +1221,12 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     if (animating || tab!=='draw') return
     const p = pos(e)
 
-    // ── EP and CP handles always take priority ──
+    // ── EP, CP and vision handles always take priority ──
     const epHit = findArrowEPHit(p.x, p.y)
     if (epHit) { setDraggingEP(epHit); setSelId(null); return }
+
+    const visHit = findVisionHandleHit(p.x, p.y)
+    if (visHit) { setDraggingVision(visHit); setSelId(null); return }
 
     const cpHit = findArrowCPHit(p.x, p.y)
     if (cpHit) {
@@ -1218,6 +1278,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       else                              updEl(draggingEP.id, { x2:p.x, y2:p.y })
       return
     }
+    if (draggingVision) {
+      const el = els.find(e => e.id === draggingVision.id)
+      if (el) updEl(draggingVision.id, { face: Math.atan2(p.y - el.y, p.x - el.x) })
+      return
+    }
     if (draggingCP) { updEl(draggingCP.id, { cx:p.x-draggingCP.ox, cy:p.y-draggingCP.oy }); return }
     if (dragging)   { updEl(dragging.id, {x:p.x-dragging.ox, y:p.y-dragging.oy}); return }
     if (aSt) { setACur(p); return }
@@ -1226,6 +1291,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     setHoverEP(hasEP)
     if (!hasEP) setHoverCP(!!findArrowCPHit(p.x, p.y))
     else setHoverCP(false)
+    setHoverVision(!hasEP && !!findVisionHandleHit(p.x, p.y))
   }
   function onUp(e) {
     if (animating) return
@@ -1238,6 +1304,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       }
       setDraggingEP(null); return
     }
+    if (draggingVision) { setDraggingVision(null); return }
     if (draggingCP) { setDraggingCP(null); return }
     if (dragging)   { setDragging(null); return }
     if (aSt) {
@@ -1311,7 +1378,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, visionCones)
     }, 0)
   }
 
@@ -1359,7 +1426,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           const W = CW, H = getCanvasH(courtTypeRef.current)
           const lastPh   = phasesRef.current[nPhases - 1]
           const lastStep = phaseMeta[nPhases - 1].numSteps - 1
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0)
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, visionCones)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
@@ -1383,7 +1450,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, visionCones)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -1439,7 +1506,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, visionCones)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1601,7 +1668,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType}
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={visionCones}
               onClick={()=>{ if(!animating){setCur(i);setSelId(null)} }} />
           ))}
 
@@ -1705,6 +1772,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
               objectFit:'contain', borderRadius:12,
               boxShadow:'0 8px 40px rgba(0,0,0,0.5)',
               cursor: (hoverEP||draggingEP) ? 'move'
+                : (hoverVision||draggingVision) ? 'grab'
                 : (hoverCP||draggingCP) ? 'grab'
                 : tool==='select'  ? 'default'
                 : tool==='erase'   ? 'cell'

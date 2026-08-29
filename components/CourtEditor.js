@@ -631,7 +631,16 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     const attEndPos  = finalTargetPos(att.id)
     const ballEndPos = baseCarrierId ? finalTargetPos(baseCarrierId) : null
     const ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
-    targets[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
+    const tx = clampX(ideal.x), ty = clampY(ideal.y)
+
+    // No atravesar a otros jugadores en el camino (bloqueos, cortes, manos a
+    // manos): si la línea recta pasa demasiado cerca de alguien, la rodeamos
+    const obstacles = elems
+      .filter(e => PLAYER_TYPES.includes(e.type) && e.id !== el.id && basePos[e.id])
+      .map(e => basePos[e.id])
+    const detour = detourAroundObstacles(base.x, base.y, tx, ty, obstacles)
+
+    targets[el.id] = { x: tx, y: ty, x1: base.x, y1: base.y, auto: true, ...(detour || {}) }
   }
 
   const et = easeInOut(stepT)
@@ -663,6 +672,17 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
         }
         acc += segFrac
       }
+    }
+
+    // Defensor en seguimiento automático: retraso de reacción + arranque
+    // lento, para que no llegue exactamente a la vez que el atacante — y,
+    // si hay un jugador en medio del camino, la curva ya lo rodea (cx/cy
+    // calculados al crear el target en detourAroundObstacles)
+    if (tgt.auto) {
+      const dt = Math.max(0, (t - DEF_REACT_DELAY) / (1 - DEF_REACT_DELAY))
+      const dtEased = dt * dt
+      if (tgt.cx !== undefined) return bezierPt(dtEased, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
+      return { x: tgt.x1 + (tgt.x - tgt.x1) * dtEased, y: tgt.y1 + (tgt.y - tgt.y1) * dtEased }
     }
 
     if (tgt.cx !== undefined) return bezierPt(t, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
@@ -927,6 +947,41 @@ function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
     x: primX + (helpX - primX) * sag,
     y: primY + (helpY - primY) * sag,
   }
+}
+
+// Retraso de reacción de un defensor en seguimiento automático: no arranca
+// a moverse en el mismo instante que el atacante, y arranca despacio — así
+// no llega a la vez que él y se puede apreciar la ventaja ofensiva.
+const DEF_REACT_DELAY = 0.18
+
+/*
+ * detourAroundObstacles — si el camino recto de un defensor (auto-follow)
+ * pasa demasiado cerca de otro jugador (bloqueo, corte, mano a mano), calcula
+ * un punto de control para que la animación lo rodee en vez de atravesarlo,
+ * eligiendo el lado con menor desvío (camino más corto que sigue siendo
+ * realista). Devuelve null si el camino recto ya está despejado.
+ */
+function detourAroundObstacles(x1, y1, x2, y2, obstacles) {
+  const dx = x2 - x1, dy = y2 - y1
+  const len = Math.hypot(dx, dy)
+  if (len < 1) return null
+  const ux = dx / len, uy = dy / len
+  const CLEAR = PR * 2.2
+  let bestPush = 0, bestSide = 0
+  for (const ob of obstacles) {
+    const t = ((ob.x - x1) * ux + (ob.y - y1) * uy) / len
+    if (t < 0.1 || t > 0.9) continue   // muy cerca del origen o del destino: no cuenta
+    const px = x1 + ux * len * t, py = y1 + uy * len * t
+    const dist = Math.hypot(ob.x - px, ob.y - py)
+    if (dist >= CLEAR) continue
+    const side = (ob.x - x1) * (-uy) + (ob.y - y1) * ux >= 0 ? 1 : -1
+    const push = (CLEAR - dist) + 12
+    if (push > bestPush) { bestPush = push; bestSide = -side }
+  }
+  if (bestPush === 0) return null
+  const midX = x1 + dx * 0.5, midY = y1 + dy * 0.5
+  const nx = -uy, ny = ux
+  return { cx: midX + nx * bestPush * bestSide, cy: midY + ny * bestPush * bestSide }
 }
 
 /*

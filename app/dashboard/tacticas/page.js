@@ -143,6 +143,7 @@ export default function TacticasPage() {
             initialData={initData}
             onSave={handleSave}
             onClose={() => { setOpenEditor(false); setEditingTactic(null) }}
+            visionCones
           />
         </div>
       </ModalPortal>
@@ -165,6 +166,7 @@ export default function TacticasPage() {
             onDuplicate={handleDuplicateClick}
             duplicating={duplicating}
             readOnlyLabel={`🏀 ${viewingShared.teams?.name || 'Equipo'}`}
+            visionCones
           />
         </div>
         {showTeamPicker && (

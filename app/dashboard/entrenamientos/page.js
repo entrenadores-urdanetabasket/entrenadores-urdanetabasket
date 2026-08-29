@@ -245,6 +245,7 @@ export default function EntrenamientosPage() {
             initialData={initData}
             onSave={handleSaveExercisePlay}
             onClose={() => setEditorExercise(null)}
+            visionCones
           />
         </div>
       </ModalPortal>

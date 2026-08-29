@@ -466,7 +466,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
   /* ─────────── EDIT MODE ─────────── */
   if (isEditing) {
-    const { playerPos, carrierId: baseCarrierId } = accumulateSteps(elems, activeDrawStep, H, courtType)
+    const { playerPos, carrierId: baseCarrierId, playerFace } = accumulateSteps(elems, activeDrawStep, H, courtType)
 
     // Draw arrows — current step at full opacity, others dimmed
     for (const el of elems) {
@@ -500,6 +500,8 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       let drawData = p ? { ...el, x: p.x, y: p.y } : el
       if (PLAYER_TYPES.includes(el.type))
         drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+      if ((el.type === 'defense' || el.type === 'xdefense') && el.face === undefined && playerFace[el.id] != null)
+        drawData = { ...drawData, face: playerFace[el.id] }
       drawEl(ctx, drawData, el.id === selId, showVisionCone)
     }
 
@@ -667,6 +669,12 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     return { x: base.x + (tgt.x - base.x) * t, y: base.y + (tgt.y - base.y) * t }
   }
 
+  // Posición actual (en este instante de la animación) de cualquier elemento
+  function curPos(id) {
+    const b = basePos[id]; if (!b) return null
+    return (targets[id] && stepT > 0) ? posAt(id, et) : b
+  }
+
   // Ball animation for this step (pass / handoff swap / shot arc)
   let ballAnimX = null, ballAnimY = null, ballReceiverId = null, ballAnimR = 8, isShotAnim = false
   const flyingCarrierId = baseCarrierId
@@ -769,6 +777,17 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
         else                                drawData = { ...drawData, hasBall: false }
       } else {
         drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+      }
+    }
+    // Cono de visión sugerido: sigue al balón y al hombre en tiempo real
+    // durante la animación, salvo que el defensor tenga `face` fijado a mano
+    if ((el.type === 'defense' || el.type === 'xdefense') && el.face === undefined) {
+      const att = elems.find(e => e.type === 'offense' && e.num === el.num)
+      if (att) {
+        const attPos  = curPos(att.id)
+        const ballPos = ballAnimX !== null ? { x: ballAnimX, y: ballAnimY } : (baseCarrierId ? curPos(baseCarrierId) : null)
+        const f = attPos && smartFacing({ x: drawData.x, y: drawData.y }, attPos, ballPos)
+        if (f != null) drawData = { ...drawData, face: f }
       }
     }
     drawEl(ctx, drawData, false, showVisionCone)
@@ -911,6 +930,27 @@ function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
 }
 
 /*
+ * smartFacing — hacia dónde debería mirar un defensor según el concepto
+ * "ver balón y hombre" (lado fuerte / lado débil):
+ *   • Sobre el balón     → mira directo a su hombre (que lo lleva)
+ *   • Lado fuerte/ayuda  → mezcla progresivamente la mirada hacia el balón
+ *                          cuanto más lejos está de él (mismo tramo que el
+ *                          sag de computeSmartDefPos, para que posición y
+ *                          mirada evolucionen juntas)
+ * Solo se usa quando el propio elemento no tiene `face` fijado a mano.
+ */
+function smartFacing(defPos, attPos, ballPos) {
+  if (!attPos) return null
+  if (!ballPos) return Math.atan2(attPos.y - defPos.y, attPos.x - defPos.x)
+  const distBall = Math.hypot(ballPos.x - attPos.x, ballPos.y - attPos.y)
+  if (distBall < 55) return Math.atan2(attPos.y - defPos.y, attPos.x - defPos.x)
+  const sag  = Math.min(0.75, (distBall - 55) / 305)
+  const aimX = attPos.x + (ballPos.x - attPos.x) * sag
+  const aimY = attPos.y + (ballPos.y - attPos.y) * sag
+  return Math.atan2(aimY - defPos.y, aimX - defPos.x)
+}
+
+/*
  * accumulateSteps(elems, throughStep)
  * Returns { playerPos: {id→{x,y}}, carrierId }
  * representing the state of the court AFTER steps 0 … throughStep-1 have played out.
@@ -1024,7 +1064,21 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
     }
   }
 
-  return { playerPos, carrierId }
+  // Campo de visión sugerido para defensores sin orientación manual (`face`),
+  // según su hombre y el balón en el estado final acumulado — independiente
+  // del disparador de "algo se movió" que usa la posición, así el cono
+  // siempre refleja el balón actual en la vista estática del editor.
+  const playerFace = {}
+  for (const el of elems) {
+    if ((el.type !== 'defense' && el.type !== 'xdefense') || el.face !== undefined) continue
+    const att = elems.find(e => e.type === 'offense' && e.num === el.num)
+    const defPos = playerPos[el.id]
+    if (!att || !playerPos[att.id] || !defPos) continue
+    const ballPos = carrierId ? playerPos[carrierId] : null
+    playerFace[el.id] = smartFacing(defPos, playerPos[att.id], ballPos)
+  }
+
+  return { playerPos, carrierId, playerFace }
 }
 
 /* ══════════════════════════════════════════════════

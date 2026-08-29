@@ -621,6 +621,12 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   const hasBallTransfer = elems.some(e =>
     (e.type === 'pass' || e.type === 'handoff') && (e.step ?? 0) === animStepIdx
   )
+  // Jugadores que ponen un bloqueo en esta acción — para detectar el
+  // "roce" al pasar cerca de ellos
+  const screenerIds = new Set(
+    elems.filter(e => e.type === 'screen' && (e.step ?? 0) === animStepIdx).map(e => e.fromId).filter(Boolean)
+  )
+
   for (const el of elems) {
     if (!['defense','xdefense'].includes(el.type) || !el.num || targets[el.id]) continue
     const base = basePos[el.id]; if (!base) continue
@@ -637,10 +643,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     // manos): si la línea recta pasa demasiado cerca de alguien, la rodeamos
     const obstacles = elems
       .filter(e => PLAYER_TYPES.includes(e.type) && e.id !== el.id && basePos[e.id])
-      .map(e => basePos[e.id])
+      .map(e => ({ ...basePos[e.id], isScreener: screenerIds.has(e.id) }))
     const detour = detourAroundObstacles(base.x, base.y, tx, ty, obstacles)
 
-    targets[el.id] = { x: tx, y: ty, x1: base.x, y1: base.y, auto: true, ...(detour || {}) }
+    // Cierre urgente: su hombre tiene (o va a tener) el balón y hay que
+    // recorrer una distancia notable — sprint + frenada, no un paseo
+    const moveDist = Math.hypot(tx - base.x, ty - base.y)
+    const closeout = ideal.mode === 'tight' && moveDist > 60
+
+    targets[el.id] = { x: tx, y: ty, x1: base.x, y1: base.y, auto: true, closeout, ...(detour || {}) }
   }
 
   const et = easeInOut(stepT)
@@ -674,13 +685,16 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       }
     }
 
-    // Defensor en seguimiento automático: retraso de reacción + arranque
-    // lento, para que no llegue exactamente a la vez que el atacante — y,
-    // si hay un jugador en medio del camino, la curva ya lo rodea (cx/cy
-    // calculados al crear el target en detourAroundObstacles)
+    // Defensor en seguimiento automático: retraso de reacción, y luego un
+    // ritmo distinto según la situación — cierre urgente sobre un tirador
+    // (sprint + frenada), reajuste de ayuda normal (arranque progresivo), o
+    // un enganchón extra si tiene que pasar rozando a un bloqueador. Si hay
+    // un jugador en medio del camino, la curva ya lo rodea (cx/cy calculados
+    // al crear el target en detourAroundObstacles)
     if (tgt.auto) {
-      const dt = Math.max(0, (t - DEF_REACT_DELAY) / (1 - DEF_REACT_DELAY))
-      const dtEased = dt * dt
+      let dt = Math.max(0, (t - DEF_REACT_DELAY) / (1 - DEF_REACT_DELAY))
+      if (tgt.screenContact) dt = hitchRemap(dt)
+      const dtEased = tgt.closeout ? closeoutEase(dt) : dt * dt
       if (tgt.cx !== undefined) return bezierPt(dtEased, tgt.x1, tgt.y1, tgt.cx, tgt.cy, tgt.x, tgt.y)
       return { x: tgt.x1 + (tgt.x - tgt.x1) * dtEased, y: tgt.y1 + (tgt.y - tgt.y1) * dtEased }
     }
@@ -928,12 +942,12 @@ function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
   const primX = attPos.x + (dxB / distB) * OFFSET
   const primY = attPos.y + (dyB / distB) * OFFSET
 
-  if (!ballPos) return { x: primX, y: primY }
+  if (!ballPos) return { x: primX, y: primY, mode: 'tight' }
 
   const distBall = Math.hypot(ballPos.x - attPos.x, ballPos.y - attPos.y)
 
   // On-ball (≤ 55 px) → tight defense, no sag
-  if (distBall < 55) return { x: primX, y: primY }
+  if (distBall < 55) return { x: primX, y: primY, mode: 'tight' }
 
   // Off-ball sag: drift toward paint, proportional to distance from ball
   // max sag of 60% at ~305 px away
@@ -946,6 +960,7 @@ function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
   return {
     x: primX + (helpX - primX) * sag,
     y: primY + (helpY - primY) * sag,
+    mode: 'help',
   }
 }
 
@@ -953,6 +968,26 @@ function computeSmartDefPos(attPos, ballPos, courtType, courtH) {
 // a moverse en el mismo instante que el atacante, y arranca despacio — así
 // no llega a la vez que él y se puede apreciar la ventaja ofensiva.
 const DEF_REACT_DELAY = 0.18
+
+// Cierre (closeout): a diferencia de un reajuste de ayuda normal (arranque
+// lento y constante), cerrar sobre un tirador es urgente — la mayoría del
+// camino se recorre a toda velocidad y solo se frena de golpe al final,
+// como el "chop step" real para no pasarse de largo del atacante.
+function closeoutEase(dt) {
+  const SPRINT_T = 0.62, SPRINT_D = 0.8
+  if (dt < SPRINT_T) return (dt / SPRINT_T) * SPRINT_D
+  const u = (dt - SPRINT_T) / (1 - SPRINT_T)
+  return SPRINT_D + (1 - Math.pow(1 - u, 3)) * (1 - SPRINT_D)
+}
+
+// Pequeño "enganchón" al pasar rozando a un bloqueador: el avance casi se
+// detiene un instante a mitad de camino, simulando el roce físico de pelear
+// para pasar la pantalla, antes de recuperar el ritmo.
+function hitchRemap(u) {
+  if (u < 0.35) return u * (0.42 / 0.35)
+  if (u < 0.55) return 0.42 + (u - 0.35) * (0.08 / 0.20)
+  return 0.5 + (u - 0.55) * (0.5 / 0.45)
+}
 
 /*
  * detourAroundObstacles — si el camino recto de un defensor (auto-follow)
@@ -967,7 +1002,7 @@ function detourAroundObstacles(x1, y1, x2, y2, obstacles) {
   if (len < 1) return null
   const ux = dx / len, uy = dy / len
   const CLEAR = PR * 2.2
-  let bestPush = 0, bestSide = 0
+  let bestPush = 0, bestSide = 0, bestScreener = false
   for (const ob of obstacles) {
     const t = ((ob.x - x1) * ux + (ob.y - y1) * uy) / len
     if (t < 0.1 || t > 0.9) continue   // muy cerca del origen o del destino: no cuenta
@@ -976,12 +1011,16 @@ function detourAroundObstacles(x1, y1, x2, y2, obstacles) {
     if (dist >= CLEAR) continue
     const side = (ob.x - x1) * (-uy) + (ob.y - y1) * ux >= 0 ? 1 : -1
     const push = (CLEAR - dist) + 12
-    if (push > bestPush) { bestPush = push; bestSide = -side }
+    if (push > bestPush) { bestPush = push; bestSide = -side; bestScreener = !!ob.isScreener }
   }
   if (bestPush === 0) return null
   const midX = x1 + dx * 0.5, midY = y1 + dy * 0.5
   const nx = -uy, ny = ux
-  return { cx: midX + nx * bestPush * bestSide, cy: midY + ny * bestPush * bestSide }
+  return {
+    cx: midX + nx * bestPush * bestSide,
+    cy: midY + ny * bestPush * bestSide,
+    screenContact: bestScreener,
+  }
 }
 
 /*

@@ -1221,6 +1221,8 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const [hoverEP,    setHoverEP]     = useState(false)
   const [draggingVision, setDraggingVision] = useState(null) // { id } — girando el cono de visión de un defensor
   const [hoverVision,    setHoverVision]    = useState(false)
+  const [conesVisible,   setConesVisible]   = useState(true) // mostrar/ocultar el campo de visión (tecla V)
+  const showCones = visionCones && conesVisible
   const [drawStep,   setDrawStep]    = useState(0)     // which action-step new arrows go to
   const drawStepRef  = useRef(0)
 
@@ -1242,7 +1244,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, visionCones)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
@@ -1265,7 +1267,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     }
 
     // Vision cone rotation handle (arrastrable, solo en modo edición)
-    if (visionCones && !readOnly) {
+    if (showCones && !readOnly) {
       for (const el of elems) {
         if (el.type!=='defense' && el.type!=='xdefense') continue
         const h = visionHandlePos(el)
@@ -1281,7 +1283,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         ctx.restore()
       }
     }
-  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep, draggingEP, draggingVision, visionCones, readOnly])
+  }, [phases, cur, selId, aSt, aCur, tool, isArrowTool, courtType, CH, drawStep, draggingEP, draggingVision, showCones, readOnly])
 
   useEffect(() => { render() }, [render])
 
@@ -1329,7 +1331,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     return { x: el.x + Math.cos(a) * VISION_CONE_R, y: el.y + Math.sin(a) * VISION_CONE_R }
   }
   function findVisionHandleHit(x, y) {
-    if (!visionCones) return null
+    if (!showCones) return null
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
       if (el.type!=='defense' && el.type!=='xdefense') continue
       const h = visionHandlePos(el)
@@ -1526,7 +1528,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, visionCones)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
     }, 0)
   }
 
@@ -1574,7 +1576,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           const W = CW, H = getCanvasH(courtTypeRef.current)
           const lastPh   = phasesRef.current[nPhases - 1]
           const lastStep = phaseMeta[nPhases - 1].numSteps - 1
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, visionCones)
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
@@ -1598,7 +1600,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, visionCones)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -1654,7 +1656,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, visionCones)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1673,10 +1675,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       if (['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) return
       if ((e.key==='Delete'||e.key==='Backspace') && selId) { delEl(selId); setSelId(null) }
       if ((e.ctrlKey||e.metaKey) && e.key==='z') { e.preventDefault(); undoLastArrow() }
+      if (e.key.toLowerCase()==='v' && visionCones) setConesVisible(v => !v)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selId, cur])
+  }, [selId, cur, visionCones])
 
   /* ── Selected element ─────────────────────────────── */
   const selEl = els.find(e => e.id === selId)
@@ -1796,6 +1799,17 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
             <button key={ct} onClick={()=>setCourtType(ct)} style={{padding:'6px 12px',borderRadius:6,border:'none',cursor:'pointer',fontWeight:600,fontSize:12,background:courtType===ct?'#fff':'transparent',color:courtType===ct?'#111827':'#9ca3af',transition:'all 0.15s'}}>{label}</button>
           ))}
         </div>
+        {visionCones && (
+          <button onClick={()=>setConesVisible(v=>!v)} title="Mostrar/ocultar campo de visión (tecla V)" style={{
+            background: conesVisible ? 'rgba(56,189,248,0.18)' : '#374151',
+            border: `1.5px solid ${conesVisible ? '#38bdf8' : '#4b5563'}`,
+            borderRadius:8, color: conesVisible ? '#7dd3fc' : '#9ca3af',
+            padding:'7px 12px', fontSize:12, fontWeight:700, cursor:'pointer',
+            display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap',
+          }}>
+            👁 Visión <span style={{opacity:0.6,fontSize:10,fontWeight:600}}>(V)</span>
+          </button>
+        )}
         {!readOnly && (
           <button onClick={handleSave} style={{background:'#16a34a',border:'none',borderRadius:8,color:'#fff',padding:'8px 20px',fontSize:13,fontWeight:700,cursor:'pointer'}}>
             💾 Guardar
@@ -1816,7 +1830,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={visionCones}
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones}
               onClick={()=>{ if(!animating){setCur(i);setSelId(null)} }} />
           ))}
 

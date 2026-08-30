@@ -469,7 +469,12 @@ export default function EntrenamientosPage() {
 
   async function handleSaveLibItemPlay({ title, description, steps, courtType }) {
     if (!editorLibItem) return
-    await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType } }).eq('id', editorLibItem.id)
+    const { error } = await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType } }).eq('id', editorLibItem.id)
+    if (error) {
+      console.error('Error guardando la pizarra (biblioteca):', error)
+      alert(`No se pudo guardar el diseño: ${error.message}`)
+      return
+    }
     setEditorLibItem(null)
     await loadLibrary()
   }
@@ -556,7 +561,12 @@ export default function EntrenamientosPage() {
 
   async function handleSaveExercisePlay({ title, description, steps, courtType }) {
     if (!editorExercise) return
-    await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType } }).eq('id', editorExercise.id)
+    const { error } = await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType } }).eq('id', editorExercise.id)
+    if (error) {
+      console.error('Error guardando la pizarra:', error)
+      alert(`No se pudo guardar el diseño: ${error.message}`)
+      return
+    }
     setEditorExercise(null)
     await loadExercises(detailSession.id)
   }

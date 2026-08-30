@@ -226,7 +226,9 @@ export default function EntrenamientosPage() {
   const [liveMode, setLiveMode] = useState(false)
   const [liveIdx, setLiveIdx] = useState(0)
   const [liveSeconds, setLiveSeconds] = useState(0)
-  const [liveRunning, setLiveRunning] = useState(true)
+  const [liveRunning, setLiveRunning] = useState(false)
+  const [liveHasStarted, setLiveHasStarted] = useState(false) // para el texto "Empezar" vs "Reanudar"
+  const [liveShowDiagram, setLiveShowDiagram] = useState(false) // ver la pizarra del ejercicio actual
 
   useEffect(() => {
     if (!user || !profile) return
@@ -498,13 +500,18 @@ export default function EntrenamientosPage() {
     if (exercises.length === 0) return
     setLiveIdx(0)
     setLiveSeconds((exercises[0]?.duration_minutes || 10) * 60)
-    setLiveRunning(true)
+    setLiveRunning(false)
+    setLiveHasStarted(false)
+    setLiveShowDiagram(false)
     setLiveMode(true)
   }
   function liveGoTo(idx) {
     if (idx < 0 || idx >= exercises.length) { setLiveMode(false); return }
     setLiveIdx(idx)
     setLiveSeconds((exercises[idx]?.duration_minutes || 10) * 60)
+    setLiveRunning(false)
+    setLiveHasStarted(false)
+    setLiveShowDiagram(false)
   }
 
   function handleDuplicateClick() {
@@ -647,6 +654,12 @@ export default function EntrenamientosPage() {
                 <IntensityBadge intensity={liveEx?.intensity} />
               </div>
               <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 10, maxWidth: 480 }}>{liveEx?.title}</div>
+              {liveEx?.play_data && (
+                <button onClick={() => setLiveShowDiagram(true)} style={{
+                  marginBottom: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 10, color: '#fff', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>🏀 Ver pizarra</button>
+              )}
               <div style={{ fontSize: 56, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: liveSeconds === 0 ? '#f59e0b' : '#fff', margin: '4px 0 10px' }}>
                 {String(Math.floor(liveSeconds / 60)).padStart(2, '0')}:{String(liveSeconds % 60).padStart(2, '0')}
               </div>
@@ -656,11 +669,11 @@ export default function EntrenamientosPage() {
                 {liveEx?.description && <div style={{ marginBottom: 10 }}><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>📋 Desarrollo</span><p style={{ fontSize: 13.5, opacity: 0.85, margin: '2px 0 0', lineHeight: 1.5 }}>{liveEx.description}</p></div>}
                 {liveEx?.key_points && <div style={{ marginBottom: 10 }}><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>💡 Puntos clave</span><p style={{ fontSize: 13.5, opacity: 0.85, margin: '2px 0 0', lineHeight: 1.5 }}>{liveEx.key_points}</p></div>}
               </div>
-              <button onClick={() => setLiveRunning(r => !r)} style={{
+              <button onClick={() => { setLiveRunning(r => !r); setLiveHasStarted(true) }} style={{
                 marginTop: 26, background: liveRunning ? 'rgba(255,255,255,0.12)' : '#52B043', border: 'none', borderRadius: 12,
                 color: '#fff', padding: '13px 30px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
               }}>
-                {liveRunning ? '⏸ Pausar' : '▶ Reanudar'}
+                {liveRunning ? '⏸ Pausar' : liveHasStarted ? '▶ Reanudar' : '▶ Empezar'}
               </button>
             </div>
             <div style={{ display: 'flex', gap: 10, padding: 20, flexShrink: 0 }}>
@@ -675,6 +688,27 @@ export default function EntrenamientosPage() {
                 {liveIdx === exercises.length - 1 ? 'Terminar ✓' : 'Siguiente →'}
               </button>
             </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {/* Pizarra del ejercicio actual, vista desde el Modo en vivo */}
+      {liveMode && liveShowDiagram && liveEx?.play_data && (
+        <ModalPortal>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 2100 }}>
+            <CourtEditor
+              readOnly
+              initialData={{
+                title: liveEx.play_data.title || liveEx.title,
+                description: liveEx.play_data.description || '',
+                steps: liveEx.play_data.steps || [],
+                courtType: liveEx.play_data.courtType,
+              }}
+              onClose={() => setLiveShowDiagram(false)}
+              visionCones
+              maxPlayers={15}
+              multiBall
+            />
           </div>
         </ModalPortal>
       )}

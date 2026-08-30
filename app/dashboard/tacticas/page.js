@@ -77,10 +77,10 @@ export default function TacticasPage() {
     await loadTactics(id)
   }
 
-  async function handleSave({ title, description, steps }) {
+  async function handleSave({ title, description, steps, courtType }) {
     if (!selectedTeam) return
     setSaving(true)
-    const payload = { team_id: selectedTeam, title: title || 'Jugada sin nombre', description, play_data: { steps }, created_by: user.id }
+    const payload = { team_id: selectedTeam, title: title || 'Jugada sin nombre', description, play_data: { steps, courtType }, created_by: user.id }
     if (editingTactic?.id) await supabase.from('tactics').update(payload).eq('id', editingTactic.id)
     else await supabase.from('tactics').insert(payload)
     setSaving(false)
@@ -134,7 +134,7 @@ export default function TacticasPage() {
   // Editor a pantalla completa: crear/editar táctica propia
   if (openEditor) {
     const initData = editingTactic
-      ? { title: editingTactic.title, description: editingTactic.description || '', steps: editingTactic.play_data?.steps || [] }
+      ? { title: editingTactic.title, description: editingTactic.description || '', steps: editingTactic.play_data?.steps || [], courtType: editingTactic.play_data?.courtType }
       : null
     return (
       <ModalPortal>
@@ -161,6 +161,7 @@ export default function TacticasPage() {
               title: viewingShared.title,
               description: viewingShared.description || '',
               steps: viewingShared.play_data?.steps || [],
+              courtType: viewingShared.play_data?.courtType,
             }}
             onClose={() => setViewingShared(null)}
             onDuplicate={handleDuplicateClick}

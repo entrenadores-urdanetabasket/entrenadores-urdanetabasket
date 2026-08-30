@@ -386,6 +386,7 @@ export default function CoachActivityPage() {
               title: detailTactic.title,
               description: detailTactic.description || '',
               steps: detailTactic.play_data?.steps || [],
+              courtType: detailTactic.play_data?.courtType,
             }}
             onClose={() => setDetailTactic(null)}
           />

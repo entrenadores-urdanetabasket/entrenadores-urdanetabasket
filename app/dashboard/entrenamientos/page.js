@@ -462,9 +462,9 @@ export default function EntrenamientosPage() {
     await loadLibrary()
   }
 
-  async function handleSaveLibItemPlay({ title, description, steps }) {
+  async function handleSaveLibItemPlay({ title, description, steps, courtType }) {
     if (!editorLibItem) return
-    await supabase.from('exercise_library').update({ play_data: { title, description, steps } }).eq('id', editorLibItem.id)
+    await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType } }).eq('id', editorLibItem.id)
     setEditorLibItem(null)
     await loadLibrary()
   }
@@ -544,9 +544,9 @@ export default function EntrenamientosPage() {
     if (targetTeam) await loadSessions(targetTeam)
   }
 
-  async function handleSaveExercisePlay({ title, description, steps }) {
+  async function handleSaveExercisePlay({ title, description, steps, courtType }) {
     if (!editorExercise) return
-    await supabase.from('training_exercises').update({ play_data: { title, description, steps } }).eq('id', editorExercise.id)
+    await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType } }).eq('id', editorExercise.id)
     setEditorExercise(null)
     await loadExercises(detailSession.id)
   }
@@ -574,7 +574,7 @@ export default function EntrenamientosPage() {
   // Full-screen court editor para ejercicio de una sesión
   if (editorExercise) {
     const initData = editorExercise.play_data
-      ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [] }
+      ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [], courtType: editorExercise.play_data.courtType }
       : { title: editorExercise.title, description: '', steps: [] }
     return (
       <ModalPortal>
@@ -596,7 +596,7 @@ export default function EntrenamientosPage() {
   if (editorLibItem) {
     const canEditLib = editorLibItem.created_by === user.id || isDirector
     const initData = editorLibItem.play_data
-      ? { title: editorLibItem.play_data.title || editorLibItem.title, description: editorLibItem.play_data.description || '', steps: editorLibItem.play_data.steps || [] }
+      ? { title: editorLibItem.play_data.title || editorLibItem.title, description: editorLibItem.play_data.description || '', steps: editorLibItem.play_data.steps || [], courtType: editorLibItem.play_data.courtType }
       : { title: editorLibItem.title, description: '', steps: [] }
     return (
       <ModalPortal>

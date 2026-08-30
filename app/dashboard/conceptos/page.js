@@ -33,12 +33,12 @@ export default function ConceptosPage() {
     setLoading(false)
   }
 
-  async function handleSave({ title, description, steps }) {
+  async function handleSave({ title, description, steps, courtType }) {
     const payload = {
       category: editingConcept ? editingConcept.category : tab,
       title: title || 'Concepto sin nombre',
       description,
-      play_data: { steps },
+      play_data: { steps, courtType },
       created_by: user.id,
     }
     if (editingConcept?.id) await supabase.from('concepts').update(payload).eq('id', editingConcept.id)
@@ -66,7 +66,7 @@ export default function ConceptosPage() {
   // Editor a pantalla completa: crear/editar concepto propio
   if (openEditor) {
     const initData = editingConcept
-      ? { title: editingConcept.title, description: editingConcept.description || '', steps: editingConcept.play_data?.steps || [] }
+      ? { title: editingConcept.title, description: editingConcept.description || '', steps: editingConcept.play_data?.steps || [], courtType: editingConcept.play_data?.courtType }
       : null
     return (
       <ModalPortal>
@@ -95,6 +95,7 @@ export default function ConceptosPage() {
               title: viewingConcept.title,
               description: viewingConcept.description || '',
               steps: viewingConcept.play_data?.steps || [],
+              courtType: viewingConcept.play_data?.courtType,
             }}
             onClose={() => setViewingConcept(null)}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}

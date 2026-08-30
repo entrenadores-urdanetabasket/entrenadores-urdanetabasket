@@ -7,6 +7,26 @@ import dynamic from 'next/dynamic'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
+const CATEGORIES = {
+  calentamiento: { label: 'Calentamiento', emoji: '🔥', color: '#f97316' },
+  tecnica:       { label: 'Técnica',       emoji: '🧠', color: '#2563eb' },
+  tactica:       { label: 'Táctica',       emoji: '🏀', color: '#7c3aed' },
+  fisico:        { label: 'Físico',        emoji: '💪', color: '#dc2626' },
+  tiro:          { label: 'Tiro',          emoji: '🏹', color: '#16a34a' },
+}
+
+function CategoryBadge({ category }) {
+  const c = CATEGORIES[category]
+  if (!c) return null
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: c.color, backgroundColor: c.color + '1a', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+      {c.emoji} {c.label}
+    </span>
+  )
+}
+
+const emptyExForm = { title: '', duration_minutes: 10, description: '', category: '' }
+
 export default function EntrenamientosPage() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
@@ -28,7 +48,7 @@ export default function EntrenamientosPage() {
   const [exercises, setExercises] = useState([])
   const [showExForm, setShowExForm] = useState(false)
   const [editingExercise, setEditingExercise] = useState(null)
-  const [exForm, setExForm] = useState({ title: '', duration_minutes: 10, description: '' })
+  const [exForm, setExForm] = useState(emptyExForm)
   const [savingEx, setSavingEx] = useState(false)
 
   // CourtEditor para ejercicio
@@ -43,11 +63,42 @@ export default function EntrenamientosPage() {
   const [duplicating, setDuplicating] = useState(false)
   const [showTeamPicker, setShowTeamPicker] = useState(false)
 
+  // Biblioteca de ejercicios (común a todo el club)
+  const [libItems, setLibItems] = useState([])
+  const [libLoading, setLibLoading] = useState(false)
+  const [libFilter, setLibFilter] = useState('')
+  const [showLibForm, setShowLibForm] = useState(false)
+  const [editingLibItem, setEditingLibItem] = useState(null)
+  const [libForm, setLibForm] = useState(emptyExForm)
+  const [savingLib, setSavingLib] = useState(false)
+  const [editorLibItem, setEditorLibItem] = useState(null)
+  const [showLibPicker, setShowLibPicker] = useState(false)
+
+  // Plantillas de sesión
+  const [templates, setTemplates] = useState([])
+  const [useTemplateId, setUseTemplateId] = useState('')
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [templateTitle, setTemplateTitle] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
+  // Modo entrenamiento en vivo
+  const [liveMode, setLiveMode] = useState(false)
+  const [liveIdx, setLiveIdx] = useState(0)
+  const [liveSeconds, setLiveSeconds] = useState(0)
+  const [liveRunning, setLiveRunning] = useState(true)
+
   useEffect(() => {
     if (!user || !profile) return
+    loadLibrary()
     if (!isDirector && !activeTeam) return
     loadTeams()
   }, [user, profile, activeTeam])
+
+  useEffect(() => {
+    if (!liveMode || !liveRunning) return
+    const t = setInterval(() => setLiveSeconds(s => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(t)
+  }, [liveMode, liveRunning])
 
   async function loadTeams() {
     setLoading(true)
@@ -68,6 +119,12 @@ export default function EntrenamientosPage() {
     const { data } = await supabase.from('training_sessions').select('*').eq('team_id', team.id).order('date', { ascending: false })
     setSessions(data || [])
     setLoading(false)
+    await loadTemplates(team.id)
+  }
+
+  async function loadTemplates(teamId) {
+    const { data } = await supabase.from('session_templates').select('*').eq('team_id', teamId).order('created_at', { ascending: false })
+    setTemplates(data || [])
   }
 
   async function loadSharedSessions() {
@@ -100,24 +157,47 @@ export default function EntrenamientosPage() {
 
   function openNewSession() {
     setEditingSession(null)
+    setUseTemplateId('')
     setForm({ title: '', date: new Date().toISOString().split('T')[0], start_time: '18:00', duration_minutes: 90, objectives: '', notes: '' })
     setShowForm(true)
   }
 
   function openEditSession(session) {
     setEditingSession(session.id)
+    setUseTemplateId('')
     setForm({ title: session.title, date: session.date, start_time: session.start_time || '18:00', duration_minutes: session.duration_minutes || 90, objectives: session.objectives || '', notes: session.notes || '' })
     setShowForm(true)
+  }
+
+  function applyTemplate(id) {
+    setUseTemplateId(id)
+    if (!id) return
+    const t = templates.find(x => x.id === id)
+    if (!t) return
+    setForm(f => ({ ...f, title: t.title, objectives: t.objectives || '', notes: t.notes || '', duration_minutes: t.duration_minutes || 90 }))
   }
 
   async function handleSaveSession(e) {
     e.preventDefault()
     setSaving(true)
     const payload = { ...form, team_id: selectedTeam.id, created_by: user.id }
-    if (editingSession) await supabase.from('training_sessions').update(payload).eq('id', editingSession)
-    else await supabase.from('training_sessions').insert(payload)
+    if (editingSession) {
+      await supabase.from('training_sessions').update(payload).eq('id', editingSession)
+    } else {
+      const { data: newSession } = await supabase.from('training_sessions').insert(payload).select().single()
+      if (useTemplateId && newSession) {
+        const { data: tExs } = await supabase.from('session_template_exercises').select('*').eq('template_id', useTemplateId).order('order_index')
+        if (tExs?.length > 0) {
+          await supabase.from('training_exercises').insert(tExs.map(te => ({
+            session_id: newSession.id, title: te.title, duration_minutes: te.duration_minutes,
+            description: te.description, category: te.category, play_data: te.play_data, order_index: te.order_index,
+          })))
+        }
+      }
+    }
     setSaving(false)
     setShowForm(false)
+    setUseTemplateId('')
     await loadSessions(selectedTeam)
     if (detailSession?.id === editingSession) setDetailSession(s => ({ ...s, ...form }))
   }
@@ -149,29 +229,140 @@ export default function EntrenamientosPage() {
   async function handleSaveExercise(e) {
     e.preventDefault()
     setSavingEx(true)
+    const payload = { title: exForm.title, duration_minutes: exForm.duration_minutes, description: exForm.description, category: exForm.category || null }
     if (editingExercise) {
-      await supabase.from('training_exercises').update({
-        title: exForm.title, duration_minutes: exForm.duration_minutes, description: exForm.description,
-      }).eq('id', editingExercise.id)
+      await supabase.from('training_exercises').update(payload).eq('id', editingExercise.id)
     } else {
-      await supabase.from('training_exercises').insert({ ...exForm, session_id: detailSession.id, order_index: exercises.length })
+      await supabase.from('training_exercises').insert({ ...payload, session_id: detailSession.id, order_index: exercises.length })
     }
     setSavingEx(false)
     setShowExForm(false)
     setEditingExercise(null)
-    setExForm({ title: '', duration_minutes: 10, description: '' })
+    setExForm(emptyExForm)
     await loadExercises(detailSession.id)
   }
 
   function openEditExercise(ex) {
     setEditingExercise(ex)
-    setExForm({ title: ex.title, duration_minutes: ex.duration_minutes || 10, description: ex.description || '' })
+    setExForm({ title: ex.title, duration_minutes: ex.duration_minutes || 10, description: ex.description || '', category: ex.category || '' })
     setShowExForm(true)
   }
 
   async function handleDeleteExercise(id) {
     await supabase.from('training_exercises').delete().eq('id', id)
     await loadExercises(detailSession.id)
+  }
+
+  async function moveExercise(idx, dir) {
+    const otherIdx = idx + dir
+    if (otherIdx < 0 || otherIdx >= exercises.length) return
+    const a = exercises[idx], b = exercises[otherIdx]
+    await supabase.from('training_exercises').update({ order_index: b.order_index }).eq('id', a.id)
+    await supabase.from('training_exercises').update({ order_index: a.order_index }).eq('id', b.id)
+    await loadExercises(detailSession.id)
+  }
+
+  async function saveExerciseToLibrary(ex) {
+    await supabase.from('exercise_library').insert({
+      title: ex.title, duration_minutes: ex.duration_minutes, description: ex.description,
+      category: ex.category, play_data: ex.play_data, created_by: user.id,
+    })
+    alert(`«${ex.title}» guardado en tu biblioteca de ejercicios`)
+  }
+
+  async function addExerciseFromLibrary(item) {
+    await supabase.from('training_exercises').insert({
+      session_id: detailSession.id, title: item.title, duration_minutes: item.duration_minutes,
+      description: item.description, category: item.category, play_data: item.play_data,
+      order_index: exercises.length,
+    })
+    setShowLibPicker(false)
+    await loadExercises(detailSession.id)
+  }
+
+  // ── Biblioteca ─────────────────────────────────────────────────
+  async function loadLibrary() {
+    setLibLoading(true)
+    const { data } = await supabase.from('exercise_library').select('*').order('created_at', { ascending: false })
+    setLibItems(data || [])
+    setLibLoading(false)
+  }
+
+  function openNewLibItem() {
+    setEditingLibItem(null)
+    setLibForm(emptyExForm)
+    setShowLibForm(true)
+  }
+
+  function openEditLibItem(item) {
+    setEditingLibItem(item)
+    setLibForm({ title: item.title, duration_minutes: item.duration_minutes || 10, description: item.description || '', category: item.category || '' })
+    setShowLibForm(true)
+  }
+
+  async function handleSaveLibItem(e) {
+    e.preventDefault()
+    setSavingLib(true)
+    const payload = { title: libForm.title, duration_minutes: libForm.duration_minutes, description: libForm.description, category: libForm.category || null }
+    if (editingLibItem) await supabase.from('exercise_library').update(payload).eq('id', editingLibItem.id)
+    else await supabase.from('exercise_library').insert({ ...payload, created_by: user.id })
+    setSavingLib(false)
+    setShowLibForm(false)
+    setEditingLibItem(null)
+    setLibForm(emptyExForm)
+    await loadLibrary()
+  }
+
+  async function handleDeleteLibItem(id) {
+    if (!confirm('¿Eliminar este ejercicio de la biblioteca?')) return
+    await supabase.from('exercise_library').delete().eq('id', id)
+    await loadLibrary()
+  }
+
+  async function handleSaveLibItemPlay({ title, description, steps }) {
+    if (!editorLibItem) return
+    await supabase.from('exercise_library').update({ play_data: { title, description, steps } }).eq('id', editorLibItem.id)
+    setEditorLibItem(null)
+    await loadLibrary()
+  }
+
+  // ── Plantillas ─────────────────────────────────────────────────
+  async function handleSaveAsTemplate(e) {
+    e.preventDefault()
+    if (!detailSession) return
+    setSavingTemplate(true)
+    const { data: tmpl, error } = await supabase.from('session_templates').insert({
+      team_id: detailSession.team_id,
+      title: templateTitle || detailSession.title,
+      objectives: detailSession.objectives,
+      notes: detailSession.notes,
+      duration_minutes: detailSession.duration_minutes,
+      created_by: user.id,
+    }).select().single()
+    if (!error && tmpl && exercises.length > 0) {
+      await supabase.from('session_template_exercises').insert(exercises.map(ex => ({
+        template_id: tmpl.id, title: ex.title, duration_minutes: ex.duration_minutes, description: ex.description,
+        category: ex.category, play_data: ex.play_data, order_index: ex.order_index,
+      })))
+    }
+    setSavingTemplate(false)
+    setShowSaveTemplate(false)
+    setTemplateTitle('')
+    await loadTemplates(detailSession.team_id)
+  }
+
+  // ── Modo en vivo ───────────────────────────────────────────────
+  function startLive() {
+    if (exercises.length === 0) return
+    setLiveIdx(0)
+    setLiveSeconds((exercises[0]?.duration_minutes || 10) * 60)
+    setLiveRunning(true)
+    setLiveMode(true)
+  }
+  function liveGoTo(idx) {
+    if (idx < 0 || idx >= exercises.length) { setLiveMode(false); return }
+    setLiveIdx(idx)
+    setLiveSeconds((exercises[idx]?.duration_minutes || 10) * 60)
   }
 
   function handleDuplicateClick() {
@@ -202,6 +393,7 @@ export default function EntrenamientosPage() {
         title: ex.title,
         duration_minutes: ex.duration_minutes,
         description: ex.description,
+        category: ex.category,
         order_index: ex.order_index,
         play_data: ex.play_data,
       }))
@@ -230,6 +422,7 @@ export default function EntrenamientosPage() {
 
   const today = new Date().toISOString().split('T')[0]
   const filtered = sessions.filter(s => tab === 'proximos' ? s.date >= today && !s.completed : s.date < today || s.completed)
+  const filteredLib = libFilter ? libItems.filter(i => i.category === libFilter) : libItems
 
   const tabStyle = (t) => ({
     padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
@@ -247,7 +440,7 @@ export default function EntrenamientosPage() {
 
   if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
-  // Full-screen court editor para ejercicio
+  // Full-screen court editor para ejercicio de una sesión
   if (editorExercise) {
     const initData = editorExercise.play_data
       ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [] }
@@ -266,7 +459,28 @@ export default function EntrenamientosPage() {
     )
   }
 
-  if (!selectedTeam && tab !== 'compartidos') return (
+  // Full-screen court editor para ejercicio de biblioteca
+  if (editorLibItem) {
+    const canEditLib = editorLibItem.created_by === user.id || isDirector
+    const initData = editorLibItem.play_data
+      ? { title: editorLibItem.play_data.title || editorLibItem.title, description: editorLibItem.play_data.description || '', steps: editorLibItem.play_data.steps || [] }
+      : { title: editorLibItem.title, description: '', steps: [] }
+    return (
+      <ModalPortal>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }}>
+          <CourtEditor
+            readOnly={!canEditLib}
+            initialData={initData}
+            onSave={canEditLib ? handleSaveLibItemPlay : undefined}
+            onClose={() => setEditorLibItem(null)}
+            visionCones
+          />
+        </div>
+      </ModalPortal>
+    )
+  }
+
+  if (!selectedTeam && tab !== 'compartidos' && tab !== 'biblioteca') return (
     <div className="empty-state">
       <div className="empty-state-icon" style={{ fontSize: 56 }}>📝</div>
       <h2 className="empty-state-title" style={{ fontSize: 20, fontWeight: 800 }}>Sin equipo asignado</h2>
@@ -275,9 +489,56 @@ export default function EntrenamientosPage() {
   )
 
   const totalMinutes = exercises.reduce((a, e) => a + (e.duration_minutes || 0), 0)
+  const liveEx = exercises[liveIdx]
 
   return (
     <div className="fade-in">
+      {/* Modo entrenamiento en vivo */}
+      {liveMode && (
+        <ModalPortal>
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', flexDirection: 'column', color: '#fff',
+            background: 'linear-gradient(135deg,#0a1f0e,#122818 60%,#1a3820)',
+            paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+            paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
+              <button onClick={() => setLiveMode(false)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
+              <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7 }}>Ejercicio {liveIdx + 1} / {exercises.length}</div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', minHeight: 0 }}>
+              {liveEx?.category && (
+                <div style={{ marginBottom: 16 }}><CategoryBadge category={liveEx.category} /></div>
+              )}
+              <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 12, maxWidth: 480 }}>{liveEx?.title}</div>
+              {liveEx?.description && <div style={{ fontSize: 14, opacity: 0.75, maxWidth: 440, marginBottom: 26, lineHeight: 1.6 }}>{liveEx.description}</div>}
+              <div style={{ fontSize: 64, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: liveSeconds === 0 ? '#f59e0b' : '#fff' }}>
+                {String(Math.floor(liveSeconds / 60)).padStart(2, '0')}:{String(liveSeconds % 60).padStart(2, '0')}
+              </div>
+              {liveSeconds === 0 && <div style={{ color: '#f59e0b', fontWeight: 700, marginTop: 8 }}>⏰ ¡Tiempo!</div>}
+              <button onClick={() => setLiveRunning(r => !r)} style={{
+                marginTop: 26, background: liveRunning ? 'rgba(255,255,255,0.12)' : '#52B043', border: 'none', borderRadius: 12,
+                color: '#fff', padding: '13px 30px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+              }}>
+                {liveRunning ? '⏸ Pausar' : '▶ Reanudar'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 10, padding: 20, flexShrink: 0 }}>
+              <button onClick={() => liveGoTo(liveIdx - 1)} disabled={liveIdx === 0} style={{
+                flex: 1, padding: 14, borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.2)', background: 'transparent',
+                color: liveIdx === 0 ? 'rgba(255,255,255,0.3)' : '#fff', fontWeight: 700, cursor: liveIdx === 0 ? 'default' : 'pointer',
+              }}>← Anterior</button>
+              <button onClick={() => liveGoTo(liveIdx + 1)} style={{
+                flex: 1, padding: 14, borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontWeight: 700,
+              }}>
+                {liveIdx === exercises.length - 1 ? 'Terminar ✓' : 'Siguiente →'}
+              </button>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
       {/* Vista detalle sesión */}
       {detailSession ? (
         <div>
@@ -333,6 +594,15 @@ export default function EntrenamientosPage() {
             </div>
           )}
 
+          {/* Modo en vivo — disponible para cualquiera que tenga ejercicios que seguir */}
+          {exercises.length > 0 && (
+            <button onClick={startLive} style={{
+              width: '100%', marginBottom: 16, padding: '13px', borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg,#0a1f0e,#1C5C2A)', color: '#fff', fontSize: 14, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 14px rgba(10,31,14,0.3)',
+            }}>▶ Modo entrenamiento en vivo</button>
+          )}
+
           {/* Acciones sesión — solo si puede editar */}
           {canEditDetail && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -365,6 +635,7 @@ export default function EntrenamientosPage() {
               </button>
 
               <button onClick={() => openEditSession(detailSession)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #e5e7eb', backgroundColor: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>✏️ Editar</button>
+              <button onClick={() => { setTemplateTitle(detailSession.title); setShowSaveTemplate(true) }} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>💾 Guardar como plantilla</button>
               <button onClick={() => handleDeleteSession(detailSession.id)} style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Eliminar</button>
             </div>
           )}
@@ -388,13 +659,19 @@ export default function EntrenamientosPage() {
           )}
 
           {/* Ejercicios */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', margin: 0 }}>Ejercicios · {totalMinutes} min</h3>
             {canEditDetail && (
-              <button onClick={() => { setEditingExercise(null); setShowExForm(true); setExForm({ title: '', duration_minutes: 10, description: '' }) }} style={{
-                padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 13, fontWeight: 700
-              }}>+ Añadir</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setShowLibPicker(true)} style={{
+                  padding: '7px 14px', borderRadius: 10, border: '1.5px solid #bfdbfe', cursor: 'pointer',
+                  background: '#eff6ff', color: '#2563eb', fontSize: 13, fontWeight: 700
+                }}>📚 Desde biblioteca</button>
+                <button onClick={() => { setEditingExercise(null); setShowExForm(true); setExForm(emptyExForm) }} style={{
+                  padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 13, fontWeight: 700
+                }}>+ Añadir</button>
+              </div>
             )}
           </div>
 
@@ -406,17 +683,27 @@ export default function EntrenamientosPage() {
               </div>
             )}
             {exercises.map((ex, idx) => (
-              <div key={ex.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: '14px 16px', border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div key={ex.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: '14px 16px', border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                {canEditDetail && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1, paddingTop: 4, flexShrink: 0 }}>
+                    <button onClick={() => moveExercise(idx, -1)} disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? '#e5e7eb' : '#6b7280', fontSize: 11, padding: 0, lineHeight: 1 }}>▲</button>
+                    <button onClick={() => moveExercise(idx, 1)} disabled={idx === exercises.length - 1} style={{ background: 'none', border: 'none', cursor: idx === exercises.length - 1 ? 'default' : 'pointer', color: idx === exercises.length - 1 ? '#e5e7eb' : '#6b7280', fontSize: 11, padding: 0, lineHeight: 1 }}>▼</button>
+                  </div>
+                )}
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#52B043,#1C5C2A)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
                   {idx + 1}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{ex.title}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{ex.title}</div>
+                      <CategoryBadge category={ex.category} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>{ex.duration_minutes} min</span>
                       {canEditDetail && (
                         <>
+                          <button onClick={() => saveExerciseToLibrary(ex)} title="Guardar en mi biblioteca" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>💾</button>
                           <button onClick={() => openEditExercise(ex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>✏️</button>
                           <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
                         </>
@@ -449,7 +736,7 @@ export default function EntrenamientosPage() {
             ))}
           </div>
 
-          {/* Modal añadir ejercicio */}
+          {/* Modal añadir/editar ejercicio */}
           {showExForm && (
             <ModalPortal>
             <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -462,11 +749,22 @@ export default function EntrenamientosPage() {
                       placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
                       onFocus={inputFocus} onBlur={inputBlur} />
                   </div>
-                  <div>
-                    <label style={labelStyle}>Duración (minutos)</label>
-                    <input type='number' value={exForm.duration_minutes} onChange={e => setExForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
-                      min={1} max={120} style={inputStyle}
-                      onFocus={inputFocus} onBlur={inputBlur} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Duración (minutos)</label>
+                      <input type='number' value={exForm.duration_minutes} onChange={e => setExForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
+                        min={1} max={120} style={inputStyle}
+                        onFocus={inputFocus} onBlur={inputBlur} />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Categoría</label>
+                      <select value={exForm.category} onChange={e => setExForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
+                        <option value=''>Sin categoría</option>
+                        {Object.entries(CATEGORIES).map(([key, c]) => (
+                          <option key={key} value={key}>{c.emoji} {c.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div>
                     <label style={labelStyle}>Descripción / Instrucciones</label>
@@ -486,35 +784,98 @@ export default function EntrenamientosPage() {
             </div>
             </ModalPortal>
           )}
+
+          {/* Modal elegir ejercicio de la biblioteca */}
+          {showLibPicker && (
+            <ModalPortal>
+            <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+              onClick={e => { if (e.target === e.currentTarget) setShowLibPicker(false) }}>
+              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 460, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 16px' }}>📚 Elegir de la biblioteca</h2>
+                {libItems.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 13 }}>Tu biblioteca está vacía todavía. Guarda ejercicios en ella desde el botón 💾 de cada ejercicio.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {libItems.map(item => (
+                      <button key={item.id} onClick={() => addExerciseFromLibrary(item)} style={{
+                        textAlign: 'left', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{item.title}</span>
+                            <CategoryBadge category={item.category} />
+                          </div>
+                          {item.description && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</div>}
+                        </div>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#52B043', flexShrink: 0 }}>{item.duration_minutes} min</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setShowLibPicker(false)} style={{ marginTop: 16, width: '100%', padding: 10, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cerrar</button>
+              </div>
+            </div>
+            </ModalPortal>
+          )}
+
+          {/* Modal guardar como plantilla */}
+          {showSaveTemplate && (
+            <ModalPortal>
+            <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>💾 Guardar como plantilla</h2>
+                <p style={{ fontSize: 12.5, color: '#6b7280', margin: '0 0 16px' }}>Guarda los objetivos, notas y los {exercises.length} ejercicios de esta sesión como plantilla reutilizable para {selectedTeam?.name}.</p>
+                <form onSubmit={handleSaveAsTemplate} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Nombre de la plantilla</label>
+                    <input type='text' value={templateTitle} onChange={e => setTemplateTitle(e.target.value)} required style={inputStyle}
+                      onFocus={inputFocus} onBlur={inputBlur} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button type='button' onClick={() => setShowSaveTemplate(false)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                    <button type='submit' disabled={savingTemplate} className="btn-primary" style={{ flex: 1, padding: '11px' }}>
+                      {savingTemplate ? 'Guardando...' : 'Guardar plantilla'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            </ModalPortal>
+          )}
         </div>
 
       ) : (
-        /* Vista lista sesiones */
+        /* Vista lista sesiones / biblioteca */
         <div>
           <div style={{
-            background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+            background: tab === 'biblioteca' ? 'linear-gradient(135deg, #0a1f2e 0%, #1C3C5C 50%, #2563eb 100%)' : 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
             borderRadius: 20, padding: '24px 28px', marginBottom: 28,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
           }}>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
-                {tab === 'compartidos' ? 'Compartidos en el club' : (selectedTeam?.name || 'Planificar sesiones')}
+                {tab === 'compartidos' ? 'Compartidos en el club' : tab === 'biblioteca' ? 'Común a todo el club' : (selectedTeam?.name || 'Planificar sesiones')}
               </p>
-              <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>Entrenamientos</h1>
+              <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>{tab === 'biblioteca' ? 'Biblioteca de ejercicios' : 'Entrenamientos'}</h1>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                 {tab === 'compartidos'
                   ? `Sesiones compartidas por todos los entrenadores`
+                  : tab === 'biblioteca'
+                  ? `${libItems.length} ${libItems.length === 1 ? 'ejercicio guardado' : 'ejercicios guardados'}`
                   : `${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'}`}
               </p>
             </div>
-            {tab !== 'compartidos'
+            {tab === 'biblioteca'
+              ? <button onClick={openNewLibItem} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
+              : tab !== 'compartidos'
               ? <button onClick={openNewSession} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
               : <div style={{ fontSize: 48, opacity: 0.35 }}>📝</div>}
           </div>
 
           {/* Selector de equipo — solo en pestañas de sesiones propias */}
-          {tab !== 'compartidos' && isDirector && teams.length > 1 && (
+          {tab !== 'compartidos' && tab !== 'biblioteca' && isDirector && teams.length > 1 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {teams.map(t => {
                 const active = selectedTeam?.id === t.id
@@ -532,7 +893,7 @@ export default function EntrenamientosPage() {
           )}
 
           {/* Pestañas */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
             <button onClick={() => setTab('proximos')} style={tabStyle('proximos')}>📅 Próximos</button>
             <button onClick={() => setTab('pasados')} style={tabStyle('pasados')}>✅ Pasados</button>
             <button onClick={() => { setTab('compartidos'); loadSharedSessions() }} style={{
@@ -542,7 +903,122 @@ export default function EntrenamientosPage() {
             }}>
               📤 Compartidos
             </button>
+            <button onClick={() => setTab('biblioteca')} style={{
+              ...tabStyle('biblioteca'),
+              background: tab === 'biblioteca' ? 'linear-gradient(135deg,#2563eb,#1d4ed8)' : '#f3f4f6',
+              color: tab === 'biblioteca' ? '#fff' : '#374151',
+            }}>
+              📚 Biblioteca
+            </button>
           </div>
+
+          {/* PESTAÑA BIBLIOTECA */}
+          {tab === 'biblioteca' && (
+            <div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                <button onClick={() => setLibFilter('')} style={{
+                  padding: '5px 12px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: libFilter === '' ? '#111827' : '#f3f4f6', color: libFilter === '' ? '#fff' : '#374151',
+                }}>Todos</button>
+                {Object.entries(CATEGORIES).map(([key, c]) => (
+                  <button key={key} onClick={() => setLibFilter(key)} style={{
+                    padding: '5px 12px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                    background: libFilter === key ? c.color : c.color + '1a', color: libFilter === key ? '#fff' : c.color,
+                  }}>{c.emoji} {c.label}</button>
+                ))}
+              </div>
+
+              {libLoading ? (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+                  <div style={{ fontSize: 14 }}>Cargando biblioteca...</div>
+                </div>
+              ) : filteredLib.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '56px 24px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3' }}>
+                  <div style={{ fontSize: 48, marginBottom: 14 }}>📚</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin ejercicios en la biblioteca</div>
+                  <div style={{ fontSize: 13 }}>Crea el primero, o guarda uno desde una sesión con el botón 💾</div>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+                  {filteredLib.map(item => {
+                    const mine = item.created_by === user.id || isDirector
+                    return (
+                      <div key={item.id} style={{ backgroundColor: '#fff', borderRadius: 14, border: '1px solid #f3f4f6', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{item.title}</div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 6, flexShrink: 0 }}>{item.duration_minutes} min</span>
+                        </div>
+                        <div style={{ marginTop: 4 }}><CategoryBadge category={item.category} /></div>
+                        {item.description && <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 0', lineHeight: 1.5 }}>{item.description}</p>}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+                          <button onClick={() => setEditorLibItem(item)} style={{
+                            fontSize: 12, fontWeight: 600, color: item.play_data ? '#2563eb' : '#9ca3af',
+                            background: item.play_data ? '#eff6ff' : '#f9fafb', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+                          }}>🏀 {item.play_data ? (mine ? 'Ver/editar' : 'Ver diseño') : 'Diseñar'}</button>
+                          {mine && (
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => openEditLibItem(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>✏️</button>
+                              <button onClick={() => handleDeleteLibItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Modal crear/editar ejercicio de biblioteca */}
+              {showLibForm && (
+                <ModalPortal>
+                <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                  <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                    <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editingLibItem ? 'Editar ejercicio' : 'Nuevo ejercicio de biblioteca'}</h2>
+                    <form onSubmit={handleSaveLibItem} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      <div>
+                        <label style={labelStyle}>Nombre del ejercicio *</label>
+                        <input type='text' value={libForm.title} onChange={e => setLibForm(f => ({ ...f, title: e.target.value }))}
+                          placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
+                          onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <div>
+                          <label style={labelStyle}>Duración (minutos)</label>
+                          <input type='number' value={libForm.duration_minutes} onChange={e => setLibForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
+                            min={1} max={120} style={inputStyle}
+                            onFocus={inputFocus} onBlur={inputBlur} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Categoría</label>
+                          <select value={libForm.category} onChange={e => setLibForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
+                            <option value=''>Sin categoría</option>
+                            {Object.entries(CATEGORIES).map(([key, c]) => (
+                              <option key={key} value={key}>{c.emoji} {c.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Descripción / Instrucciones</label>
+                        <textarea value={libForm.description} onChange={e => setLibForm(f => ({ ...f, description: e.target.value }))}
+                          placeholder='Explica cómo se realiza el ejercicio...' rows={3}
+                          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                          onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <button type='button' onClick={() => { setShowLibForm(false); setEditingLibItem(null) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                        <button type='submit' disabled={savingLib} className="btn-primary" style={{ flex: 1, padding: '12px' }}>
+                          {savingLib ? 'Guardando...' : editingLibItem ? 'Guardar cambios' : 'Añadir'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                </ModalPortal>
+              )}
+            </div>
+          )}
 
           {/* PESTAÑA COMPARTIDOS */}
           {tab === 'compartidos' && (
@@ -616,7 +1092,7 @@ export default function EntrenamientosPage() {
           )}
 
           {/* PESTAÑAS PRÓXIMOS / PASADOS */}
-          {tab !== 'compartidos' && (
+          {tab !== 'compartidos' && tab !== 'biblioteca' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filtered.length === 0 && (
                 <div className="empty-state">
@@ -679,6 +1155,15 @@ export default function EntrenamientosPage() {
               {editingSession ? 'Editar entrenamiento' : 'Nuevo entrenamiento'}
             </h2>
             <form onSubmit={handleSaveSession} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {!editingSession && templates.length > 0 && (
+                <div>
+                  <label style={labelStyle}>Usar plantilla (opcional)</label>
+                  <select value={useTemplateId} onChange={e => applyTemplate(e.target.value)} style={inputStyle}>
+                    <option value=''>— Sin plantilla —</option>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Título *</label>
                 <input type='text' value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}

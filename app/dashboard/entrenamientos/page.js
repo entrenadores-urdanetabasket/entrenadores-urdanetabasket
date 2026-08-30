@@ -918,21 +918,32 @@ export default function EntrenamientosPage() {
                   <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 13 }}>Tu biblioteca está vacía todavía. Guarda ejercicios en ella desde el botón 💾 de cada ejercicio.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {libItems.map(item => (
-                      <button key={item.id} onClick={() => addExerciseFromLibrary(item)} style={{
-                        textAlign: 'left', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                      }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{item.title}</span>
-                            <CategoryBadge category={item.category} />
-                          </div>
-                          {item.description && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</div>}
+                    {libItems.map(item => {
+                      const mine = item.created_by === user.id || isDirector
+                      return (
+                        <div key={item.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '11px 14px', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff',
+                        }}>
+                          <button onClick={() => addExerciseFromLibrary(item)} style={{
+                            flex: 1, minWidth: 0, textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                          }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{item.title}</span>
+                                <CategoryBadge category={item.category} />
+                              </div>
+                              {item.description && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</div>}
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#52B043', flexShrink: 0 }}>{item.duration_minutes} min</span>
+                          </button>
+                          {mine && (
+                            <button onClick={() => handleDeleteLibItem(item.id)} title="Eliminar de la biblioteca" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0, flexShrink: 0 }}>✕</button>
+                          )}
                         </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: '#52B043', flexShrink: 0 }}>{item.duration_minutes} min</span>
-                      </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
                 <button onClick={() => setShowLibPicker(false)} style={{ marginTop: 16, width: '100%', padding: 10, borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Cerrar</button>

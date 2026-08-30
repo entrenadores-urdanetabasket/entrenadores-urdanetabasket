@@ -460,13 +460,13 @@ function drawEl(ctx, el, selected, showVisionCone) {
      Base positions come from accumulateSteps(elems, animStepIdx)
 ══════════════════════════════════════════════════ */
 function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
-                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false, multiBall = false) {
+                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false) {
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
   /* ─────────── EDIT MODE ─────────── */
   if (isEditing) {
-    const { playerPos, carrierId: baseCarrierId, playerFace } = accumulateSteps(elems, activeDrawStep, H, courtType)
+    const { playerPos, carrierIds: baseCarrierIds, playerFace } = accumulateSteps(elems, activeDrawStep, H, courtType)
 
     // Draw arrows — current step at full opacity, others dimmed
     for (const el of elems) {
@@ -499,7 +499,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       const p   = playerPos[el.id]
       let drawData = p ? { ...el, x: p.x, y: p.y } : el
       if (PLAYER_TYPES.includes(el.type))
-        drawData = { ...drawData, hasBall: multiBall ? el.hasBall : el.id === baseCarrierId }
+        drawData = { ...drawData, hasBall: baseCarrierIds.has(el.id) }
       if ((el.type === 'defense' || el.type === 'xdefense') && el.face === undefined && playerFace[el.id] != null)
         drawData = { ...drawData, face: playerFace[el.id] }
       drawEl(ctx, drawData, el.id === selId, showVisionCone)
@@ -535,7 +535,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   }
 
   /* ─────────── ANIMATION MODE ─────────── */
-  const { playerPos: basePos, carrierId: baseCarrierId } = accumulateSteps(elems, animStepIdx, H, courtType)
+  const { playerPos: basePos, carrierIds: baseCarrierIds } = accumulateSteps(elems, animStepIdx, H, courtType)
+  // Balón "principal" cuya trayectoria se anima con detalle (arco, curva...)
+  // esta acción; si hay varios balones a la vez (multiBall), el resto de
+  // transferencias se resuelven igualmente bien pero sin esa animación fina
+  const primaryCarrierId = baseCarrierIds.size > 0 ? [...baseCarrierIds][0] : null
+  // Estado de los balones al FINAL de esta acción, para que un balón
+  // secundario (multiBall) aparezca en su nuevo dueño en cuanto arranca el
+  // movimiento, aunque no tenga animación de vuelo propia
+  const afterCarrierIds = accumulateSteps(elems, animStepIdx + 1, H, courtType).carrierIds
 
   // Targets for this step (only MOVE_ARROW_TYPES). Un mismo jugador puede
   // tener VARIAS flechas encadenadas en la misma acción (p.ej. el receptor
@@ -635,7 +643,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     const attMoved = !!targets[att.id]
     if (!attMoved && !hasBallTransfer) continue   // nothing relevant happened
     const attEndPos  = finalTargetPos(att.id)
-    const ballEndPos = baseCarrierId ? finalTargetPos(baseCarrierId) : null
+    const ballEndPos = primaryCarrierId ? finalTargetPos(primaryCarrierId) : null
     const ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
     const tx = clampX(ideal.x), ty = clampY(ideal.y)
 
@@ -711,10 +719,10 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
   // Ball animation for this step (pass / handoff swap / shot arc)
   let ballAnimX = null, ballAnimY = null, ballReceiverId = null, ballAnimR = 8, isShotAnim = false
-  const flyingCarrierId = baseCarrierId
+  const flyingCarrierId = primaryCarrierId
 
-  if (stepT > 0 && baseCarrierId) {
-    const cBase = basePos[baseCarrierId]
+  if (stepT > 0 && primaryCarrierId) {
+    const cBase = basePos[primaryCarrierId]
 
     // ── HANDOFF: ball follows p1 → midpoint, then p2 → final ──
     const handoffEl = elems.find(el =>
@@ -750,7 +758,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     } else {
       const shotEl = elems.find(el =>
         el.type === 'shot' && (el.step ?? 0) === animStepIdx &&
-        (el.fromId === baseCarrierId || !el.fromId)
+        (el.fromId === primaryCarrierId || !el.fromId)
       )
       if (shotEl && cBase) {
         const dist = Math.hypot(shotEl.x2 - cBase.x, shotEl.y2 - cBase.y)
@@ -764,15 +772,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       // ── PASS: ball flies straight from carrier to endpoint ──
       } else {
         const passEl = elems.find(el =>
-          el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === baseCarrierId
+          el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === primaryCarrierId
         )
         if (passEl && cBase) {
-          const carrierNow = targets[baseCarrierId] ? posAt(baseCarrierId, et) : cBase
+          const carrierNow = targets[primaryCarrierId] ? posAt(primaryCarrierId, et) : cBase
           ballAnimX = carrierNow.x + (passEl.x2 - carrierNow.x) * et
           ballAnimY = carrierNow.y + (passEl.y2 - carrierNow.y) * et
           let bestDist = PR + 30, bestId = null
           for (const el of elems) {
-            if (!PLAYER_TYPES.includes(el.type) || el.id === baseCarrierId) continue
+            if (!PLAYER_TYPES.includes(el.type) || el.id === primaryCarrierId) continue
             const { x: fx, y: fy } = finalTargetPos(el.id)
             const d = Math.hypot(fx - passEl.x2, fy - passEl.y2)
             if (d < bestDist) { bestDist = d; bestId = el.id }
@@ -805,16 +813,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       drawData = { ...drawData, x: p.x, y: p.y }
     }
     if (PLAYER_TYPES.includes(el.type)) {
-      if (multiBall) {
-        // Varios balones a la vez: se respeta el hasBall propio de cada
-        // jugador tal cual está en esta fase, sin transferencia automática
-        drawData = { ...drawData, hasBall: el.hasBall }
-      } else if (ballAnimX !== null) {
-        if      (el.id === flyingCarrierId) drawData = { ...drawData, hasBall: false }
-        else if (el.id === ballReceiverId)  drawData = { ...drawData, hasBall: stepT >= 0.85 }
-        else                                drawData = { ...drawData, hasBall: false }
+      if (ballAnimX !== null && el.id === flyingCarrierId) {
+        drawData = { ...drawData, hasBall: false }
+      } else if (ballAnimX !== null && el.id === ballReceiverId) {
+        drawData = { ...drawData, hasBall: stepT >= 0.85 }
       } else {
-        drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+        // Cualquier otro balón en juego (multiBall): salta a su nuevo dueño
+        // en cuanto arranca el movimiento de esta acción, aunque no tenga
+        // una animación de vuelo propia como la del balón principal
+        drawData = { ...drawData, hasBall: stepT > 0 ? afterCarrierIds.has(el.id) : baseCarrierIds.has(el.id) }
       }
     }
     // Cono de visión sugerido: sigue al balón y al hombre en tiempo real
@@ -823,7 +830,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       const att = elems.find(e => e.type === 'offense' && e.num === el.num)
       if (att) {
         const attPos  = curPos(att.id)
-        const ballPos = ballAnimX !== null ? { x: ballAnimX, y: ballAnimY } : (baseCarrierId ? curPos(baseCarrierId) : null)
+        const ballPos = ballAnimX !== null ? { x: ballAnimX, y: ballAnimY } : (primaryCarrierId ? curPos(primaryCarrierId) : null)
         const f = attPos && smartFacing({ x: drawData.x, y: drawData.y }, attPos, ballPos)
         if (f != null) drawData = { ...drawData, face: f }
       }
@@ -866,7 +873,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 /* ══════════════════════════════════════════════════
    PHASE THUMBNAIL
 ══════════════════════════════════════════════════ */
-function PhaseThumb({ elements, active, index, onClick, courtType, visionCones, multiBall }) {
+function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }) {
   const ref = useRef(null)
   const CH = getCanvasH(courtType)
   const TW = 132, TH = Math.round(132 * CH / CW)
@@ -877,9 +884,9 @@ function PhaseThumb({ elements, active, index, onClick, courtType, visionCones, 
     const s = TW / CW
     ctx.clearRect(0,0,TW,TH)
     ctx.save(); ctx.scale(s,s)
-    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones, multiBall)
+    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones)
     ctx.restore()
-  }, [elements, TW, TH, courtType, CH, visionCones, multiBall])
+  }, [elements, TW, TH, courtType, CH, visionCones])
 
   return (
     <div onClick={onClick} style={{ cursor:'pointer', borderRadius:8, overflow:'hidden', border:`2px solid ${active?'#3b82f6':'#374151'}`, position:'relative', flexShrink:0, transition:'border-color 0.15s' }}>
@@ -1050,8 +1057,10 @@ function smartFacing(defPos, attPos, ballPos) {
 
 /*
  * accumulateSteps(elems, throughStep)
- * Returns { playerPos: {id→{x,y}}, carrierId }
+ * Returns { playerPos: {id→{x,y}}, carrierIds }
  * representing the state of the court AFTER steps 0 … throughStep-1 have played out.
+ * carrierIds es un Set — normalmente tiene un único id (un balón), pero en
+ * modo multiBall puede tener varios jugadores llevando balón a la vez.
  */
 function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half') {
   const clampX = v => Math.max(PR + 4, Math.min(CW - PR - 4, v))
@@ -1062,11 +1071,12 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
   for (const el of elems) {
     if (!ARROW_TYPES.includes(el.type)) playerPos[el.id] = { x: el.x, y: el.y }
   }
-  // Find initial ball carrier
-  let carrierId = null
+  // Find initial ball carrier(s)
+  const carrierIds = new Set()
   for (const el of elems) {
-    if (PLAYER_TYPES.includes(el.type) && el.hasBall) { carrierId = el.id; break }
+    if (PLAYER_TYPES.includes(el.type) && el.hasBall) carrierIds.add(el.id)
   }
+  const primaryCarrierId = () => { for (const id of carrierIds) return id; return null }
 
   for (let s = 0; s < throughStep; s++) {
     // Displacement map for movement arrows in this step
@@ -1121,29 +1131,34 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
       stepMoves[p2id] = { dx: pos1.x - pos2.x, dy: pos1.y - pos2.y }
       playerPos[p1id] = { x: pos2.x, y: pos2.y }
       playerPos[p2id] = { x: pos1.x, y: pos1.y }
-      if (carrierId === p1id) carrierId = p2id
+      if (carrierIds.has(p1id)) { carrierIds.delete(p1id); carrierIds.add(p2id) }
     }
 
-    // Ball transfer (pass only — handoff handled above)
-    // Resolve BEFORE smart defense so defenders know who has the ball
-    if (carrierId) {
+    // Ball transfer (pass only — handoff handled above). Cada balón en juego
+    // se resuelve por separado, para que varios pases simultáneos (multiBall)
+    // no se pisen entre sí. Resolve BEFORE smart defense so defenders know
+    // who has the ball
+    for (const cid of [...carrierIds]) {
       const arr = elems.find(e =>
-        e.type === 'pass' && (e.step ?? 0) === s && e.fromId === carrierId
+        e.type === 'pass' && (e.step ?? 0) === s && e.fromId === cid
       )
       if (arr) {
         let bestDist = PR + 30, bestId = null
         for (const el of elems) {
-          if (!PLAYER_TYPES.includes(el.type) || el.id === carrierId) continue
+          if (!PLAYER_TYPES.includes(el.type) || el.id === cid) continue
           const p = playerPos[el.id] || { x: el.x, y: el.y }
           const d = Math.hypot(p.x - arr.x2, p.y - arr.y2)
           if (d < bestDist) { bestDist = d; bestId = el.id }
         }
-        if (bestId) carrierId = bestId
+        if (bestId) { carrierIds.delete(cid); carrierIds.add(bestId) }
       }
     }
 
     // Smart auto-follow: position defenders using basketball principles
-    const ballPos = carrierId ? playerPos[carrierId] : null
+    // (referencia de balón: el primero en juego, aproximación razonable
+    // cuando hay varios balones a la vez)
+    const primaryId = primaryCarrierId()
+    const ballPos = primaryId ? playerPos[primaryId] : null
     for (const el of elems) {
       if (!['defense','xdefense'].includes(el.type) || !el.num) continue
       const hasManual = elems.some(e =>
@@ -1154,7 +1169,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
       if (!att || !playerPos[att.id]) continue
       // Only reposition if something moved this step (attacker or ball)
       const attMoved = !!stepMoves[att.id]
-      const ballMoved = carrierId && !!stepMoves[carrierId]
+      const ballMoved = primaryId && !!stepMoves[primaryId]
       const ballPassed = elems.some(e => e.type === 'pass' && (e.step ?? 0) === s)
       if (!attMoved && !ballMoved && !ballPassed) continue
       const ideal = computeSmartDefPos(playerPos[att.id], ballPos, courtType, courtH)
@@ -1167,16 +1182,17 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
   // del disparador de "algo se movió" que usa la posición, así el cono
   // siempre refleja el balón actual en la vista estática del editor.
   const playerFace = {}
+  const facingBallId = primaryCarrierId()
   for (const el of elems) {
     if ((el.type !== 'defense' && el.type !== 'xdefense') || el.face !== undefined) continue
     const att = elems.find(e => e.type === 'offense' && e.num === el.num)
     const defPos = playerPos[el.id]
     if (!att || !playerPos[att.id] || !defPos) continue
-    const ballPos = carrierId ? playerPos[carrierId] : null
+    const ballPos = facingBallId ? playerPos[facingBallId] : null
     playerFace[el.id] = smartFacing(defPos, playerPos[att.id], ballPos)
   }
 
-  return { playerPos, carrierId, playerFace }
+  return { playerPos, carrierIds, playerFace }
 }
 
 /* ══════════════════════════════════════════════════
@@ -1248,7 +1264,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, multiBall)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
@@ -1496,17 +1512,14 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   function advancePhase() {
     const currentElems = phases[cur].elements
     const numSteps = getNumSteps(currentElems)
-    const { playerPos, carrierId: newCarrierId } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType), courtType)
+    const { playerPos, carrierIds: newCarrierIds } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType), courtType)
 
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))
       .map(el => {
         const pos = playerPos[el.id]
         const moved = pos ? { ...el, x: pos.x, y: pos.y } : { ...el }
-        // multiBall: cada jugador conserva su propio balón tal cual estaba
-        // (no hay una única transferencia que seguir); si no, se sigue al
-        // portador resuelto por los pases/handoffs de la fase
-        if (PLAYER_TYPES.includes(el.type)) return { ...moved, hasBall: multiBall ? el.hasBall : el.id === newCarrierId }
+        if (PLAYER_TYPES.includes(el.type)) return { ...moved, hasBall: newCarrierIds.has(el.id) }
         return moved
       })
 
@@ -1539,7 +1552,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, multiBall)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
     }, 0)
   }
 
@@ -1587,7 +1600,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           const W = CW, H = getCanvasH(courtTypeRef.current)
           const lastPh   = phasesRef.current[nPhases - 1]
           const lastStep = phaseMeta[nPhases - 1].numSteps - 1
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones, multiBall)
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
@@ -1611,7 +1624,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, multiBall)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -1667,7 +1680,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, multiBall)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1841,7 +1854,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones} multiBall={multiBall}
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones}
               onClick={()=>{ if(!animating){setCur(i);setSelId(null)} }} />
           ))}
 

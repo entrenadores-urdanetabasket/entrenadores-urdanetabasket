@@ -450,7 +450,15 @@ export default function EntrenamientosPage() {
 
   async function handleDeleteLibItem(id) {
     if (!confirm('¿Eliminar este ejercicio de la biblioteca?')) return
-    await supabase.from('exercise_library').delete().eq('id', id)
+    const { error, count } = await supabase.from('exercise_library').delete({ count: 'exact' }).eq('id', id)
+    if (error) {
+      console.error('Error eliminando de la biblioteca:', error)
+      alert(`No se pudo eliminar: ${error.message}`)
+      return
+    }
+    if (!count) {
+      alert('No se ha eliminado ningún ejercicio — puede que no tengas permiso sobre este (solo el autor o el director pueden borrarlo).')
+    }
     await loadLibrary()
   }
 

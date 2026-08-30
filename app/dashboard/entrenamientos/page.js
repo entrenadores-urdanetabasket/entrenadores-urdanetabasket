@@ -27,6 +27,7 @@ export default function EntrenamientosPage() {
   const [detailSession, setDetailSession] = useState(null)
   const [exercises, setExercises] = useState([])
   const [showExForm, setShowExForm] = useState(false)
+  const [editingExercise, setEditingExercise] = useState(null)
   const [exForm, setExForm] = useState({ title: '', duration_minutes: 10, description: '' })
   const [savingEx, setSavingEx] = useState(false)
 
@@ -148,11 +149,24 @@ export default function EntrenamientosPage() {
   async function handleSaveExercise(e) {
     e.preventDefault()
     setSavingEx(true)
-    await supabase.from('training_exercises').insert({ ...exForm, session_id: detailSession.id, order_index: exercises.length })
+    if (editingExercise) {
+      await supabase.from('training_exercises').update({
+        title: exForm.title, duration_minutes: exForm.duration_minutes, description: exForm.description,
+      }).eq('id', editingExercise.id)
+    } else {
+      await supabase.from('training_exercises').insert({ ...exForm, session_id: detailSession.id, order_index: exercises.length })
+    }
     setSavingEx(false)
     setShowExForm(false)
+    setEditingExercise(null)
     setExForm({ title: '', duration_minutes: 10, description: '' })
     await loadExercises(detailSession.id)
+  }
+
+  function openEditExercise(ex) {
+    setEditingExercise(ex)
+    setExForm({ title: ex.title, duration_minutes: ex.duration_minutes || 10, description: ex.description || '' })
+    setShowExForm(true)
   }
 
   async function handleDeleteExercise(id) {
@@ -377,7 +391,7 @@ export default function EntrenamientosPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#374151', margin: 0 }}>Ejercicios · {totalMinutes} min</h3>
             {canEditDetail && (
-              <button onClick={() => { setShowExForm(true); setExForm({ title: '', duration_minutes: 10, description: '' }) }} style={{
+              <button onClick={() => { setEditingExercise(null); setShowExForm(true); setExForm({ title: '', duration_minutes: 10, description: '' }) }} style={{
                 padding: '7px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
                 background: 'linear-gradient(135deg,#52B043,#3a8a2e)', color: '#fff', fontSize: 13, fontWeight: 700
               }}>+ Añadir</button>
@@ -402,7 +416,10 @@ export default function EntrenamientosPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>{ex.duration_minutes} min</span>
                       {canEditDetail && (
-                        <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
+                        <>
+                          <button onClick={() => openEditExercise(ex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>✏️</button>
+                          <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -437,7 +454,7 @@ export default function EntrenamientosPage() {
             <ModalPortal>
             <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
               <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
-                <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>Añadir ejercicio</h2>
+                <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editingExercise ? 'Editar ejercicio' : 'Añadir ejercicio'}</h2>
                 <form onSubmit={handleSaveExercise} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <div>
                     <label style={labelStyle}>Nombre del ejercicio *</label>
@@ -459,9 +476,9 @@ export default function EntrenamientosPage() {
                       onFocus={inputFocus} onBlur={inputBlur} />
                   </div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button type='button' onClick={() => setShowExForm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                    <button type='button' onClick={() => { setShowExForm(false); setEditingExercise(null) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                     <button type='submit' disabled={savingEx} className="btn-primary" style={{ flex: 1, padding: '12px' }}>
-                      {savingEx ? 'Guardando...' : 'Añadir'}
+                      {savingEx ? 'Guardando...' : editingExercise ? 'Guardar cambios' : 'Añadir'}
                     </button>
                   </div>
                 </form>

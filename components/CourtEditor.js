@@ -717,25 +717,27 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     return (targets[id] && stepT > 0) ? posAt(id, et) : b
   }
 
-  // Ball animation for this step (pass / handoff swap / shot arc)
-  let ballAnimX = null, ballAnimY = null, ballReceiverId = null, ballAnimR = 8, isShotAnim = false
-  const flyingCarrierId = primaryCarrierId
+  // Ball animation for this step (pass / handoff swap / shot arc). Cada
+  // balón en juego (baseCarrierIds) resuelve su propio vuelo si tiene un
+  // tiro o un pase esta acción, para que funcione igual con uno o varios
+  // balones a la vez (multiBall) — cada uno con su propio arco/trayectoria.
+  const flights = []   // { x, y, r, isShot, carrierId, receiverId, shotEl }
 
-  if (stepT > 0 && primaryCarrierId) {
-    const cBase = basePos[primaryCarrierId]
-
-    // ── HANDOFF: ball follows p1 → midpoint, then p2 → final ──
+  if (stepT > 0) {
+    // ── HANDOFF: caso especial, es un intercambio entre dos jugadores
+    // concretos — el balón viaja pegado al jugador que lo lleva en cada
+    // instante: con p1 (siguiendo su flecha) hasta el cruce, luego con p2.
     const handoffEl = elems.find(el =>
       el.type === 'handoff' && (el.step ?? 0) === animStepIdx &&
-      (targets[el.fromId] || /* p1 resolved via targets */ Object.keys(targets).some(k =>
+      (targets[el.fromId] || Object.keys(targets).some(k =>
         basePos[k] && Math.hypot(basePos[k].x - el.x1, basePos[k].y - el.y1) < PR * 3
       ))
     )
     const handoffP1 = handoffEl
-      ? (el => el)(elems.find(pe =>
+      ? elems.find(pe =>
           PLAYER_TYPES.includes(pe.type) && targets[pe.id] &&
           basePos[pe.id] && Math.hypot(basePos[pe.id].x - handoffEl.x1, basePos[pe.id].y - handoffEl.y1) < PR * 3
-        ))
+        )
       : null
     const handoffP2 = handoffEl && handoffP1
       ? elems.find(pe =>
@@ -746,47 +748,43 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       : null
 
     if (handoffEl && handoffP1 && handoffP2) {
-      // El balón viaja pegado al jugador que lo lleva en cada instante:
-      // con p1 (siguiendo su flecha) hasta el cruce, luego con p2 — nunca
-      // se separa en una línea recta inventada que va y vuelve sobre sí misma.
       const carrying = et < 0.5 ? posAt(handoffP1.id, et) : posAt(handoffP2.id, et)
-      ballAnimX = carrying.x
-      ballAnimY = carrying.y
-      ballReceiverId = handoffP2.id
+      flights.push({ x: carrying.x, y: carrying.y, r: 8, isShot: false, carrierId: handoffP1.id, receiverId: handoffP2.id })
+    }
 
-    // ── SHOT: ball flies in parabolic arc, shrinks into basket ──
-    } else {
-      const shotEl = elems.find(el =>
-        el.type === 'shot' && (el.step ?? 0) === animStepIdx &&
-        (el.fromId === primaryCarrierId || !el.fromId)
-      )
-      if (shotEl && cBase) {
+    // ── SHOT y PASS: cada balón en juego resuelve el suyo por separado ──
+    for (const cid of baseCarrierIds) {
+      if (handoffP1 && cid === handoffP1.id) continue // ya resuelto arriba
+      const cBase = basePos[cid]
+      if (!cBase) continue
+
+      // Un tiro dibujado sin engancharlo a un jugador concreto (sin fromId)
+      // se atribuye al balón principal, igual que antes de tener multiBall
+      const shotEl = elems.find(el => el.type === 'shot' && (el.step ?? 0) === animStepIdx &&
+        (el.fromId === cid || (!el.fromId && cid === primaryCarrierId)))
+      if (shotEl) {
         const dist = Math.hypot(shotEl.x2 - cBase.x, shotEl.y2 - cBase.y)
-        const arcH  = dist * 0.4
-        ballAnimX = cBase.x + (shotEl.x2 - cBase.x) * et
-        ballAnimY = cBase.y + (shotEl.y2 - cBase.y) * et - arcH * Math.sin(et * Math.PI)
-        ballAnimR = et > 0.75 ? Math.max(0, 8 * (1 - (et - 0.75) / 0.25)) : 8
-        isShotAnim = true
-        ballReceiverId = null
+        const arcH = dist * 0.4
+        const x = cBase.x + (shotEl.x2 - cBase.x) * et
+        const y = cBase.y + (shotEl.y2 - cBase.y) * et - arcH * Math.sin(et * Math.PI)
+        const r = et > 0.75 ? Math.max(0, 8 * (1 - (et - 0.75) / 0.25)) : 8
+        flights.push({ x, y, r, isShot: true, carrierId: cid, receiverId: null, shotEl })
+        continue
+      }
 
-      // ── PASS: ball flies straight from carrier to endpoint ──
-      } else {
-        const passEl = elems.find(el =>
-          el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === primaryCarrierId
-        )
-        if (passEl && cBase) {
-          const carrierNow = targets[primaryCarrierId] ? posAt(primaryCarrierId, et) : cBase
-          ballAnimX = carrierNow.x + (passEl.x2 - carrierNow.x) * et
-          ballAnimY = carrierNow.y + (passEl.y2 - carrierNow.y) * et
-          let bestDist = PR + 30, bestId = null
-          for (const el of elems) {
-            if (!PLAYER_TYPES.includes(el.type) || el.id === primaryCarrierId) continue
-            const { x: fx, y: fy } = finalTargetPos(el.id)
-            const d = Math.hypot(fx - passEl.x2, fy - passEl.y2)
-            if (d < bestDist) { bestDist = d; bestId = el.id }
-          }
-          ballReceiverId = bestId
+      const passEl = elems.find(el => el.type === 'pass' && (el.step ?? 0) === animStepIdx && el.fromId === cid)
+      if (passEl) {
+        const carrierNow = targets[cid] ? posAt(cid, et) : cBase
+        const x = carrierNow.x + (passEl.x2 - carrierNow.x) * et
+        const y = carrierNow.y + (passEl.y2 - carrierNow.y) * et
+        let bestDist = PR + 30, bestId = null
+        for (const el of elems) {
+          if (!PLAYER_TYPES.includes(el.type) || el.id === cid) continue
+          const { x: fx, y: fy } = finalTargetPos(el.id)
+          const d = Math.hypot(fx - passEl.x2, fy - passEl.y2)
+          if (d < bestDist) { bestDist = d; bestId = el.id }
         }
+        flights.push({ x, y, r: 8, isShot: false, carrierId: cid, receiverId: bestId })
       }
     }
   }
@@ -813,14 +811,15 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       drawData = { ...drawData, x: p.x, y: p.y }
     }
     if (PLAYER_TYPES.includes(el.type)) {
-      if (ballAnimX !== null && el.id === flyingCarrierId) {
+      const asCarrier  = flights.find(f => f.carrierId === el.id)
+      const asReceiver = flights.find(f => f.receiverId === el.id)
+      if (asCarrier) {
         drawData = { ...drawData, hasBall: false }
-      } else if (ballAnimX !== null && el.id === ballReceiverId) {
+      } else if (asReceiver) {
         drawData = { ...drawData, hasBall: stepT >= 0.85 }
       } else {
-        // Cualquier otro balón en juego (multiBall): salta a su nuevo dueño
-        // en cuanto arranca el movimiento de esta acción, aunque no tenga
-        // una animación de vuelo propia como la del balón principal
+        // Cualquier otro balón en juego (multiBall) sin tiro/pase propio esta
+        // acción: salta a su nuevo dueño en cuanto arranca el movimiento
         drawData = { ...drawData, hasBall: stepT > 0 ? afterCarrierIds.has(el.id) : baseCarrierIds.has(el.id) }
       }
     }
@@ -830,7 +829,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       const att = elems.find(e => e.type === 'offense' && e.num === el.num)
       if (att) {
         const attPos  = curPos(att.id)
-        const ballPos = ballAnimX !== null ? { x: ballAnimX, y: ballAnimY } : (primaryCarrierId ? curPos(primaryCarrierId) : null)
+        const ballPos = flights.length > 0 ? { x: flights[0].x, y: flights[0].y } : (primaryCarrierId ? curPos(primaryCarrierId) : null)
         const f = attPos && smartFacing({ x: drawData.x, y: drawData.y }, attPos, ballPos)
         if (f != null) drawData = { ...drawData, face: f }
       }
@@ -838,34 +837,33 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
     drawEl(ctx, drawData, false, showVisionCone)
   }
 
-  // Shot ring (expands + fades at basket)
-  if (isShotAnim && et > 0.65) {
-    const shotEl = elems.find(el => el.type === 'shot' && (el.step ?? 0) === animStepIdx)
-    if (shotEl) {
-      const rp = (et - 0.65) / 0.35
-      ctx.save()
-      ctx.globalAlpha = Math.sin(rp * Math.PI) * 0.9
-      ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2.5
-      ctx.beginPath(); ctx.arc(shotEl.x2, shotEl.y2, 10 + rp * 18, 0, Math.PI * 2); ctx.stroke()
-      if (rp > 0.4) {
-        ctx.globalAlpha = (1 - rp) * 0.6
-        ctx.beginPath(); ctx.arc(shotEl.x2, shotEl.y2, 5 + rp * 8, 0, Math.PI * 2); ctx.stroke()
-      }
-      ctx.restore()
+  // Shot ring (expands + fades at basket) — una por cada tiro en vuelo esta acción
+  for (const f of flights) {
+    if (!f.isShot || et <= 0.65) continue
+    const rp = (et - 0.65) / 0.35
+    ctx.save()
+    ctx.globalAlpha = Math.sin(rp * Math.PI) * 0.9
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2.5
+    ctx.beginPath(); ctx.arc(f.shotEl.x2, f.shotEl.y2, 10 + rp * 18, 0, Math.PI * 2); ctx.stroke()
+    if (rp > 0.4) {
+      ctx.globalAlpha = (1 - rp) * 0.6
+      ctx.beginPath(); ctx.arc(f.shotEl.x2, f.shotEl.y2, 5 + rp * 8, 0, Math.PI * 2); ctx.stroke()
     }
+    ctx.restore()
   }
 
-  // Flying ball (variable radius for shot)
-  if (ballAnimX !== null && ballAnimR > 0) {
-    const bR = ballAnimR
+  // Flying ball(s) — uno por cada balón en vuelo esta acción (variable radius for shot)
+  for (const f of flights) {
+    if (f.r <= 0) continue
+    const bR = f.r
     ctx.save()
     ctx.fillStyle = '#f97316'
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.fill()
+    ctx.beginPath(); ctx.arc(f.x, f.y, bR, 0, Math.PI * 2); ctx.fill()
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR, 0, Math.PI * 2); ctx.stroke()
+    ctx.beginPath(); ctx.arc(f.x, f.y, bR, 0, Math.PI * 2); ctx.stroke()
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.9
-    ctx.beginPath(); ctx.moveTo(ballAnimX - bR, ballAnimY); ctx.lineTo(ballAnimX + bR, ballAnimY); ctx.stroke()
-    ctx.beginPath(); ctx.arc(ballAnimX, ballAnimY, bR * 0.6, 0, Math.PI); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(f.x - bR, f.y); ctx.lineTo(f.x + bR, f.y); ctx.stroke()
+    ctx.beginPath(); ctx.arc(f.x, f.y, bR * 0.6, 0, Math.PI); ctx.stroke()
     ctx.restore()
   }
 }

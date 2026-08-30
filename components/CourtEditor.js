@@ -460,7 +460,7 @@ function drawEl(ctx, el, selected, showVisionCone) {
      Base positions come from accumulateSteps(elems, animStepIdx)
 ══════════════════════════════════════════════════ */
 function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
-                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false) {
+                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false, multiBall = false) {
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
@@ -499,7 +499,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       const p   = playerPos[el.id]
       let drawData = p ? { ...el, x: p.x, y: p.y } : el
       if (PLAYER_TYPES.includes(el.type))
-        drawData = { ...drawData, hasBall: el.id === baseCarrierId }
+        drawData = { ...drawData, hasBall: multiBall ? el.hasBall : el.id === baseCarrierId }
       if ((el.type === 'defense' || el.type === 'xdefense') && el.face === undefined && playerFace[el.id] != null)
         drawData = { ...drawData, face: playerFace[el.id] }
       drawEl(ctx, drawData, el.id === selId, showVisionCone)
@@ -805,7 +805,11 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
       drawData = { ...drawData, x: p.x, y: p.y }
     }
     if (PLAYER_TYPES.includes(el.type)) {
-      if (ballAnimX !== null) {
+      if (multiBall) {
+        // Varios balones a la vez: se respeta el hasBall propio de cada
+        // jugador tal cual está en esta fase, sin transferencia automática
+        drawData = { ...drawData, hasBall: el.hasBall }
+      } else if (ballAnimX !== null) {
         if      (el.id === flyingCarrierId) drawData = { ...drawData, hasBall: false }
         else if (el.id === ballReceiverId)  drawData = { ...drawData, hasBall: stepT >= 0.85 }
         else                                drawData = { ...drawData, hasBall: false }
@@ -862,7 +866,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 /* ══════════════════════════════════════════════════
    PHASE THUMBNAIL
 ══════════════════════════════════════════════════ */
-function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }) {
+function PhaseThumb({ elements, active, index, onClick, courtType, visionCones, multiBall }) {
   const ref = useRef(null)
   const CH = getCanvasH(courtType)
   const TW = 132, TH = Math.round(132 * CH / CW)
@@ -873,9 +877,9 @@ function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }
     const s = TW / CW
     ctx.clearRect(0,0,TW,TH)
     ctx.save(); ctx.scale(s,s)
-    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones)
+    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones, multiBall)
     ctx.restore()
-  }, [elements, TW, TH, courtType, CH, visionCones])
+  }, [elements, TW, TH, courtType, CH, visionCones, multiBall])
 
   return (
     <div onClick={onClick} style={{ cursor:'pointer', borderRadius:8, overflow:'hidden', border:`2px solid ${active?'#3b82f6':'#374151'}`, position:'relative', flexShrink:0, transition:'border-color 0.15s' }}>
@@ -1179,7 +1183,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false, visionCones = false }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false, visionCones = false, maxPlayers = 5, multiBall = false }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1244,7 +1248,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, multiBall)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
@@ -1401,21 +1405,25 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     }
     if (tool === 'erase') { const hit=hitTest(p.x,p.y); if(hit){delEl(hit.id);setSelId(null)}; return }
     if (tool === 'giveball') {
-      // Transfer ball to clicked player, remove from all others
+      // multiBall: alterna el balón solo en el jugador pulsado (varios pueden
+      // llevar balón a la vez). Si no, comportamiento normal: transferencia
+      // única, se quita a todos los demás.
       const hit = hitTest(p.x, p.y)
       if (hit && PLAYER_TYPES.includes(hit.type)) {
         setPhases(prev => prev.map((ph,i) => i!==cur ? ph : {
           ...ph,
-          elements: ph.elements.map(e =>
-            PLAYER_TYPES.includes(e.type) ? {...e, hasBall: e.id===hit.id} : e
-          )
+          elements: ph.elements.map(e => {
+            if (!PLAYER_TYPES.includes(e.type)) return e
+            if (multiBall) return e.id === hit.id ? { ...e, hasBall: !e.hasBall } : e
+            return { ...e, hasBall: e.id === hit.id }
+          })
         }))
       }
       return
     }
-    if (tool === 'offense')  { addEl({type:'offense',  x:p.x,y:p.y,num:offNum});setOffNum(n=>n>=5?1:n+1); return }
-    if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=5?1:n+1); return }
-    if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=5?1:n+1); return }
+    if (tool === 'offense')  { addEl({type:'offense',  x:p.x,y:p.y,num:offNum});setOffNum(n=>n>=maxPlayers?1:n+1); return }
+    if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=maxPlayers?1:n+1); return }
+    if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=maxPlayers?1:n+1); return }
     if (tool === 'ball')  { addEl({type:'ball',  x:p.x,y:p.y}); return }
     if (tool === 'cone')  { addEl({type:'cone',  x:p.x,y:p.y}); return }
     if (tool === 'text')  { setTextModal(p); setTextVal(''); return }
@@ -1495,7 +1503,10 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       .map(el => {
         const pos = playerPos[el.id]
         const moved = pos ? { ...el, x: pos.x, y: pos.y } : { ...el }
-        if (PLAYER_TYPES.includes(el.type)) return { ...moved, hasBall: el.id === newCarrierId }
+        // multiBall: cada jugador conserva su propio balón tal cual estaba
+        // (no hay una única transferencia que seguir); si no, se sigue al
+        // portador resuelto por los pases/handoffs de la fase
+        if (PLAYER_TYPES.includes(el.type)) return { ...moved, hasBall: multiBall ? el.hasBall : el.id === newCarrierId }
         return moved
       })
 
@@ -1528,7 +1539,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, multiBall)
     }, 0)
   }
 
@@ -1576,7 +1587,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           const W = CW, H = getCanvasH(courtTypeRef.current)
           const lastPh   = phasesRef.current[nPhases - 1]
           const lastStep = phaseMeta[nPhases - 1].numSteps - 1
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones)
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones, multiBall)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
@@ -1600,7 +1611,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, multiBall)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -1656,7 +1667,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, multiBall)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1830,7 +1841,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones}
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones} multiBall={multiBall}
               onClick={()=>{ if(!animating){setCur(i);setSelId(null)} }} />
           ))}
 
@@ -2055,22 +2066,22 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
               }}>
                 <span style={{fontSize:15}}>🏀</span>
                 {tool==='giveball'
-                  ? <span>Clic en el jugador con balón</span>
-                  : <span>Asignar balón a jugador</span>
+                  ? <span>{multiBall ? 'Clic para dar/quitar balón' : 'Clic en el jugador con balón'}</span>
+                  : <span>Asignar balón a jugador{multiBall ? 'es' : ''}</span>
                 }
               </button>
 
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>⬤ Ataque (relleno)</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
-                {[1,2,3,4,5,'?'].map(n=>playerBtn('offense',n,n))}
+                {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('offense',n,n))}
               </div>
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>○ Defensa (hueco)</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
-                {[1,2,3,4,5,'?'].map(n=>playerBtn('defense',n,n))}
+                {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('defense',n,n))}
               </div>
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>✕ Defensa X</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                {[1,2,3,4,5,'?'].map(n=>playerBtn('xdefense',n,n))}
+                {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('xdefense',n,n))}
               </div>
             </div>
 

@@ -576,6 +576,8 @@ export default function EntrenamientosPage() {
             onSave={handleSaveExercisePlay}
             onClose={() => setEditorExercise(null)}
             visionCones
+            maxPlayers={15}
+            multiBall
           />
         </div>
       </ModalPortal>
@@ -597,6 +599,8 @@ export default function EntrenamientosPage() {
             onSave={canEditLib ? handleSaveLibItemPlay : undefined}
             onClose={() => setEditorLibItem(null)}
             visionCones
+            maxPlayers={15}
+            multiBall
           />
         </div>
       </ModalPortal>

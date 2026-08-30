@@ -25,7 +25,148 @@ function CategoryBadge({ category }) {
   )
 }
 
-const emptyExForm = { title: '', duration_minutes: 10, description: '', category: '' }
+const INTENSITIES = {
+  baja:  { label: 'Baja',  color: '#16a34a' },
+  media: { label: 'Media', color: '#f59e0b' },
+  alta:  { label: 'Alta',  color: '#dc2626' },
+}
+
+function IntensityBadge({ intensity }) {
+  const i = INTENSITIES[intensity]
+  if (!i) return null
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, color: i.color, backgroundColor: i.color + '1a', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>
+      ⚡ {i.label}
+    </span>
+  )
+}
+
+// Bloque de texto con etiqueta, usado para objetivo/desarrollo/puntos clave/variantes
+function DetailBlock({ label, text }) {
+  if (!text) return null
+  return (
+    <div style={{ marginTop: 6 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+      <p style={{ fontSize: 13, color: '#374151', margin: '2px 0 0', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{text}</p>
+    </div>
+  )
+}
+
+const emptyExForm = {
+  title: '', duration_minutes: 10, description: '', category: '',
+  intensity: '', organization: '', materials: '', objective: '', key_points: '', variants: '',
+}
+
+// Campos de texto de un ejercicio que se copian tal cual entre sesión / biblioteca / plantilla
+const EX_TEXT_FIELDS = ['title', 'description', 'category', 'intensity', 'organization', 'materials', 'objective', 'key_points', 'variants']
+
+// Del formulario a la BD: las cadenas vacías (campos que el entrenador no rellenó) se guardan como null
+function pickExFields(form) {
+  const out = { duration_minutes: form.duration_minutes }
+  for (const k of EX_TEXT_FIELDS) out[k] = form[k] || null
+  return out
+}
+
+// De una fila de la BD al formulario: null se muestra como cadena vacía
+function exToForm(row) {
+  const out = { duration_minutes: row.duration_minutes || 10 }
+  for (const k of EX_TEXT_FIELDS) out[k] = row[k] || ''
+  return out
+}
+
+const inputStyle = { width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s' }
+const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
+const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
+const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
+
+// Campos del formulario de ejercicio, compartidos entre "Añadir/editar ejercicio"
+// (dentro de una sesión) y "Nuevo ejercicio de biblioteca" — todos opcionales
+// salvo el nombre, cada entrenador rellena lo que le sirve para explicarlo.
+function ExerciseFormFields({ form, setForm }) {
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  return (
+    <>
+      <div>
+        <label style={labelStyle}>Nombre del ejercicio *</label>
+        <input type='text' value={form.title} onChange={set('title')}
+          placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
+          onFocus={inputFocus} onBlur={inputBlur} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <label style={labelStyle}>Duración (minutos)</label>
+          <input type='number' value={form.duration_minutes} onChange={e => setForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
+            min={1} max={120} style={inputStyle}
+            onFocus={inputFocus} onBlur={inputBlur} />
+        </div>
+        <div>
+          <label style={labelStyle}>Categoría</label>
+          <select value={form.category} onChange={set('category')} style={inputStyle}>
+            <option value=''>Sin categoría</option>
+            {Object.entries(CATEGORIES).map(([key, c]) => (
+              <option key={key} value={key}>{c.emoji} {c.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>Intensidad</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {Object.entries(INTENSITIES).map(([key, i]) => (
+            <button key={key} type='button' onClick={() => setForm(f => ({ ...f, intensity: f.intensity === key ? '' : key }))} style={{
+              flex: 1, padding: '9px 0', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 12.5,
+              border: `1.5px solid ${form.intensity === key ? i.color : '#e2e8f0'}`,
+              background: form.intensity === key ? i.color + '1a' : '#fff',
+              color: form.intensity === key ? i.color : '#64748b',
+            }}>{i.label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <label style={labelStyle}>Organización</label>
+          <input type='text' value={form.organization} onChange={set('organization')}
+            placeholder='Ej: Grupos de 3' style={inputStyle}
+            onFocus={inputFocus} onBlur={inputBlur} />
+        </div>
+        <div>
+          <label style={labelStyle}>Material necesario</label>
+          <input type='text' value={form.materials} onChange={set('materials')}
+            placeholder='Ej: 4 conos, 2 balones' style={inputStyle}
+            onFocus={inputFocus} onBlur={inputBlur} />
+        </div>
+      </div>
+      <div>
+        <label style={labelStyle}>🎯 Objetivo</label>
+        <textarea value={form.objective} onChange={set('objective')}
+          placeholder='¿Qué se busca trabajar con este ejercicio?' rows={2}
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          onFocus={inputFocus} onBlur={inputBlur} />
+      </div>
+      <div>
+        <label style={labelStyle}>📋 Desarrollo / Cómo se hace</label>
+        <textarea value={form.description} onChange={set('description')}
+          placeholder='Explica cómo se realiza el ejercicio...' rows={3}
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          onFocus={inputFocus} onBlur={inputBlur} />
+      </div>
+      <div>
+        <label style={labelStyle}>💡 Puntos clave</label>
+        <textarea value={form.key_points} onChange={set('key_points')}
+          placeholder='¿Qué corregir o vigilar mientras se hace?' rows={2}
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          onFocus={inputFocus} onBlur={inputBlur} />
+      </div>
+      <div>
+        <label style={labelStyle}>🔄 Variantes</label>
+        <textarea value={form.variants} onChange={set('variants')}
+          placeholder='Formas de complicar o simplificar el ejercicio...' rows={2}
+          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          onFocus={inputFocus} onBlur={inputBlur} />
+      </div>
+    </>
+  )
+}
 
 export default function EntrenamientosPage() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
@@ -189,8 +330,7 @@ export default function EntrenamientosPage() {
         const { data: tExs } = await supabase.from('session_template_exercises').select('*').eq('template_id', useTemplateId).order('order_index')
         if (tExs?.length > 0) {
           await supabase.from('training_exercises').insert(tExs.map(te => ({
-            session_id: newSession.id, title: te.title, duration_minutes: te.duration_minutes,
-            description: te.description, category: te.category, play_data: te.play_data, order_index: te.order_index,
+            ...pickExFields(te), session_id: newSession.id, play_data: te.play_data, order_index: te.order_index,
           })))
         }
       }
@@ -229,7 +369,7 @@ export default function EntrenamientosPage() {
   async function handleSaveExercise(e) {
     e.preventDefault()
     setSavingEx(true)
-    const payload = { title: exForm.title, duration_minutes: exForm.duration_minutes, description: exForm.description, category: exForm.category || null }
+    const payload = pickExFields(exForm)
     if (editingExercise) {
       await supabase.from('training_exercises').update(payload).eq('id', editingExercise.id)
     } else {
@@ -244,7 +384,7 @@ export default function EntrenamientosPage() {
 
   function openEditExercise(ex) {
     setEditingExercise(ex)
-    setExForm({ title: ex.title, duration_minutes: ex.duration_minutes || 10, description: ex.description || '', category: ex.category || '' })
+    setExForm(exToForm(ex))
     setShowExForm(true)
   }
 
@@ -263,18 +403,13 @@ export default function EntrenamientosPage() {
   }
 
   async function saveExerciseToLibrary(ex) {
-    await supabase.from('exercise_library').insert({
-      title: ex.title, duration_minutes: ex.duration_minutes, description: ex.description,
-      category: ex.category, play_data: ex.play_data, created_by: user.id,
-    })
+    await supabase.from('exercise_library').insert({ ...pickExFields(ex), play_data: ex.play_data, created_by: user.id })
     alert(`«${ex.title}» guardado en tu biblioteca de ejercicios`)
   }
 
   async function addExerciseFromLibrary(item) {
     await supabase.from('training_exercises').insert({
-      session_id: detailSession.id, title: item.title, duration_minutes: item.duration_minutes,
-      description: item.description, category: item.category, play_data: item.play_data,
-      order_index: exercises.length,
+      ...pickExFields(item), session_id: detailSession.id, play_data: item.play_data, order_index: exercises.length,
     })
     setShowLibPicker(false)
     await loadExercises(detailSession.id)
@@ -296,14 +431,14 @@ export default function EntrenamientosPage() {
 
   function openEditLibItem(item) {
     setEditingLibItem(item)
-    setLibForm({ title: item.title, duration_minutes: item.duration_minutes || 10, description: item.description || '', category: item.category || '' })
+    setLibForm(exToForm(item))
     setShowLibForm(true)
   }
 
   async function handleSaveLibItem(e) {
     e.preventDefault()
     setSavingLib(true)
-    const payload = { title: libForm.title, duration_minutes: libForm.duration_minutes, description: libForm.description, category: libForm.category || null }
+    const payload = pickExFields(libForm)
     if (editingLibItem) await supabase.from('exercise_library').update(payload).eq('id', editingLibItem.id)
     else await supabase.from('exercise_library').insert({ ...payload, created_by: user.id })
     setSavingLib(false)
@@ -341,8 +476,7 @@ export default function EntrenamientosPage() {
     }).select().single()
     if (!error && tmpl && exercises.length > 0) {
       await supabase.from('session_template_exercises').insert(exercises.map(ex => ({
-        template_id: tmpl.id, title: ex.title, duration_minutes: ex.duration_minutes, description: ex.description,
-        category: ex.category, play_data: ex.play_data, order_index: ex.order_index,
+        ...pickExFields(ex), template_id: tmpl.id, play_data: ex.play_data, order_index: ex.order_index,
       })))
     }
     setSavingTemplate(false)
@@ -389,13 +523,7 @@ export default function EntrenamientosPage() {
 
     if (!error && newSession && exercises.length > 0) {
       const exPayload = exercises.map(ex => ({
-        session_id: newSession.id,
-        title: ex.title,
-        duration_minutes: ex.duration_minutes,
-        description: ex.description,
-        category: ex.category,
-        order_index: ex.order_index,
-        play_data: ex.play_data,
+        ...pickExFields(ex), session_id: newSession.id, order_index: ex.order_index, play_data: ex.play_data,
       }))
       await supabase.from('training_exercises').insert(exPayload)
     }
@@ -432,11 +560,6 @@ export default function EntrenamientosPage() {
     border: tab === t ? 'none' : '1.5px solid #e2e8f0',
     boxShadow: tab === t ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
   })
-
-  const inputStyle = { width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s' }
-  const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
-  const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
-  const inputBlur  = e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none' }
 
   if (loading) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
@@ -506,16 +629,21 @@ export default function EntrenamientosPage() {
               <button onClick={() => setLiveMode(false)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
               <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7 }}>Ejercicio {liveIdx + 1} / {exercises.length}</div>
             </div>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', minHeight: 0 }}>
-              {liveEx?.category && (
-                <div style={{ marginBottom: 16 }}><CategoryBadge category={liveEx.category} /></div>
-              )}
-              <div style={{ fontSize: 26, fontWeight: 900, marginBottom: 12, maxWidth: 480 }}>{liveEx?.title}</div>
-              {liveEx?.description && <div style={{ fontSize: 14, opacity: 0.75, maxWidth: 440, marginBottom: 26, lineHeight: 1.6 }}>{liveEx.description}</div>}
-              <div style={{ fontSize: 64, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: liveSeconds === 0 ? '#f59e0b' : '#fff' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '12px 24px', textAlign: 'center', minHeight: 0, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <CategoryBadge category={liveEx?.category} />
+                <IntensityBadge intensity={liveEx?.intensity} />
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 10, maxWidth: 480 }}>{liveEx?.title}</div>
+              <div style={{ fontSize: 56, fontWeight: 900, fontVariantNumeric: 'tabular-nums', color: liveSeconds === 0 ? '#f59e0b' : '#fff', margin: '4px 0 10px' }}>
                 {String(Math.floor(liveSeconds / 60)).padStart(2, '0')}:{String(liveSeconds % 60).padStart(2, '0')}
               </div>
-              {liveSeconds === 0 && <div style={{ color: '#f59e0b', fontWeight: 700, marginTop: 8 }}>⏰ ¡Tiempo!</div>}
+              {liveSeconds === 0 && <div style={{ color: '#f59e0b', fontWeight: 700, marginBottom: 10 }}>⏰ ¡Tiempo!</div>}
+              <div style={{ maxWidth: 440, textAlign: 'left', width: '100%' }}>
+                {liveEx?.objective && <div style={{ marginBottom: 10 }}><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>🎯 Objetivo</span><p style={{ fontSize: 13.5, opacity: 0.85, margin: '2px 0 0', lineHeight: 1.5 }}>{liveEx.objective}</p></div>}
+                {liveEx?.description && <div style={{ marginBottom: 10 }}><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>📋 Desarrollo</span><p style={{ fontSize: 13.5, opacity: 0.85, margin: '2px 0 0', lineHeight: 1.5 }}>{liveEx.description}</p></div>}
+                {liveEx?.key_points && <div style={{ marginBottom: 10 }}><span style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase' }}>💡 Puntos clave</span><p style={{ fontSize: 13.5, opacity: 0.85, margin: '2px 0 0', lineHeight: 1.5 }}>{liveEx.key_points}</p></div>}
+              </div>
               <button onClick={() => setLiveRunning(r => !r)} style={{
                 marginTop: 26, background: liveRunning ? 'rgba(255,255,255,0.12)' : '#52B043', border: 'none', borderRadius: 12,
                 color: '#fff', padding: '13px 30px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
@@ -698,6 +826,7 @@ export default function EntrenamientosPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{ex.title}</div>
                       <CategoryBadge category={ex.category} />
+                      <IntensityBadge intensity={ex.intensity} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>{ex.duration_minutes} min</span>
@@ -710,7 +839,17 @@ export default function EntrenamientosPage() {
                       )}
                     </div>
                   </div>
-                  {ex.description && <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0', lineHeight: 1.5 }}>{ex.description}</p>}
+                  {(ex.organization || ex.materials) && (
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
+                      {ex.organization && <span>👥 {ex.organization}</span>}
+                      {ex.organization && ex.materials && <span> · </span>}
+                      {ex.materials && <span>🎒 {ex.materials}</span>}
+                    </div>
+                  )}
+                  <DetailBlock label="🎯 Objetivo" text={ex.objective} />
+                  <DetailBlock label="📋 Desarrollo" text={ex.description} />
+                  <DetailBlock label="💡 Puntos clave" text={ex.key_points} />
+                  <DetailBlock label="🔄 Variantes" text={ex.variants} />
                   <div style={{ marginTop: 8 }}>
                     <button
                       disabled={!ex.play_data && isReadOnly}
@@ -740,39 +879,10 @@ export default function EntrenamientosPage() {
           {showExForm && (
             <ModalPortal>
             <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
                 <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editingExercise ? 'Editar ejercicio' : 'Añadir ejercicio'}</h2>
                 <form onSubmit={handleSaveExercise} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div>
-                    <label style={labelStyle}>Nombre del ejercicio *</label>
-                    <input type='text' value={exForm.title} onChange={e => setExForm(f => ({ ...f, title: e.target.value }))}
-                      placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
-                      onFocus={inputFocus} onBlur={inputBlur} />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div>
-                      <label style={labelStyle}>Duración (minutos)</label>
-                      <input type='number' value={exForm.duration_minutes} onChange={e => setExForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
-                        min={1} max={120} style={inputStyle}
-                        onFocus={inputFocus} onBlur={inputBlur} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Categoría</label>
-                      <select value={exForm.category} onChange={e => setExForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
-                        <option value=''>Sin categoría</option>
-                        {Object.entries(CATEGORIES).map(([key, c]) => (
-                          <option key={key} value={key}>{c.emoji} {c.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Descripción / Instrucciones</label>
-                    <textarea value={exForm.description} onChange={e => setExForm(f => ({ ...f, description: e.target.value }))}
-                      placeholder='Explica cómo se realiza el ejercicio...' rows={3}
-                      style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                      onFocus={inputFocus} onBlur={inputBlur} />
-                  </div>
+                  <ExerciseFormFields form={exForm} setForm={setExForm} />
                   <div style={{ display: 'flex', gap: 10 }}>
                     <button type='button' onClick={() => { setShowExForm(false); setEditingExercise(null) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                     <button type='submit' disabled={savingEx} className="btn-primary" style={{ flex: 1, padding: '12px' }}>
@@ -973,39 +1083,10 @@ export default function EntrenamientosPage() {
               {showLibForm && (
                 <ModalPortal>
                 <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                  <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                  <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
                     <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editingLibItem ? 'Editar ejercicio' : 'Nuevo ejercicio de biblioteca'}</h2>
                     <form onSubmit={handleSaveLibItem} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      <div>
-                        <label style={labelStyle}>Nombre del ejercicio *</label>
-                        <input type='text' value={libForm.title} onChange={e => setLibForm(f => ({ ...f, title: e.target.value }))}
-                          placeholder='Ej: Tiro libre, Defensa 1x1...' required style={inputStyle}
-                          onFocus={inputFocus} onBlur={inputBlur} />
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                        <div>
-                          <label style={labelStyle}>Duración (minutos)</label>
-                          <input type='number' value={libForm.duration_minutes} onChange={e => setLibForm(f => ({ ...f, duration_minutes: parseInt(e.target.value) || 0 }))}
-                            min={1} max={120} style={inputStyle}
-                            onFocus={inputFocus} onBlur={inputBlur} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Categoría</label>
-                          <select value={libForm.category} onChange={e => setLibForm(f => ({ ...f, category: e.target.value }))} style={inputStyle}>
-                            <option value=''>Sin categoría</option>
-                            {Object.entries(CATEGORIES).map(([key, c]) => (
-                              <option key={key} value={key}>{c.emoji} {c.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Descripción / Instrucciones</label>
-                        <textarea value={libForm.description} onChange={e => setLibForm(f => ({ ...f, description: e.target.value }))}
-                          placeholder='Explica cómo se realiza el ejercicio...' rows={3}
-                          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
-                          onFocus={inputFocus} onBlur={inputBlur} />
-                      </div>
+                      <ExerciseFormFields form={libForm} setForm={setLibForm} />
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button type='button' onClick={() => { setShowLibForm(false); setEditingLibItem(null) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                         <button type='submit' disabled={savingLib} className="btn-primary" style={{ flex: 1, padding: '12px' }}>

@@ -372,12 +372,15 @@ export default function EntrenamientosPage() {
     e.preventDefault()
     setSavingEx(true)
     const payload = pickExFields(exForm)
-    if (editingExercise) {
-      await supabase.from('training_exercises').update(payload).eq('id', editingExercise.id)
-    } else {
-      await supabase.from('training_exercises').insert({ ...payload, session_id: detailSession.id, order_index: exercises.length })
-    }
+    const { error } = editingExercise
+      ? await supabase.from('training_exercises').update(payload).eq('id', editingExercise.id)
+      : await supabase.from('training_exercises').insert({ ...payload, session_id: detailSession.id, order_index: exercises.length })
     setSavingEx(false)
+    if (error) {
+      console.error('Error guardando ejercicio:', error)
+      alert(`No se pudo guardar el ejercicio: ${error.message}`)
+      return
+    }
     setShowExForm(false)
     setEditingExercise(null)
     setExForm(emptyExForm)

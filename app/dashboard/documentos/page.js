@@ -63,13 +63,24 @@ function DocumentosInner() {
   const [viewError, setViewError] = useState('')
 
   // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  const hasNavigatedRef = useRef(false)
   function pushParams(updates) {
+    hasNavigatedRef.current = true
     const params = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+  function safeBack(fallbackUpdates) {
+    if (hasNavigatedRef.current) { router.back(); return }
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(fallbackUpdates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
 
   useEffect(() => {
@@ -219,7 +230,7 @@ function DocumentosInner() {
   }
 
   function closeView() {
-    router.back()
+    safeBack({ doc: null })
   }
 
   const tabStyle = (t) => ({

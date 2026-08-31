@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
@@ -37,13 +37,24 @@ function ConceptosInner() {
   const [viewingConcept, setViewingConcept] = useState(null)
 
   // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  const hasNavigatedRef = useRef(false)
   function pushParams(updates) {
+    hasNavigatedRef.current = true
     const params = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+  function safeBack(fallbackUpdates) {
+    if (hasNavigatedRef.current) { router.back(); return }
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(fallbackUpdates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
 
   useEffect(() => {
@@ -100,7 +111,7 @@ function ConceptosInner() {
       return false
     }
     await loadConcepts(tab)
-    router.back()
+    safeBack({ edit: null, new: null })
   }
 
   async function handleDelete(concept, e) {
@@ -129,7 +140,7 @@ function ConceptosInner() {
           <CourtEditor
             initialData={initData}
             onSave={handleSave}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ edit: null, new: null })}
             notesPanel
             visionCones={(editingConcept ? editingConcept.category : tab) === 'defensivo'}
             draftKey={editingConcept ? `concept-${editingConcept.id}` : `concept-new-${tab}`}
@@ -153,7 +164,7 @@ function ConceptosInner() {
               steps: viewingConcept.play_data?.steps || [],
               courtType: viewingConcept.play_data?.courtType,
             }}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ view: null })}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}
             notesPanel
             visionCones={viewingConcept.category === 'defensivo'}

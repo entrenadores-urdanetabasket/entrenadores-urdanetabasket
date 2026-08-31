@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
@@ -41,13 +41,30 @@ function TacticasInner() {
   const [showTeamPicker, setShowTeamPicker] = useState(false)
 
   // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  const hasNavigatedRef = useRef(false) // ¿hemos empujado algo nosotros esta carga de página?
+
   function pushParams(updates) {
+    hasNavigatedRef.current = true
     const params = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
     router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  // Si se ha llegado a esta URL directamente (recarga, enlace directo,
+  // pestaña reabierta), router.back() no tiene nada que deshacer y se
+  // queda sin hacer nada — safeBack navega explícitamente al nivel
+  // anterior en ese caso, para no quedarse bloqueado
+  function safeBack(fallbackUpdates) {
+    if (hasNavigatedRef.current) { router.back(); return }
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(fallbackUpdates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
 
   useEffect(() => {
@@ -141,7 +158,7 @@ function TacticasInner() {
       return false
     }
     await loadTactics(selectedTeam)
-    router.back()
+    safeBack({ edit: null, new: null })
   }
 
   async function deleteTactic(id) {
@@ -197,7 +214,7 @@ function TacticasInner() {
           <CourtEditor
             initialData={initData}
             onSave={handleSave}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ edit: null, new: null })}
             visionCones
             draftKey={editingTactic ? `tactic-${editingTactic.id}` : `tactic-new-${selectedTeam}`}
           />
@@ -219,7 +236,7 @@ function TacticasInner() {
               steps: viewingShared.play_data?.steps || [],
               courtType: viewingShared.play_data?.courtType,
             }}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ view: null })}
             onDuplicate={handleDuplicateClick}
             duplicating={duplicating}
             readOnlyLabel={`🏀 ${viewingShared.teams?.name || 'Equipo'}`}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
+import TeamGroupPicker from '@/components/TeamGroupPicker'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -322,15 +323,7 @@ function TacticasInner() {
 
       {/* Team selector — solo en "Mis tácticas" */}
       {tab === 'mias' && teams.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
-          {teams.map(t => (
-            <button key={t.id} onClick={() => handleSelectTeam(t.id)} style={{
-              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap',
-              background: selectedTeam === t.id ? '#1C5C2A' : '#f3f4f6',
-              color: selectedTeam === t.id ? '#fff' : '#374151',
-            }}>{t.name}</button>
-          ))}
-        </div>
+        <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam} onSelect={t => handleSelectTeam(t.id)} />
       )}
 
       {/* ── PESTAÑA COMPARTIDAS ── */}

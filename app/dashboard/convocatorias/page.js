@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
+import TeamGroupPicker from '@/components/TeamGroupPicker'
 
 function ConvocatoriaCard({ c, isDirector, onDelete, isPast }) {
   const count = c.convocatoria_players?.length || 0
@@ -156,22 +157,7 @@ export default function ConvocatoriasPage() {
 
       {/* Selector equipos (director) */}
       {isDirector && allTeams.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          {allTeams.map(t => {
-            const active = selectedTeam?.id === t.id
-            return (
-              <button key={t.id} onClick={() => switchTeam(t)} style={{
-                padding: '8px 16px', borderRadius: 20,
-                cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
-                color: active ? '#fff' : '#475569',
-                border: active ? 'none' : '1.5px solid #e2e8f0',
-                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
-                transition: 'all 0.15s'
-              }}>{t.name}</button>
-            )
-          })}
-        </div>
+        <TeamGroupPicker teams={allTeams} selectedTeamId={selectedTeam?.id} onSelect={switchTeam} />
       )}
 
       {/* Empty state */}

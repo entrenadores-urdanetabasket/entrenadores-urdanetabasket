@@ -4,26 +4,10 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
+import { categoryRank, categoryGroup } from '@/lib/teamCategoryOrder'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
-
-// Orden de categorías de más baja a más alta, y a qué grupo pertenece cada
-// una (escolar / federado). Se compara por "incluye" para no romper con
-// nombres de categoría heredados como "Femenino Senior".
-const SCHOOL_CATEGORIES = ['Premini', 'Mini', 'Infantil']
-const FEDERATED_CATEGORIES = ['Cadete', 'Junior', 'Senior']
-const CATEGORY_ORDER = [...SCHOOL_CATEGORIES, ...FEDERATED_CATEGORIES]
-
-function categoryRank(category) {
-  const c = (category || '').toLowerCase()
-  const idx = CATEGORY_ORDER.findIndex(cat => c.includes(cat.toLowerCase()))
-  return idx === -1 ? CATEGORY_ORDER.length : idx
-}
-function categoryGroup(category) {
-  const c = (category || '').toLowerCase()
-  return SCHOOL_CATEGORIES.some(cat => c.includes(cat.toLowerCase())) ? 'escolar' : 'federado'
-}
 
 function nextSeason(season) {
   const [a, b] = String(season || '').split('-').map(n => parseInt(n, 10))

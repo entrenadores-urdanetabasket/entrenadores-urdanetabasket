@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
+import TeamGroupPicker from '@/components/TeamGroupPicker'
 
 const STATUS = {
   present:   { label: 'Presente',    color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
@@ -334,20 +335,7 @@ export default function AsistenciaPage() {
       </div>
 
       {isDirector && teams.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-          {teams.map(t => {
-            const active = selectedTeam?.id === t.id
-            return (
-              <button key={t.id} onClick={() => { setLoading(true); loadTeamData(t, tab) }} style={{
-                padding: '8px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
-                color: active ? '#fff' : '#475569',
-                border: active ? 'none' : '1.5px solid #e2e8f0',
-                boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none'
-              }}>{t.name}</button>
-            )
-          })}
-        </div>
+        <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { setLoading(true); loadTeamData(t, tab) }} />
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>

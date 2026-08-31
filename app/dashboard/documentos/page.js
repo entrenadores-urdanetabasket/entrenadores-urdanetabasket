@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
 
@@ -39,9 +38,7 @@ function DocumentosInner() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
   const fileInputRef = useRef(null)
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const pathname = '/dashboard/documentos'
 
   const [teams, setTeams] = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -62,29 +59,43 @@ function DocumentosInner() {
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError, setViewError] = useState('')
 
-  // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  // ── Navegación real por URL ──────────────────────────────────────
+  // Se gestiona directamente con la History API del navegador: en
+  // producción, router.push()/replace() de Next se quedaban sin efecto
+  // cuando solo cambiaban los parámetros de búsqueda en esta página
+  // (la URL calculada era correcta pero nunca llegaba a aplicarse).
   const hasNavigatedRef = useRef(false)
+  const [urlParams, setUrlParams] = useState(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''))
+
+  useEffect(() => {
+    function onPopState() { setUrlParams(new URLSearchParams(window.location.search)) }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   function pushParams(updates) {
     hasNavigatedRef.current = true
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname)
+    window.history.pushState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
   function safeBack(fallbackUpdates) {
-    if (hasNavigatedRef.current) { router.back(); return }
-    const params = new URLSearchParams(searchParams.toString())
+    if (hasNavigatedRef.current) { window.history.back(); return }
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(fallbackUpdates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname)
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
 
   useEffect(() => {
-    const docId = searchParams.get('doc')
+    const docId = urlParams.get('doc')
     if (!docId) {
       if (viewingDoc) { setViewingDoc(null); setViewUrl(null); setViewError('') }
       return
@@ -93,7 +104,7 @@ function DocumentosInner() {
     const found = documents.find(d => d.id === docId) || sharedDocs.find(d => d.id === docId)
     if (found) openDocViewer(found)
     else if (documents.length > 0 || sharedDocs.length > 0) pushParams({ doc: null })
-  }, [searchParams, documents, sharedDocs])
+  }, [urlParams, documents, sharedDocs])
 
   useEffect(() => {
     if (!user || !profile) return

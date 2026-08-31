@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -24,9 +23,7 @@ export default function ConceptosPage() {
 function ConceptosInner() {
   const { user, profile, supabase } = useAuth()
   const isDirector = profile?.role === 'director'
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const pathname = '/dashboard/conceptos'
 
   const [tab, setTab] = useState('ofensivo') // 'ofensivo' | 'defensivo'
   const [concepts, setConcepts] = useState([])
@@ -36,31 +33,45 @@ function ConceptosInner() {
   const [editingConcept, setEditingConcept] = useState(null)
   const [viewingConcept, setViewingConcept] = useState(null)
 
-  // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  // ── Navegación real por URL ──────────────────────────────────────
+  // Se gestiona directamente con la History API del navegador: en
+  // producción, router.push()/replace() de Next se quedaban sin efecto
+  // cuando solo cambiaban los parámetros de búsqueda en esta página
+  // (la URL calculada era correcta pero nunca llegaba a aplicarse).
   const hasNavigatedRef = useRef(false)
+  const [urlParams, setUrlParams] = useState(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''))
+
+  useEffect(() => {
+    function onPopState() { setUrlParams(new URLSearchParams(window.location.search)) }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
   function pushParams(updates) {
     hasNavigatedRef.current = true
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname)
+    window.history.pushState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
   function safeBack(fallbackUpdates) {
-    if (hasNavigatedRef.current) { router.back(); return }
-    const params = new URLSearchParams(searchParams.toString())
+    if (hasNavigatedRef.current) { window.history.back(); return }
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(fallbackUpdates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname)
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
 
   useEffect(() => {
-    const editId = searchParams.get('edit')
-    const isNew = searchParams.get('new') === '1'
-    const viewId = searchParams.get('view')
+    const editId = urlParams.get('edit')
+    const isNew = urlParams.get('new') === '1'
+    const viewId = urlParams.get('view')
 
     if (isNew) {
       if (!openEditor) { setEditingConcept(null); setOpenEditor(true) }
@@ -83,7 +94,7 @@ function ConceptosInner() {
     } else if (viewingConcept) {
       setViewingConcept(null)
     }
-  }, [searchParams, concepts])
+  }, [urlParams, concepts])
 
   useEffect(() => { if (user && profile) loadConcepts(tab) }, [user, profile, tab])
 

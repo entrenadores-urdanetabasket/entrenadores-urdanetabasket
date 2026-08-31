@@ -412,6 +412,17 @@ function drawEl(ctx, el, selected, showVisionCone) {
     if (el.hasBall) drawBallBadge(ctx, el.x, el.y)
   }
 
+  if (type === 'coach') {
+    ctx.fillStyle='#2563eb'; ctx.strokeStyle='#1e3a8a'; ctx.lineWidth=2.5
+    ctx.beginPath(); ctx.arc(el.x,el.y,PR,0,Math.PI*2); ctx.fill(); ctx.stroke()
+    if (selected) { ctx.strokeStyle='#f59e0b'; ctx.lineWidth=2.5; ctx.stroke() }
+    ctx.fillStyle='#fff'
+    ctx.font='bold 11px -apple-system,sans-serif'
+    ctx.textAlign='center'; ctx.textBaseline='middle'
+    ctx.fillText('E'+(el.num??''), el.x, el.y+1)
+    if (el.hasBall) drawBallBadge(ctx, el.x, el.y)
+  }
+
   if (type === 'ball') {
     ctx.fillStyle='#e07320'
     ctx.beginPath(); ctx.arc(el.x,el.y,12,0,Math.PI*2); ctx.fill()
@@ -898,7 +909,7 @@ function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }
 
 /* ── Type constants (module-level so renderPhaseFrame can use them) ── */
 const ARROW_TYPES        = ['dribble','pass','cut','shot','handoff','screen']
-const PLAYER_TYPES       = ['offense','defense','xdefense']
+const PLAYER_TYPES       = ['offense','defense','xdefense','coach']
 const BALL_TRANSFER_TYPES = ['pass']             // handoff is a swap — handled separately
 // Only these arrow types physically move the player to the endpoint
 const MOVE_ARROW_TYPES   = ['dribble','cut','screen']
@@ -1230,6 +1241,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const [recording,  setRecording]   = useState(false)
   const [offNum,     setOffNum]      = useState(1)
   const [defNum,     setDefNum]      = useState(1)
+  const [coachNum,   setCoachNum]    = useState(1)
   const [textModal,  setTextModal]   = useState(null)
   const [textVal,    setTextVal]     = useState('')
   const [courtType,  setCourtType]   = useState(initialData?.courtType||'half')
@@ -1438,6 +1450,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     if (tool === 'offense')  { addEl({type:'offense',  x:p.x,y:p.y,num:offNum});setOffNum(n=>n>=maxPlayers?1:n+1); return }
     if (tool === 'defense')  { addEl({type:'defense',  x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=maxPlayers?1:n+1); return }
     if (tool === 'xdefense') { addEl({type:'xdefense', x:p.x,y:p.y,num:defNum}); setDefNum(n=>n>=maxPlayers?1:n+1); return }
+    if (tool === 'coach')    { addEl({type:'coach', x:p.x,y:p.y,num:coachNum}); setCoachNum(n=>n>=4?1:n+1); return }
     if (tool === 'ball')  { addEl({type:'ball',  x:p.x,y:p.y}); return }
     if (tool === 'cone')  { addEl({type:'cone',  x:p.x,y:p.y}); return }
     if (tool === 'text')  { setTextModal(p); setTextVal(''); return }
@@ -1733,16 +1746,18 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   )
 
   const playerBtn = (id, numVal, label) => {
-    const active = tool===id && (id==='offense'?offNum===numVal:defNum===numVal)
+    const numState = id==='offense' ? offNum : id==='coach' ? coachNum : defNum
+    const setNum   = id==='offense' ? setOffNum : id==='coach' ? setCoachNum : setDefNum
+    const active = tool===id && numState===numVal
     return (
-      <button key={id+numVal} onClick={()=>{setTool(id);id==='offense'?setOffNum(numVal):setDefNum(numVal)}} style={{
+      <button key={id+numVal} onClick={()=>{setTool(id);setNum(numVal)}} style={{
         width:33,height:33,borderRadius:id==='xdefense'?6:'50%',
-        border:`2px solid ${active?'#3b82f6':id==='defense'?'#4b5563':'#374151'}`,
-        background:active?'#1d4ed8':id==='offense'?'#111827':'transparent',
-        color:active?'#fff':id==='offense'?'#fff':'#9ca3af',
+        border:`2px solid ${active?'#3b82f6':id==='defense'?'#4b5563':id==='coach'?'#1e3a8a':'#374151'}`,
+        background:active?'#1d4ed8':id==='offense'?'#111827':id==='coach'?'#2563eb':'transparent',
+        color:active?'#fff':(id==='offense'||id==='coach')?'#fff':'#9ca3af',
         fontSize:id==='xdefense'?9:12,fontWeight:700,cursor:'pointer',
       }}>
-        {id==='xdefense'?'X'+numVal:numVal}
+        {id==='xdefense'?'X'+numVal:id==='coach'?'E'+numVal:numVal}
       </button>
     )
   }
@@ -2091,8 +2106,12 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('defense',n,n))}
               </div>
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>✕ Defensa X</div>
-              <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('xdefense',n,n))}
+              </div>
+              <div style={{fontSize:10,color:'#60a5fa',fontWeight:600,marginBottom:5}}>⬤ Entrenador</div>
+              <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                {[1,2,3,4].map(n=>playerBtn('coach',n,n))}
               </div>
             </div>
 

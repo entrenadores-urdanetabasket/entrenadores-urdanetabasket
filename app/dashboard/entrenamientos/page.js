@@ -52,6 +52,19 @@ function DetailBlock({ label, text }) {
   )
 }
 
+function StarRating({ value, onChange, size = 22, readOnly = false }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {[1, 2, 3, 4, 5].map(n => (
+        <span key={n} onClick={() => !readOnly && onChange?.(n)} style={{
+          fontSize: size, lineHeight: 1, cursor: readOnly ? 'default' : 'pointer',
+          color: n <= value ? '#f59e0b' : '#e2e8f0',
+        }}>★</span>
+      ))}
+    </div>
+  )
+}
+
 const emptyExForm = {
   title: '', duration_minutes: 10, description: '', category: '',
   intensity: '', organization: '', materials: '', objective: '', key_points: '', variants: '',
@@ -238,6 +251,19 @@ function EntrenamientosInner() {
   const [liveRunning, setLiveRunning] = useState(false)
   const [liveHasStarted, setLiveHasStarted] = useState(false) // para el texto "Empezar" vs "Reanudar"
   const [liveShowDiagram, setLiveShowDiagram] = useState(false) // ver la pizarra del ejercicio actual
+
+  // Valoración del entrenamiento al completarlo (privada: solo quien la
+  // creó o el director la ven)
+  const [ratingModal, setRatingModal] = useState(null) // { markCompleteAfter: bool } | null
+  const [ratingLoading, setRatingLoading] = useState(false)
+  const [savingRating, setSavingRating] = useState(false)
+  const [sessionRating, setSessionRating] = useState(0)
+  const [sessionRatingNotes, setSessionRatingNotes] = useState('')
+  const [ratingPlayers, setRatingPlayers] = useState([]) // [{ id, full_name, number, rating, notes }]
+
+  // Historial de valoraciones
+  const [historySessions, setHistorySessions] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   // ── Navegación real por URL ──────────────────────────────────────
   // Se gestiona directamente con la History API del navegador en vez de
@@ -488,6 +514,114 @@ function EntrenamientosInner() {
     await supabase.from('training_sessions').update({ completed: !session.completed }).eq('id', session.id)
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, completed: !s.completed } : s))
     if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, completed: !s.completed }))
+  }
+
+  async function markSessionCompleted(session) {
+    await supabase.from('training_sessions').update({ completed: true }).eq('id', session.id)
+    setSessions(prev => prev.map(s => s.id === session.id ? { ...s, completed: true } : s))
+    if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, completed: true }))
+  }
+
+  async function hasAttendanceForSession(session) {
+    const { count } = await supabase.from('attendance').select('id', { count: 'exact', head: true })
+      .eq('team_id', session.team_id).eq('date', session.date).eq('type', 'training')
+    return (count || 0) > 0
+  }
+
+  // Pulsar "Marcar completado": exige asistencia pasada ese día y abre la
+  // valoración obligatoria del entrenamiento antes de completarlo de verdad
+  async function handleCompleteClick(session) {
+    if (session.completed) { handleToggleCompleted(session); return }
+    const ok = await hasAttendanceForSession(session)
+    if (!ok) {
+      if (confirm('Antes de marcar este entrenamiento como completado, tienes que pasar la asistencia de ese día.\n\n¿Quieres ir a Asistencia ahora?')) {
+        window.location.href = '/dashboard/asistencia'
+      }
+      return
+    }
+    await openRatingModal(session, { markCompleteAfter: true })
+  }
+
+  // Carga jugadores presentes (según asistencia) y cualquier valoración ya
+  // guardada, para el modal de valoración (privado: solo lo ve quien creó
+  // la sesión o el director — RLS lo garantiza)
+  async function openRatingModal(session, { markCompleteAfter }) {
+    setRatingModal({ markCompleteAfter })
+    setRatingLoading(true)
+    setSessionRating(0)
+    setSessionRatingNotes('')
+    setRatingPlayers([])
+
+    const [{ data: attRows }, { data: existingRating }, { data: existingPlayerRatings }] = await Promise.all([
+      supabase.from('attendance').select('player_id, status').eq('team_id', session.team_id).eq('date', session.date).eq('type', 'training'),
+      supabase.from('training_session_ratings').select('*').eq('session_id', session.id).maybeSingle(),
+      supabase.from('training_player_ratings').select('*').eq('session_id', session.id),
+    ])
+
+    const presentIds = (attRows || []).filter(r => r.status === 'present' || r.status === 'late').map(r => r.player_id)
+    let players = []
+    if (presentIds.length > 0) {
+      const { data: playerRows } = await supabase.from('players').select('id, full_name, number').in('id', presentIds).order('number')
+      const ratingsByPlayer = {}
+      ;(existingPlayerRatings || []).forEach(r => { ratingsByPlayer[r.player_id] = r })
+      players = (playerRows || []).map(p => ({
+        id: p.id, full_name: p.full_name, number: p.number,
+        rating: ratingsByPlayer[p.id]?.rating || 0,
+        notes: ratingsByPlayer[p.id]?.notes || '',
+      }))
+    }
+
+    if (existingRating) { setSessionRating(existingRating.rating); setSessionRatingNotes(existingRating.notes || '') }
+    setRatingPlayers(players)
+    setRatingLoading(false)
+  }
+
+  async function handleSaveRating() {
+    if (!ratingModal || sessionRating < 1) return
+    setSavingRating(true)
+    const session = detailSession
+    const { error } = await supabase.from('training_session_ratings').upsert({
+      session_id: session.id, rating: sessionRating, notes: sessionRatingNotes || null,
+      created_by: user.id, updated_at: new Date().toISOString(),
+    }, { onConflict: 'session_id' })
+    if (error) {
+      console.error('Error guardando la valoración:', error)
+      alert(`No se pudo guardar la valoración: ${error.message}`)
+      setSavingRating(false)
+      return
+    }
+    const playerRows = ratingPlayers.filter(p => p.rating > 0 || p.notes).map(p => ({
+      session_id: session.id, player_id: p.id, rating: p.rating || null, notes: p.notes || null,
+      created_by: user.id, updated_at: new Date().toISOString(),
+    }))
+    if (playerRows.length > 0) {
+      const { error: perr } = await supabase.from('training_player_ratings').upsert(playerRows, { onConflict: 'session_id,player_id' })
+      if (perr) console.error('Error guardando valoraciones de jugadores:', perr)
+    }
+    if (ratingModal.markCompleteAfter) await markSessionCompleted(session)
+    setSavingRating(false)
+    setRatingModal(null)
+  }
+
+  function setPlayerRating(playerId, rating) {
+    setRatingPlayers(prev => prev.map(p => p.id === playerId ? { ...p, rating } : p))
+  }
+
+  function setPlayerRatingNotes(playerId, notes) {
+    setRatingPlayers(prev => prev.map(p => p.id === playerId ? { ...p, notes } : p))
+  }
+
+  async function loadRatingsHistory(team) {
+    setHistoryLoading(true)
+    const { data: sess } = await supabase.from('training_sessions').select('*').eq('team_id', team.id).eq('completed', true).order('date', { ascending: false })
+    const ids = (sess || []).map(s => s.id)
+    const ratingsBySession = {}
+    if (ids.length > 0) {
+      const { data: ratings } = await supabase.from('training_session_ratings').select('*').in('session_id', ids)
+      ;(ratings || []).forEach(r => { ratingsBySession[r.session_id] = r })
+    }
+    setHistorySessions((sess || []).map(s => ({ ...s, _rating: ratingsBySession[s.id] || null })))
+    setHistoryLoading(false)
   }
 
   async function handleToggleShared(session) {
@@ -920,11 +1054,19 @@ function EntrenamientosInner() {
           {canEditDetail && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               {/* Marcar completado */}
-              <button onClick={() => handleToggleCompleted(detailSession)} style={{
+              <button onClick={() => handleCompleteClick(detailSession)} style={{
                 padding: '8px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
                 background: detailSession.completed ? '#f3f4f6' : 'linear-gradient(135deg,#52B043,#3a8a2e)',
                 color: detailSession.completed ? '#374151' : '#fff'
               }}>{detailSession.completed ? '↩ Marcar pendiente' : '✓ Marcar completado'}</button>
+
+              {/* Valoración — privada, solo visible para quien creó la sesión o el director */}
+              {detailSession.completed && (
+                <button onClick={() => openRatingModal(detailSession, { markCompleteAfter: false })} style={{
+                  padding: '8px 16px', borderRadius: 10, border: '1.5px solid #fde68a', backgroundColor: '#fffbeb',
+                  color: '#b45309', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>⭐ Ver valoración</button>
+              )}
 
               {/* Compartir entrenamiento */}
               <button
@@ -1150,6 +1292,73 @@ function EntrenamientosInner() {
             </div>
             </ModalPortal>
           )}
+
+          {/* Modal de valoración del entrenamiento — privado, solo lo ve
+              quien creó la sesión o el director (lo garantiza la RLS) */}
+          {ratingModal && (
+            <ModalPortal>
+              <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 26, width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.25)' }}>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>⭐ Valoración del entrenamiento</h2>
+                  <p style={{ fontSize: 12.5, color: '#9ca3af', margin: '0 0 18px' }}>
+                    Solo la ves tú y el director deportivo — nadie más tiene acceso a esta valoración.
+                  </p>
+
+                  {ratingLoading ? (
+                    <div style={{ textAlign: 'center', padding: '32px 0', color: '#9ca3af', fontSize: 14 }}>⏳ Cargando...</div>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 18 }}>
+                        <label style={labelStyle}>Valoración general *</label>
+                        <StarRating value={sessionRating} onChange={setSessionRating} size={30} />
+                      </div>
+                      <div style={{ marginBottom: 20 }}>
+                        <label style={labelStyle}>Notas (opcional)</label>
+                        <textarea value={sessionRatingNotes} onChange={e => setSessionRatingNotes(e.target.value)}
+                          placeholder='¿Qué tal ha ido el entrenamiento en general?' rows={3}
+                          style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
+                          onFocus={inputFocus} onBlur={inputBlur} />
+                      </div>
+
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 10 }}>
+                        Valoración por jugador <span style={{ fontWeight: 500, color: '#9ca3af' }}>(opcional, según asistencia)</span>
+                      </div>
+                      {ratingPlayers.length === 0 ? (
+                        <div style={{ fontSize: 13, color: '#9ca3af', backgroundColor: '#f9fafb', borderRadius: 10, padding: '12px 14px', marginBottom: 4 }}>
+                          No hay jugadores marcados como presentes en la asistencia de este día.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 }}>
+                          {ratingPlayers.map(p => (
+                            <div key={p.id} style={{ border: '1px solid #f3f4f6', borderRadius: 12, padding: '10px 12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
+                                  {p.number != null ? `#${p.number} ` : ''}{p.full_name}
+                                </div>
+                                <StarRating value={p.rating} onChange={r => setPlayerRating(p.id, r)} size={16} />
+                              </div>
+                              <input type='text' value={p.notes} onChange={e => setPlayerRatingNotes(p.id, e.target.value)}
+                                placeholder='Nota rápida (opcional)' style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }}
+                                onFocus={inputFocus} onBlur={inputBlur} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                        <button type='button' onClick={() => setRatingModal(null)} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                          Cancelar
+                        </button>
+                        <button type='button' onClick={handleSaveRating} disabled={savingRating || sessionRating < 1} className="btn-primary" style={{ flex: 1, padding: '12px', opacity: (savingRating || sessionRating < 1) ? 0.6 : 1 }}>
+                          {savingRating ? 'Guardando...' : ratingModal.markCompleteAfter ? 'Guardar y marcar completado' : 'Guardar valoración'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </ModalPortal>
+          )}
         </div>
 
       ) : (
@@ -1163,22 +1372,24 @@ function EntrenamientosInner() {
           }}>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
-                {tab === 'compartidos' ? 'Compartidos en el club' : tab === 'biblioteca' ? 'Común a todo el club' : (selectedTeam?.name || 'Planificar sesiones')}
+                {tab === 'compartidos' ? 'Compartidos en el club' : tab === 'biblioteca' ? 'Común a todo el club' : tab === 'historial' ? 'Valoraciones guardadas' : (selectedTeam?.name || 'Planificar sesiones')}
               </p>
-              <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>{tab === 'biblioteca' ? 'Biblioteca de ejercicios' : 'Entrenamientos'}</h1>
+              <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>{tab === 'biblioteca' ? 'Biblioteca de ejercicios' : tab === 'historial' ? 'Historial de valoraciones' : 'Entrenamientos'}</h1>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                 {tab === 'compartidos'
                   ? `Sesiones compartidas por todos los entrenadores`
                   : tab === 'biblioteca'
                   ? `${libItems.length} ${libItems.length === 1 ? 'ejercicio guardado' : 'ejercicios guardados'}`
+                  : tab === 'historial'
+                  ? `Cómo avanza el equipo entrenamiento a entrenamiento`
                   : `${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'}`}
               </p>
             </div>
             {tab === 'biblioteca'
               ? <button onClick={openNewLibItem} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
-              : tab !== 'compartidos'
+              : tab !== 'compartidos' && tab !== 'historial'
               ? <button onClick={openNewSession} className="btn-primary" style={{ flexShrink: 0 }}>+ Nuevo</button>
-              : <div style={{ fontSize: 48, opacity: 0.35 }}>📝</div>}
+              : <div style={{ fontSize: 48, opacity: 0.35 }}>{tab === 'historial' ? '⭐' : '📝'}</div>}
           </div>
 
           {/* Selector de equipo — solo en pestañas de sesiones propias */}
@@ -1187,7 +1398,7 @@ function EntrenamientosInner() {
               {teams.map(t => {
                 const active = selectedTeam?.id === t.id
                 return (
-                  <button key={t.id} onClick={() => { setLoading(true); loadSessions(t) }} style={{
+                  <button key={t.id} onClick={() => { setLoading(true); loadSessions(t); if (tab === 'historial') loadRatingsHistory(t) }} style={{
                     padding: '8px 15px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700,
                     background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
                     color: active ? '#fff' : '#475569',
@@ -1216,6 +1427,13 @@ function EntrenamientosInner() {
               color: tab === 'biblioteca' ? '#fff' : '#374151',
             }}>
               📚 Biblioteca
+            </button>
+            <button onClick={() => { setTab('historial'); if (selectedTeam) loadRatingsHistory(selectedTeam) }} style={{
+              ...tabStyle('historial'),
+              background: tab === 'historial' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : '#f3f4f6',
+              color: tab === 'historial' ? '#fff' : '#374151',
+            }}>
+              ⭐ Historial
             </button>
           </div>
 
@@ -1369,8 +1587,62 @@ function EntrenamientosInner() {
             </div>
           )}
 
+          {/* PESTAÑA HISTORIAL */}
+          {tab === 'historial' && (
+            <div>
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+                  <div style={{ fontSize: 14 }}>Cargando historial...</div>
+                </div>
+              ) : historySessions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '56px 24px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #fde68a' }}>
+                  <div style={{ fontSize: 52, marginBottom: 14, opacity: 0.55 }}>⭐</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>Todavía no hay valoraciones</div>
+                  <div style={{ fontSize: 13, maxWidth: 320, margin: '0 auto', lineHeight: 1.6 }}>
+                    Cuando marques un entrenamiento como completado y lo valores, aparecerá aquí para ver la evolución día a día.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {historySessions.map(session => (
+                    <div key={session.id} onClick={() => openDetail(session)} style={{
+                      backgroundColor: '#fff', borderRadius: 14, padding: '14px 18px',
+                      border: '1px solid #fde68a', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                          background: 'linear-gradient(135deg,#f59e0b,#d97706)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                        }}>
+                          <div style={{ fontSize: 14, fontWeight: 900 }}>{new Date(session.date + 'T12:00:00').getDate()}</div>
+                          <div style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase', opacity: 0.85 }}>
+                            {new Date(session.date + 'T12:00:00').toLocaleDateString('es-ES', { month: 'short' })}
+                          </div>
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{session.title}</div>
+                          {session._rating?.notes && (
+                            <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{session._rating.notes}</div>
+                          )}
+                        </div>
+                      </div>
+                      {session._rating ? (
+                        <StarRating value={session._rating.rating} onChange={() => {}} size={16} readOnly />
+                      ) : (
+                        <span style={{ fontSize: 11, color: '#cbd5e1', fontWeight: 600, flexShrink: 0 }}>Sin valorar</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* PESTAÑAS PRÓXIMOS / PASADOS */}
-          {tab !== 'compartidos' && tab !== 'biblioteca' && (
+          {tab !== 'compartidos' && tab !== 'biblioteca' && tab !== 'historial' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {filtered.length === 0 && (
                 <div className="empty-state">

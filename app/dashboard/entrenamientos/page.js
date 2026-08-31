@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
 import dynamic from 'next/dynamic'
@@ -247,7 +247,10 @@ function EntrenamientosInner() {
   // segundo plano funcionen bien, "entrar" en una sesión o en el editor
   // de un ejercicio empuja un parámetro a la URL en vez de ser solo
   // estado interno; "salir" usa router.back() para deshacerlo de verdad.
+  const hasNavigatedRef = useRef(false) // ¿hemos empujado algo nosotros esta carga de página?
+
   function pushParams(updates) {
+    hasNavigatedRef.current = true
     const params = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
@@ -262,6 +265,22 @@ function EntrenamientosInner() {
   function replaceParams(updates) {
     const params = new URLSearchParams(searchParams.toString())
     for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  // "Cerrar"/"Volver": si hemos llegado aquí navegando dentro de la app,
+  // router.back() deshace ese paso con normalidad. Pero si se ha llegado
+  // directamente a esta URL (recarga de página, enlace directo, pestaña
+  // reabierta), no hay ningún paso que deshacer y back() se queda sin
+  // hacer nada — en ese caso navegamos explícitamente al nivel anterior
+  // para no quedarnos bloqueados.
+  function safeBack(fallbackUpdates) {
+    if (hasNavigatedRef.current) { router.back(); return }
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(fallbackUpdates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
@@ -576,7 +595,7 @@ function EntrenamientosInner() {
       return false
     }
     await loadLibrary()
-    router.back()
+    safeBack({ lib: null })
   }
 
   // ── Plantillas ─────────────────────────────────────────────────
@@ -609,7 +628,7 @@ function EntrenamientosInner() {
     pushParams({ live: '1', idx: '0' })
   }
   function liveGoTo(idx) {
-    if (idx < 0 || idx >= exercises.length) { router.back(); return }
+    if (idx < 0 || idx >= exercises.length) { safeBack({ live: null, idx: null }); return }
     replaceParams({ idx: String(idx) })
   }
 
@@ -659,7 +678,7 @@ function EntrenamientosInner() {
       return false
     }
     await loadExercises(detailSession.id)
-    router.back()
+    safeBack({ ex: null })
   }
 
   // ¿Puede editar esta sesión? Solo si es suya o es director
@@ -693,7 +712,7 @@ function EntrenamientosInner() {
           <CourtEditor
             initialData={initData}
             onSave={handleSaveExercisePlay}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ ex: null })}
             visionCones
             maxPlayers={15}
             multiBall
@@ -717,7 +736,7 @@ function EntrenamientosInner() {
             readOnly={!canEditLib}
             initialData={initData}
             onSave={canEditLib ? handleSaveLibItemPlay : undefined}
-            onClose={() => router.back()}
+            onClose={() => safeBack({ lib: null })}
             visionCones
             maxPlayers={15}
             multiBall
@@ -751,7 +770,7 @@ function EntrenamientosInner() {
             paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
-              <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
+              <button onClick={() => safeBack({ live: null, idx: null })} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
               <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7 }}>Ejercicio {liveIdx + 1} / {exercises.length}</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '12px 24px', textAlign: 'center', minHeight: 0, overflowY: 'auto' }}>
@@ -810,7 +829,7 @@ function EntrenamientosInner() {
                 steps: liveEx.play_data.steps || [],
                 courtType: liveEx.play_data.courtType,
               }}
-              onClose={() => router.back()}
+              onClose={() => safeBack({ diagram: null })}
               visionCones
               maxPlayers={15}
               multiBall
@@ -822,7 +841,7 @@ function EntrenamientosInner() {
       {/* Vista detalle sesión */}
       {detailSession ? (
         <div>
-          <button onClick={() => router.back()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
+          <button onClick={() => safeBack({ session: null, ex: null, lib: null, live: null, idx: null, diagram: null })} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
             ← Volver a entrenamientos
           </button>
 

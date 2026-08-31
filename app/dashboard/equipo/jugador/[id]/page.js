@@ -91,6 +91,93 @@ function Stars({ value, size = 14 }) {
   )
 }
 
+// Resumen automático (sin IA generativa: solo compara los datos ya
+// calculados mes a mes / partido a partido y redacta frases a partir de
+// esos números — coste cero, no depende de ningún servicio externo)
+function buildInsights({ records, playerRatings, gameLines, activeIncidents }) {
+  const insights = []
+
+  // Asistencia: últimos dos meses con datos
+  const attByMonth = {}
+  records.forEach(r => {
+    const mk = monthKey(r.date)
+    if (!attByMonth[mk]) attByMonth[mk] = { total: 0, attended: 0 }
+    attByMonth[mk].total++
+    if (r.status === 'present' || r.status === 'late') attByMonth[mk].attended++
+  })
+  const attMonths = Object.keys(attByMonth).sort()
+  if (attMonths.length >= 2) {
+    const curr = attMonths[attMonths.length - 1]
+    const prev = attMonths[attMonths.length - 2]
+    const currPct = Math.round((attByMonth[curr].attended / attByMonth[curr].total) * 100)
+    const prevPct = Math.round((attByMonth[prev].attended / attByMonth[prev].total) * 100)
+    const diff = currPct - prevPct
+    if (diff >= 10) insights.push({ icon: '📈', tone: 'good', text: `La asistencia ha mejorado: del ${prevPct}% al ${currPct}% respecto al mes anterior.` })
+    else if (diff <= -10) insights.push({ icon: '📉', tone: 'bad', text: `La asistencia ha bajado: del ${prevPct}% al ${currPct}% respecto al mes anterior.` })
+    else insights.push({ icon: '➖', tone: 'neutral', text: `La asistencia se mantiene estable, en torno al ${currPct}%.` })
+  } else if (attMonths.length === 1) {
+    const only = attMonths[0]
+    const p = Math.round((attByMonth[only].attended / attByMonth[only].total) * 100)
+    insights.push({ icon: 'ℹ️', tone: 'info', text: `Todavía es pronto para ver una tendencia de asistencia (de momento, ${p}%).` })
+  }
+
+  // Valoración en entrenamientos: últimos dos meses con valoraciones
+  const ratByMonth = {}
+  playerRatings.forEach(r => {
+    if (!r.rating) return
+    const mk = monthKey(r.training_sessions?.date)
+    if (!mk) return
+    if (!ratByMonth[mk]) ratByMonth[mk] = { sum: 0, count: 0 }
+    ratByMonth[mk].sum += r.rating
+    ratByMonth[mk].count++
+  })
+  const ratMonths = Object.keys(ratByMonth).sort()
+  if (ratMonths.length >= 2) {
+    const curr = ratMonths[ratMonths.length - 1]
+    const prev = ratMonths[ratMonths.length - 2]
+    const currAvg = (ratByMonth[curr].sum / ratByMonth[curr].count) * 2
+    const prevAvg = (ratByMonth[prev].sum / ratByMonth[prev].count) * 2
+    const diff = currAvg - prevAvg
+    if (diff >= 0.8) insights.push({ icon: '📈', tone: 'good', text: `La valoración en los entrenamientos sube: de ${prevAvg.toFixed(1)} a ${currAvg.toFixed(1)} respecto al mes anterior.` })
+    else if (diff <= -0.8) insights.push({ icon: '📉', tone: 'bad', text: `La valoración en los entrenamientos baja: de ${prevAvg.toFixed(1)} a ${currAvg.toFixed(1)} respecto al mes anterior.` })
+    else insights.push({ icon: '➖', tone: 'neutral', text: `La valoración en los entrenamientos se mantiene estable, en torno a ${currAvg.toFixed(1)}.` })
+  } else if (ratMonths.length === 1) {
+    const only = ratMonths[0]
+    const a = (ratByMonth[only].sum / ratByMonth[only].count) * 2
+    insights.push({ icon: 'ℹ️', tone: 'info', text: `Todavía hay pocas valoraciones para ver una tendencia (de momento, ${a.toFixed(1)}).` })
+  }
+
+  // Estadísticas de partido: últimos 3 partidos vs el resto de la temporada
+  const finished = [...gameLines].filter(g => g.status === 'finished').sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+  if (finished.length >= 4) {
+    const last3 = finished.slice(-3)
+    const rest = finished.slice(0, -3)
+    const avgLast3 = last3.reduce((a, g) => a + g.line.pts, 0) / last3.length
+    const avgRest = rest.reduce((a, g) => a + g.line.pts, 0) / rest.length
+    const diff = avgLast3 - avgRest
+    if (diff >= 2) insights.push({ icon: '📈', tone: 'good', text: `Sube en anotación: promedia ${avgLast3.toFixed(1)} puntos en los últimos 3 partidos, frente a ${avgRest.toFixed(1)} en el resto de la temporada.` })
+    else if (diff <= -2) insights.push({ icon: '📉', tone: 'bad', text: `Baja en anotación: promedia ${avgLast3.toFixed(1)} puntos en los últimos 3 partidos, frente a ${avgRest.toFixed(1)} en el resto de la temporada.` })
+    else insights.push({ icon: '➖', tone: 'neutral', text: `Mantiene un promedio anotador estable, en torno a ${avgLast3.toFixed(1)} puntos por partido.` })
+  } else if (finished.length > 0) {
+    const avgAll = finished.reduce((a, g) => a + g.line.pts, 0) / finished.length
+    insights.push({ icon: 'ℹ️', tone: 'info', text: `Todavía pocos partidos para ver tendencia (de momento, ${avgAll.toFixed(1)} puntos de media).` })
+  }
+
+  // Incidencias activas
+  if (activeIncidents > 0) {
+    insights.push({ icon: '⚠️', tone: 'bad', text: `Tiene ${activeIncidents} ${activeIncidents === 1 ? 'incidencia activa' : 'incidencias activas'} sin resolver.` })
+  }
+
+  return insights
+}
+
+const INSIGHT_TONES = {
+  good:    { color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+  bad:     { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+  neutral: { color: '#475569', bg: '#f8fafc', border: '#e2e8f0' },
+  info:    { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+}
+
 const TABS = [
   { key: 'resumen',       label: 'Resumen',       emoji: '🧭' },
   { key: 'asistencia',    label: 'Asistencia',    emoji: '📅' },
@@ -227,6 +314,8 @@ export default function JugadorPage() {
       value: g.line.pts,
     }))
 
+  const insights = buildInsights({ records, playerRatings, gameLines, activeIncidents })
+
   const cardStyle = { backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 16 }
   const cardTitleStyle = { fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12 }
 
@@ -283,6 +372,25 @@ export default function JugadorPage() {
       {/* ───────────────────────── RESUMEN ───────────────────────── */}
       {tab === 'resumen' && (
         <div>
+          <div style={{ ...cardStyle, background: 'linear-gradient(135deg,#fefce8,#fff)', border: '1px solid #fde68a' }}>
+            <div style={{ ...cardTitleStyle, display: 'flex', alignItems: 'center', gap: 6 }}>🧠 Resumen automático de progresión</div>
+            {insights.length === 0 ? (
+              <div style={{ fontSize: 12.5, color: '#9ca3af' }}>Todavía no hay datos suficientes para generar un resumen.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {insights.map((ins, i) => {
+                  const t = INSIGHT_TONES[ins.tone]
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: t.bg, border: `1px solid ${t.border}`, borderRadius: 10, padding: '9px 12px' }}>
+                      <span style={{ fontSize: 14, flexShrink: 0 }}>{ins.icon}</span>
+                      <span style={{ fontSize: 13, color: t.color, fontWeight: 600, lineHeight: 1.4 }}>{ins.text}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Asistencia', value: pct !== null ? `${pct}%` : '—', color: pct !== null ? (pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444') : '#94a3b8' },

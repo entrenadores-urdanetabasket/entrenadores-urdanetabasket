@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
 import dynamic from 'next/dynamic'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -180,9 +179,7 @@ export default function EntrenamientosPage() {
 function EntrenamientosInner() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const pathname = '/dashboard/entrenamientos'
 
   const [teams, setTeams] = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -243,59 +240,73 @@ function EntrenamientosInner() {
   const [liveShowDiagram, setLiveShowDiagram] = useState(false) // ver la pizarra del ejercicio actual
 
   // ── Navegación real por URL ──────────────────────────────────────
-  // Para que el botón atrás del móvil y el volver de una pestaña en
-  // segundo plano funcionen bien, "entrar" en una sesión o en el editor
-  // de un ejercicio empuja un parámetro a la URL en vez de ser solo
-  // estado interno; "salir" usa router.back() para deshacerlo de verdad.
+  // Se gestiona directamente con la History API del navegador en vez de
+  // con el router de Next: en producción, router.push()/replace() se
+  // quedaban sin efecto cuando solo cambiaban los parámetros de búsqueda
+  // en esta página (la URL calculada era correcta pero nunca llegaba a
+  // aplicarse), dejando botones como "Ver/editar entrenamiento" sin
+  // reacción. history.pushState/replaceState no depende de eso.
   const hasNavigatedRef = useRef(false) // ¿hemos empujado algo nosotros esta carga de página?
+  const [urlParams, setUrlParams] = useState(() => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : ''))
+
+  // Botón atrás/adelante real del navegador
+  useEffect(() => {
+    function onPopState() { setUrlParams(new URLSearchParams(window.location.search)) }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   function pushParams(updates) {
     hasNavigatedRef.current = true
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    const target = qs ? `${pathname}?${qs}` : pathname
-    console.log('[debug ex] pushParams ->', target, 'currentSearchParams:', searchParams.toString())
-    router.push(target)
-    setTimeout(() => console.log('[debug ex] location.href after push:', window.location.href), 50)
+    window.history.pushState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
 
   // Igual que pushParams pero sin crear una entrada nueva en el historial —
   // para moverse DENTRO del Modo en vivo (siguiente/anterior ejercicio) sin
   // que el botón atrás tenga que deshacer cada paso uno a uno
   function replaceParams(updates) {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(updates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname)
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
   }
 
   // "Cerrar"/"Volver": si hemos llegado aquí navegando dentro de la app,
-  // router.back() deshace ese paso con normalidad. Pero si se ha llegado
-  // directamente a esta URL (recarga de página, enlace directo, pestaña
-  // reabierta), no hay ningún paso que deshacer y back() se queda sin
-  // hacer nada — en ese caso navegamos explícitamente al nivel anterior
-  // para no quedarnos bloqueados.
+  // deshace ese paso con normalidad. Pero si se ha llegado directamente a
+  // esta URL (recarga de página, enlace directo, pestaña reabierta), no
+  // hay ningún paso que deshacer — en ese caso navegamos explícitamente
+  // al nivel anterior para no quedarnos bloqueados.
   function safeBack(fallbackUpdates) {
-    if (hasNavigatedRef.current) { router.back(); return }
-    const params = new URLSearchParams(searchParams.toString())
+    if (hasNavigatedRef.current) { window.history.back(); return }
+    const params = new URLSearchParams(urlParams.toString())
     for (const [k, v] of Object.entries(fallbackUpdates)) {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname)
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
+    setUrlParams(params)
+  }
+
+  function clearParams() {
+    window.history.replaceState(null, '', pathname)
+    setUrlParams(new URLSearchParams())
   }
 
   // Refleja los parámetros de la URL en el estado (al navegar, al pulsar
   // atrás, o al recargar la página con una URL ya con parámetros)
   useEffect(() => {
-    const sId = searchParams.get('session')
-    const exId = searchParams.get('ex')
-    const libId = searchParams.get('lib')
+    const sId = urlParams.get('session')
+    const exId = urlParams.get('ex')
+    const libId = urlParams.get('lib')
 
     if (!sId) {
       if (detailSession) setDetailSession(null)
@@ -308,7 +319,7 @@ function EntrenamientosInner() {
         supabase.from('training_sessions').select('*, teams(name)').eq('id', sId).single()
           .then(({ data }) => {
             if (data) { setDetailSession(data); loadExercises(data.id) }
-            else router.replace(pathname)
+            else clearParams()
           })
       }
     }
@@ -319,11 +330,10 @@ function EntrenamientosInner() {
     } else if (exId) {
       if (editorExercise?.id !== exId) {
         const found = exercises.find(e => e.id === exId)
-        console.log('[debug ex]', { exId, exerciseIds: exercises.map(e => e.id), found: !!found, detailSessionId: detailSession?.id, sId })
         if (found) setEditorExercise(found)
         // Si no está cargado (recarga en frío), no se puede restaurar el
         // dibujo sin guardar — simplemente se limpia el parámetro
-        else if (exercises.length > 0) { console.log('[debug ex] limpiando ex param, no encontrado'); pushParams({ ex: null }) }
+        else if (exercises.length > 0) pushParams({ ex: null })
       }
     } else if (libId) {
       if (editorLibItem?.id !== libId) {
@@ -334,8 +344,8 @@ function EntrenamientosInner() {
     }
 
     // Modo en vivo: ?live=1&idx=N (dentro de una sesión)
-    if (searchParams.get('live') === '1' && sId) {
-      const idx = parseInt(searchParams.get('idx') || '0', 10)
+    if (urlParams.get('live') === '1' && sId) {
+      const idx = parseInt(urlParams.get('idx') || '0', 10)
       if (!liveMode || liveIdx !== idx) {
         setLiveMode(true)
         setLiveIdx(idx)
@@ -346,13 +356,13 @@ function EntrenamientosInner() {
     } else if (liveMode) {
       setLiveMode(false)
     }
-    if (searchParams.get('diagram') === '1') {
+    if (urlParams.get('diagram') === '1') {
       if (!liveShowDiagram) setLiveShowDiagram(true)
     } else if (liveShowDiagram) {
       setLiveShowDiagram(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, sessions, sharedSessions, exercises, libItems])
+  }, [urlParams, sessions, sharedSessions, exercises, libItems])
 
   useEffect(() => {
     if (!user || !profile) return
@@ -470,7 +480,7 @@ function EntrenamientosInner() {
   async function handleDeleteSession(id) {
     if (!confirm('¿Eliminar este entrenamiento?')) return
     await supabase.from('training_sessions').delete().eq('id', id)
-    if (detailSession?.id === id) router.replace(pathname)
+    if (detailSession?.id === id) clearParams()
     await loadSessions(selectedTeam)
   }
 
@@ -668,7 +678,7 @@ function EntrenamientosInner() {
     setDuplicating(false)
     setShowTeamPicker(false)
     const targetTeam = teams.find(t => t.id === teamId)
-    router.replace(pathname)
+    clearParams()
     setTab('proximos')
     if (targetTeam) await loadSessions(targetTeam)
   }

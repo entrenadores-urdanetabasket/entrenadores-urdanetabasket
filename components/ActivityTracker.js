@@ -23,12 +23,11 @@ export default function ActivityTracker() {
     if (!user) return
 
     async function ping() {
-      if (document.visibilityState !== 'visible') { console.log('[activity ping] omitido, pestaña no visible'); return }
+      if (document.visibilityState !== 'visible') return
       const path = pathRef.current
       try {
         const { error } = await supabase.from('activity_pings').insert({ coach_id: user.id, path, section: sectionFromPath(path) })
         if (error) console.error('[activity ping] error al guardar:', error)
-        else console.log('[activity ping] guardado', new Date().toISOString())
       } catch (err) {
         console.error('[activity ping] excepción:', err)
       }

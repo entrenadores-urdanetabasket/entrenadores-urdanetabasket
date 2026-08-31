@@ -37,6 +37,38 @@ export async function POST(request) {
     const teams = (teamLinks || []).map(t => t.teams).filter(Boolean)
     const teamIds = teams.map(t => t.id)
 
+    // Supabase/PostgREST limita cualquier select a 1000 filas por defecto.
+    // Un entrenador activo genera un ping cada 30s (ver ActivityTracker), así
+    // que supera las 1000 filas en pocas horas de uso acumulado — pedir todas
+    // las pings sin más se queda "congelado" en las 1000 más antiguas para
+    // siempre (última actividad y tiempo total dejan de avanzar). Por eso:
+    // el total se cuenta con count() (no se transfieren filas, no hay tope),
+    // la última actividad es una query aparte (solo la más reciente), y el
+    // desglose diario/por sección se pagina en bloques de 1000 dentro de los
+    // últimos 30 días, que es la única ventana que necesita filas reales.
+    const since30 = new Date(); since30.setDate(since30.getDate() - 29)
+    const since30ISO = since30.toISOString().slice(0, 10) + 'T00:00:00.000Z'
+
+    async function fetchRecentPings() {
+      const pageSize = 1000
+      let rows = []
+      let from = 0
+      while (true) {
+        const { data, error } = await supabaseAdmin
+          .from('activity_pings')
+          .select('path, section, created_at')
+          .eq('coach_id', coachId)
+          .gte('created_at', since30ISO)
+          .order('created_at', { ascending: true })
+          .range(from, from + pageSize - 1)
+        if (error) throw error
+        rows = rows.concat(data || [])
+        if (!data || data.length < pageSize) break
+        from += pageSize
+      }
+      return rows
+    }
+
     const [
       { data: trainings },
       { data: tactics },
@@ -44,7 +76,9 @@ export async function POST(request) {
       { data: convocatorias },
       { data: games },
       { data: attendanceRows },
-      { data: pings },
+      { count: totalPingsCount },
+      { data: lastPingRows },
+      pingList,
     ] = await Promise.all([
       supabaseAdmin.from('training_sessions').select('id, title, date, start_time, duration_minutes, objectives, notes, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
       supabaseAdmin.from('tactics').select('id, title, description, play_data, team_id, created_at, teams(name)').eq('created_by', coachId).order('created_at', { ascending: false }).limit(100),
@@ -54,7 +88,9 @@ export async function POST(request) {
       teamIds.length > 0
         ? supabaseAdmin.from('attendance').select('team_id, status, date, type').in('team_id', teamIds)
         : Promise.resolve({ data: [] }),
-      supabaseAdmin.from('activity_pings').select('path, section, created_at').eq('coach_id', coachId).order('created_at', { ascending: true }),
+      supabaseAdmin.from('activity_pings').select('id', { count: 'exact', head: true }).eq('coach_id', coachId),
+      supabaseAdmin.from('activity_pings').select('created_at').eq('coach_id', coachId).order('created_at', { ascending: false }).limit(1),
+      fetchRecentPings(),
     ])
 
     // Ejercicios de cada entrenamiento (para el detalle)
@@ -106,7 +142,6 @@ export async function POST(request) {
       incidencias: 'Incidencias', director: 'Panel Director', perfil: 'Perfil',
       live: 'Partido en directo', otro: 'Otro',
     }
-    const pingList = pings || []
     const minutesPerPing = PING_INTERVAL_SECONDS / 60
 
     const sectionCounts = {}
@@ -128,9 +163,9 @@ export async function POST(request) {
       last30.push({ date: key, minutes: Math.round((dayCounts[key] || 0) * minutesPerPing) })
     }
 
-    const totalMinutes = Math.round(pingList.length * minutesPerPing)
+    const totalMinutes = Math.round((totalPingsCount || 0) * minutesPerPing)
     const daysActiveLast30 = last30.filter(d => d.minutes > 0).length
-    const lastActivityAt = pingList.length > 0 ? pingList[pingList.length - 1].created_at : null
+    const lastActivityAt = lastPingRows?.[0]?.created_at || null
 
     return NextResponse.json({
       profile: coachProfile,

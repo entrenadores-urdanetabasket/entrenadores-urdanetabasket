@@ -256,7 +256,10 @@ function EntrenamientosInner() {
       if (v == null) params.delete(k); else params.set(k, v)
     }
     const qs = params.toString()
-    router.push(qs ? `${pathname}?${qs}` : pathname)
+    const target = qs ? `${pathname}?${qs}` : pathname
+    console.log('[debug ex] pushParams ->', target, 'currentSearchParams:', searchParams.toString())
+    router.push(target)
+    setTimeout(() => console.log('[debug ex] location.href after push:', window.location.href), 50)
   }
 
   // Igual que pushParams pero sin crear una entrada nueva en el historial —

@@ -316,10 +316,11 @@ function EntrenamientosInner() {
     } else if (exId) {
       if (editorExercise?.id !== exId) {
         const found = exercises.find(e => e.id === exId)
+        console.log('[debug ex]', { exId, exerciseIds: exercises.map(e => e.id), found: !!found, detailSessionId: detailSession?.id, sId })
         if (found) setEditorExercise(found)
         // Si no está cargado (recarga en frío), no se puede restaurar el
         // dibujo sin guardar — simplemente se limpia el parámetro
-        else if (exercises.length > 0) pushParams({ ex: null })
+        else if (exercises.length > 0) { console.log('[debug ex] limpiando ex param, no encontrado'); pushParams({ ex: null }) }
       }
     } else if (libId) {
       if (editorLibItem?.id !== libId) {
@@ -1033,6 +1034,7 @@ function EntrenamientosInner() {
                         display: 'inline-flex', alignItems: 'center', gap: 4
                       }}
                       onClick={() => {
+                        console.log('[debug ex] click', { exId: ex.id, isReadOnly, hasPlayData: !!ex.play_data })
                         if (isReadOnly && ex.play_data) pushParams({ ex: ex.id })
                         else if (!isReadOnly) pushParams({ ex: ex.id })
                       }}

@@ -8,6 +8,23 @@ import ModalPortal from '@/components/ModalPortal'
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
 
+// Orden de categorías de más baja a más alta, y a qué grupo pertenece cada
+// una (escolar / federado). Se compara por "incluye" para no romper con
+// nombres de categoría heredados como "Femenino Senior".
+const SCHOOL_CATEGORIES = ['Premini', 'Mini', 'Infantil']
+const FEDERATED_CATEGORIES = ['Cadete', 'Junior', 'Senior']
+const CATEGORY_ORDER = [...SCHOOL_CATEGORIES, ...FEDERATED_CATEGORIES]
+
+function categoryRank(category) {
+  const c = (category || '').toLowerCase()
+  const idx = CATEGORY_ORDER.findIndex(cat => c.includes(cat.toLowerCase()))
+  return idx === -1 ? CATEGORY_ORDER.length : idx
+}
+function categoryGroup(category) {
+  const c = (category || '').toLowerCase()
+  return SCHOOL_CATEGORIES.some(cat => c.includes(cat.toLowerCase())) ? 'escolar' : 'federado'
+}
+
 function nextSeason(season) {
   const [a, b] = String(season || '').split('-').map(n => parseInt(n, 10))
   if (!a || !b) return '—'
@@ -45,6 +62,7 @@ export default function DirectorPage() {
   // ── Equipos ────────────────────────────────────────────
   const [teams, setTeams]           = useState([])
   const [teamsView, setTeamsView]   = useState('active') // 'active' | 'archived'
+  const [teamsGroup, setTeamsGroup] = useState('escolar') // 'escolar' | 'federado'
   const [coaches, setCoaches]       = useState([])
   const [loading, setLoading]       = useState(true)
   const [expandedTeam, setExpandedTeam] = useState(null)
@@ -366,6 +384,19 @@ export default function DirectorPage() {
   const assignedCoachIds = new Set(teamCoaches.map(tc => tc.coach_id))
   const availableCoaches = coaches.filter(c => !assignedCoachIds.has(c.id))
 
+  // Equipos del grupo activo (escolar/federado), ordenados de categoría más
+  // baja a más alta y luego por nombre (o temporada si es el histórico)
+  const groupedTeams = teams
+    .filter(t => categoryGroup(t.category) === teamsGroup)
+    .sort((a, b) => {
+      const rankDiff = categoryRank(a.category) - categoryRank(b.category)
+      if (rankDiff !== 0) return rankDiff
+      if (teamsView === 'archived' && a.season !== b.season) return (b.season || '').localeCompare(a.season || '')
+      return (a.name || '').localeCompare(b.name || '')
+    })
+  const schoolCount   = teams.filter(t => categoryGroup(t.category) === 'escolar').length
+  const federatedCount = teams.filter(t => categoryGroup(t.category) === 'federado').length
+
   if (!profile) return <div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
 
   // ── RENDER ────────────────────────────────────────────────
@@ -426,6 +457,24 @@ export default function DirectorPage() {
           </div>
         )}
       </div>
+
+      {/* Escolares / Federados */}
+      {tab === 'equipos' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {[{ key: 'escolar', label: '🎒 Escolares', count: schoolCount }, { key: 'federado', label: '🏅 Federados', count: federatedCount }].map(g => {
+            const active = teamsGroup === g.key
+            return (
+              <button key={g.key} onClick={() => { setTeamsGroup(g.key); setExpandedTeam(null) }} style={{
+                padding: '9px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700, border: 'none',
+                background: active ? 'linear-gradient(135deg,#1C5C2A,#52B043)' : '#fff',
+                color: active ? '#fff' : '#374151',
+                boxShadow: active ? '0 2px 8px rgba(28,92,42,0.30)' : '0 1px 4px rgba(0,0,0,0.05)',
+                border: active ? 'none' : '1.5px solid #e2e8f0',
+              }}>{g.label} <span style={{ opacity: 0.75 }}>({g.count})</span></button>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── RESUMEN ── */}
       {tab === 'resumen' && (
@@ -528,16 +577,18 @@ export default function DirectorPage() {
       {tab === 'equipos' && (
         loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
-        ) : teams.length === 0 ? (
+        ) : groupedTeams.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🏀</div>
             <div className="empty-state-title">
-              {teamsView === 'archived' ? 'Aún no has cerrado ninguna temporada' : 'No hay equipos todavía'}
+              {teamsView === 'archived' && teams.length === 0
+                ? 'Aún no has cerrado ninguna temporada'
+                : `No hay equipos ${teamsGroup === 'escolar' ? 'escolares' : 'federados'} ${teamsView === 'archived' ? 'en el histórico' : 'todavía'}`}
             </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {teams.map(team => {
+            {groupedTeams.map(team => {
               const isOpen     = expandedTeam === team.id
               const detail     = teamDetail[team.id]
               const isLoading  = loadingDetail === team.id

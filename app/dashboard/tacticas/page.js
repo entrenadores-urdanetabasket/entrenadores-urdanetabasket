@@ -128,12 +128,18 @@ function TacticasInner() {
   }
 
   async function handleSave({ title, description, steps, courtType }) {
-    if (!selectedTeam) return
+    if (!selectedTeam) return false
     setSaving(true)
     const payload = { team_id: selectedTeam, title: title || 'Jugada sin nombre', description, play_data: { steps, courtType }, created_by: user.id }
-    if (editingTactic?.id) await supabase.from('tactics').update(payload).eq('id', editingTactic.id)
-    else await supabase.from('tactics').insert(payload)
+    const { error } = editingTactic?.id
+      ? await supabase.from('tactics').update(payload).eq('id', editingTactic.id)
+      : await supabase.from('tactics').insert(payload)
     setSaving(false)
+    if (error) {
+      console.error('Error guardando la táctica:', error)
+      alert(`No se pudo guardar: ${error.message}`)
+      return false
+    }
     await loadTactics(selectedTeam)
     router.back()
   }
@@ -193,6 +199,7 @@ function TacticasInner() {
             onSave={handleSave}
             onClose={() => router.back()}
             visionCones
+            draftKey={editingTactic ? `tactic-${editingTactic.id}` : `tactic-new-${selectedTeam}`}
           />
         </div>
       </ModalPortal>

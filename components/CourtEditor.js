@@ -1208,7 +1208,7 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
    MAIN COMPONENT
 ══════════════════════════════════════════════════ */
 
-export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false, visionCones = false, maxPlayers = 5, multiBall = false }) {
+export default function CourtEditor({ initialData, onSave, onClose, readOnly = false, onDuplicate = null, duplicating = false, readOnlyLabel = null, notesPanel = false, visionCones = false, maxPlayers = 5, multiBall = false, draftKey = null }) {
   const canvasRef   = useRef(null)
   // Animation loop refs (never trigger re-render)
   const animLoopRef    = useRef(null)
@@ -1255,6 +1255,61 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const showCones = visionCones && conesVisible
   const [drawStep,   setDrawStep]    = useState(0)     // which action-step new arrows go to
   const drawStepRef  = useRef(0)
+
+  // ── Autoguardado local ──────────────────────────────────────────
+  // Mientras se dibuja, se guarda un borrador en localStorage (con
+  // debounce) por si pasa algo antes de darle a Guardar de verdad. Al
+  // abrir, si hay un borrador guardado, se ofrece recuperarlo o
+  // descartarlo. Se borra en cuanto el guardado real tiene éxito.
+  const [draftFound, setDraftFound] = useState(null) // { savedAt } si hay un borrador esperando decisión
+  const draftStorageKey = draftKey ? `ce_draft_${draftKey}` : null
+
+  useEffect(() => {
+    if (!draftStorageKey || readOnly) return
+    try {
+      const raw = localStorage.getItem(draftStorageKey)
+      if (raw) {
+        const draft = JSON.parse(raw)
+        if (draft?.savedAt) setDraftFound(draft)
+      }
+    } catch {}
+    // Solo al abrir este elemento concreto
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftStorageKey])
+
+  useEffect(() => {
+    if (!draftStorageKey || readOnly) return
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify({
+          title, description: notes, courtType,
+          steps: phases.map(p => ({ elements: p.elements })),
+          savedAt: Date.now(),
+        }))
+      } catch {}
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [title, notes, courtType, phases, draftStorageKey, readOnly])
+
+  function clearDraft() {
+    if (draftStorageKey) { try { localStorage.removeItem(draftStorageKey) } catch {} }
+  }
+
+  function recoverDraft() {
+    if (!draftFound) return
+    setTitle(draftFound.title || '')
+    setNotes(draftFound.description || '')
+    setCourtType(draftFound.courtType || 'half')
+    setPhases(draftFound.steps?.length
+      ? draftFound.steps.map(s => ({ id: Math.random().toString(36).slice(2), elements: s.elements || [] }))
+      : [mkPhase()])
+    setDraftFound(null)
+  }
+
+  function discardDraft() {
+    clearDraft()
+    setDraftFound(null)
+  }
 
   const CH = getCanvasH(courtType)
   const els = phases[cur]?.elements || []
@@ -1700,8 +1755,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   }
 
   /* ── Save ─────────────────────────────────────────── */
-  function handleSave() {
-    onSave?.({ title, description:notes, courtType, steps: phases.map(p=>({elements:p.elements})) })
+  async function handleSave() {
+    const result = await onSave?.({ title, description:notes, courtType, steps: phases.map(p=>({elements:p.elements})) })
+    // Solo se borra el borrador si el guardado real ha ido bien —
+    // si el handler ha devuelto false (fallo), se conserva por si acaso
+    if (result !== false) clearDraft()
   }
 
   /* ── Keyboard ─────────────────────────────────────── */
@@ -1858,6 +1916,21 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           </button>
         )}
       </div>
+
+      {/* ── AVISO DE BORRADOR RECUPERABLE ── */}
+      {draftFound && (
+        <div style={{
+          display:'flex', alignItems:'center', gap:10, flexWrap:'wrap',
+          padding:'9px 16px', background:'#78350f', borderBottom:'1px solid #92400e', flexShrink:0,
+        }}>
+          <span style={{fontSize:13}}>💾</span>
+          <span style={{flex:1, minWidth:200, fontSize:12.5, color:'#fef3c7', fontWeight:600}}>
+            Hay un cambio sin guardar de una sesión anterior. ¿Lo recuperas?
+          </span>
+          <button onClick={recoverDraft} style={{background:'#f59e0b',border:'none',borderRadius:7,color:'#111827',padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer'}}>Recuperar</button>
+          <button onClick={discardDraft} style={{background:'transparent',border:'1px solid rgba(255,255,255,0.3)',borderRadius:7,color:'#fef3c7',padding:'6px 14px',fontSize:12.5,fontWeight:700,cursor:'pointer'}}>Descartar</button>
+        </div>
+      )}
 
       {/* ── MAIN AREA ── */}
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>

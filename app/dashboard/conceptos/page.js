@@ -91,8 +91,14 @@ function ConceptosInner() {
       play_data: { steps, courtType },
       created_by: user.id,
     }
-    if (editingConcept?.id) await supabase.from('concepts').update(payload).eq('id', editingConcept.id)
-    else await supabase.from('concepts').insert(payload)
+    const { error } = editingConcept?.id
+      ? await supabase.from('concepts').update(payload).eq('id', editingConcept.id)
+      : await supabase.from('concepts').insert(payload)
+    if (error) {
+      console.error('Error guardando el concepto:', error)
+      alert(`No se pudo guardar: ${error.message}`)
+      return false
+    }
     await loadConcepts(tab)
     router.back()
   }
@@ -126,6 +132,7 @@ function ConceptosInner() {
             onClose={() => router.back()}
             notesPanel
             visionCones={(editingConcept ? editingConcept.category : tab) === 'defensivo'}
+            draftKey={editingConcept ? `concept-${editingConcept.id}` : `concept-new-${tab}`}
           />
         </div>
       </ModalPortal>

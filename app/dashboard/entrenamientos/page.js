@@ -256,6 +256,18 @@ function EntrenamientosInner() {
     router.push(qs ? `${pathname}?${qs}` : pathname)
   }
 
+  // Igual que pushParams pero sin crear una entrada nueva en el historial —
+  // para moverse DENTRO del Modo en vivo (siguiente/anterior ejercicio) sin
+  // que el botón atrás tenga que deshacer cada paso uno a uno
+  function replaceParams(updates) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
+  }
+
   // Refleja los parámetros de la URL en el estado (al navegar, al pulsar
   // atrás, o al recargar la página con una URL ya con parámetros)
   useEffect(() => {
@@ -297,6 +309,26 @@ function EntrenamientosInner() {
         else if (libItems.length > 0) pushParams({ lib: null })
       }
     }
+
+    // Modo en vivo: ?live=1&idx=N (dentro de una sesión)
+    if (searchParams.get('live') === '1' && sId) {
+      const idx = parseInt(searchParams.get('idx') || '0', 10)
+      if (!liveMode || liveIdx !== idx) {
+        setLiveMode(true)
+        setLiveIdx(idx)
+        setLiveSeconds((exercises[idx]?.duration_minutes || 10) * 60)
+        setLiveRunning(false)
+        setLiveHasStarted(false)
+      }
+    } else if (liveMode) {
+      setLiveMode(false)
+    }
+    if (searchParams.get('diagram') === '1') {
+      if (!liveShowDiagram) setLiveShowDiagram(true)
+    } else if (liveShowDiagram) {
+      setLiveShowDiagram(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, sessions, sharedSessions, exercises, libItems])
 
   useEffect(() => {
@@ -536,12 +568,12 @@ function EntrenamientosInner() {
   }
 
   async function handleSaveLibItemPlay({ title, description, steps, courtType }) {
-    if (!editorLibItem) return
+    if (!editorLibItem) return false
     const { error } = await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType } }).eq('id', editorLibItem.id)
     if (error) {
       console.error('Error guardando la pizarra (biblioteca):', error)
       alert(`No se pudo guardar el diseño: ${error.message}`)
-      return
+      return false
     }
     await loadLibrary()
     router.back()
@@ -574,20 +606,11 @@ function EntrenamientosInner() {
   // ── Modo en vivo ───────────────────────────────────────────────
   function startLive() {
     if (exercises.length === 0) return
-    setLiveIdx(0)
-    setLiveSeconds((exercises[0]?.duration_minutes || 10) * 60)
-    setLiveRunning(false)
-    setLiveHasStarted(false)
-    setLiveShowDiagram(false)
-    setLiveMode(true)
+    pushParams({ live: '1', idx: '0' })
   }
   function liveGoTo(idx) {
-    if (idx < 0 || idx >= exercises.length) { setLiveMode(false); return }
-    setLiveIdx(idx)
-    setLiveSeconds((exercises[idx]?.duration_minutes || 10) * 60)
-    setLiveRunning(false)
-    setLiveHasStarted(false)
-    setLiveShowDiagram(false)
+    if (idx < 0 || idx >= exercises.length) { router.back(); return }
+    replaceParams({ idx: String(idx) })
   }
 
   function handleDuplicateClick() {
@@ -628,12 +651,12 @@ function EntrenamientosInner() {
   }
 
   async function handleSaveExercisePlay({ title, description, steps, courtType }) {
-    if (!editorExercise) return
+    if (!editorExercise) return false
     const { error } = await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType } }).eq('id', editorExercise.id)
     if (error) {
       console.error('Error guardando la pizarra:', error)
       alert(`No se pudo guardar el diseño: ${error.message}`)
-      return
+      return false
     }
     await loadExercises(detailSession.id)
     router.back()
@@ -674,6 +697,7 @@ function EntrenamientosInner() {
             visionCones
             maxPlayers={15}
             multiBall
+            draftKey={`exercise-${editorExercise.id}`}
           />
         </div>
       </ModalPortal>
@@ -697,6 +721,7 @@ function EntrenamientosInner() {
             visionCones
             maxPlayers={15}
             multiBall
+            draftKey={canEditLib ? `lib-${editorLibItem.id}` : null}
           />
         </div>
       </ModalPortal>
@@ -726,7 +751,7 @@ function EntrenamientosInner() {
             paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
-              <button onClick={() => setLiveMode(false)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
+              <button onClick={() => router.back()} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 10, color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>✕ Salir</button>
               <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.7 }}>Ejercicio {liveIdx + 1} / {exercises.length}</div>
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '12px 24px', textAlign: 'center', minHeight: 0, overflowY: 'auto' }}>
@@ -736,7 +761,7 @@ function EntrenamientosInner() {
               </div>
               <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 10, maxWidth: 480 }}>{liveEx?.title}</div>
               {liveEx?.play_data && (
-                <button onClick={() => setLiveShowDiagram(true)} style={{
+                <button onClick={() => pushParams({ diagram: '1' })} style={{
                   marginBottom: 10, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
                   borderRadius: 10, color: '#fff', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}>🏀 Ver pizarra</button>
@@ -785,7 +810,7 @@ function EntrenamientosInner() {
                 steps: liveEx.play_data.steps || [],
                 courtType: liveEx.play_data.courtType,
               }}
-              onClose={() => setLiveShowDiagram(false)}
+              onClose={() => router.back()}
               visionCones
               maxPlayers={15}
               multiBall

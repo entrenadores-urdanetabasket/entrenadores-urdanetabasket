@@ -185,8 +185,11 @@ export default function JugadorPage() {
 
   const activeIncidents = incidents.filter(i => !i.resolved).length
 
+  // Las estrellas son de 1 a 5, pero para que la media "se lea" como una
+  // nota (y no como un suspenso: 4 estrellas es un notable, no un 4/10) se
+  // muestra reescalada sobre 10
   const ratedRatings = playerRatings.filter(r => r.rating)
-  const ratingAvg = ratedRatings.length > 0 ? (ratedRatings.reduce((a, r) => a + r.rating, 0) / ratedRatings.length).toFixed(1) : null
+  const ratingAvg = ratedRatings.length > 0 ? ((ratedRatings.reduce((a, r) => a + r.rating, 0) / ratedRatings.length) * 2).toFixed(1) : null
 
   // ── Progresión mes a mes / partido a partido ──────────────────────
   const monthKeys = lastNMonthKeys(6)
@@ -212,7 +215,7 @@ export default function JugadorPage() {
       byMonth[mk].sum += r.rating
       byMonth[mk].count++
     })
-    return monthKeys.map(m => ({ label: monthLabel(m), value: byMonth[m].count > 0 ? Number((byMonth[m].sum / byMonth[m].count).toFixed(1)) : 0 }))
+    return monthKeys.map(m => ({ label: monthLabel(m), value: byMonth[m].count > 0 ? Number(((byMonth[m].sum / byMonth[m].count) * 2).toFixed(1)) : 0 }))
   })()
 
   const pointsTrend = [...gameLines]
@@ -284,7 +287,7 @@ export default function JugadorPage() {
             {[
               { label: 'Asistencia', value: pct !== null ? `${pct}%` : '—', color: pct !== null ? (pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444') : '#94a3b8' },
               { label: 'Puntos/partido', value: season && season.gamesPlayed > 0 ? avg(season.pts, season.gamesPlayed) : '—', color: '#2563eb' },
-              { label: 'Valoración media', value: ratingAvg ?? '—', color: '#f59e0b' },
+              { label: 'Valoración media', value: ratingAvg !== null ? `${ratingAvg}/10` : '—', color: '#f59e0b' },
               { label: 'Incidencias', value: activeIncidents, color: activeIncidents > 0 ? '#ef4444' : '#16a34a' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px solid #e8edf3', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
@@ -301,7 +304,7 @@ export default function JugadorPage() {
 
           <div style={cardStyle}>
             <div style={cardTitleStyle}>⭐ Progresión de valoración en entrenamientos</div>
-            <TrendChart data={ratingTrend} color="#f59e0b" emptyText="Todavía no hay valoraciones de entrenamientos para este jugador" />
+            <TrendChart data={ratingTrend} valueSuffix="/10" color="#f59e0b" emptyText="Todavía no hay valoraciones de entrenamientos para este jugador" />
           </div>
 
           {season && season.gamesPlayed > 0 && (
@@ -548,7 +551,7 @@ export default function JugadorPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
             <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px solid #e8edf3', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-              <div style={{ fontSize: 30, fontWeight: 900, color: '#f59e0b', lineHeight: 1 }}>{ratingAvg ?? '—'}</div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: '#f59e0b', lineHeight: 1 }}>{ratingAvg !== null ? `${ratingAvg}/10` : '—'}</div>
               <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 700, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Valoración media</div>
             </div>
             <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px solid #e8edf3', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
@@ -559,7 +562,7 @@ export default function JugadorPage() {
 
           <div style={cardStyle}>
             <div style={cardTitleStyle}>Progresión de valoración (media mensual)</div>
-            <TrendChart data={ratingTrend} color="#f59e0b" emptyText="Todavía no hay valoraciones de entrenamientos para este jugador" />
+            <TrendChart data={ratingTrend} valueSuffix="/10" color="#f59e0b" emptyText="Todavía no hay valoraciones de entrenamientos para este jugador" />
           </div>
 
           <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de valoraciones</h3>

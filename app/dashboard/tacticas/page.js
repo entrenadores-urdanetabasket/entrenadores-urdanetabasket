@@ -1,14 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
 export default function TacticasPage() {
+  return (
+    <Suspense fallback={<div style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</div>}>
+      <TacticasInner />
+    </Suspense>
+  )
+}
+
+function TacticasInner() {
   const { user, profile, supabase } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [teams,        setTeams]        = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -27,6 +39,44 @@ export default function TacticasPage() {
   const [viewingShared, setViewingShared]   = useState(null) // táctica ajena, solo lectura
   const [duplicating, setDuplicating]       = useState(false)
   const [showTeamPicker, setShowTeamPicker] = useState(false)
+
+  // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  function pushParams(updates) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    const isNew = searchParams.get('new') === '1'
+    const viewId = searchParams.get('view')
+
+    if (isNew) {
+      if (!openEditor) { setEditingTactic(null); setOpenEditor(true) }
+    } else if (editId) {
+      if (editingTactic?.id !== editId) {
+        const found = tactics.find(t => t.id === editId)
+        if (found) { setEditingTactic(found); setOpenEditor(true) }
+        else if (tactics.length > 0) pushParams({ edit: null })
+      }
+    } else if (openEditor) {
+      setOpenEditor(false); setEditingTactic(null)
+    }
+
+    if (viewId) {
+      if (viewingShared?.id !== viewId) {
+        const found = sharedTactics.find(t => t.id === viewId)
+        if (found) setViewingShared(found)
+        else if (sharedTactics.length > 0) pushParams({ view: null })
+      }
+    } else if (viewingShared) {
+      setViewingShared(null)
+    }
+  }, [searchParams, tactics, sharedTactics])
 
   useEffect(() => { if (user && profile) loadTeams() }, [user, profile])
 
@@ -84,9 +134,8 @@ export default function TacticasPage() {
     if (editingTactic?.id) await supabase.from('tactics').update(payload).eq('id', editingTactic.id)
     else await supabase.from('tactics').insert(payload)
     setSaving(false)
-    setOpenEditor(false)
-    setEditingTactic(null)
     await loadTactics(selectedTeam)
+    router.back()
   }
 
   async function deleteTactic(id) {
@@ -115,7 +164,7 @@ export default function TacticasPage() {
     await supabase.from('tactics').insert(payload)
     setDuplicating(false)
     setShowTeamPicker(false)
-    setViewingShared(null)
+    router.replace(pathname)
     setTab('mias')
     setSelectedTeam(teamId)
     await loadTactics(teamId)
@@ -142,7 +191,7 @@ export default function TacticasPage() {
           <CourtEditor
             initialData={initData}
             onSave={handleSave}
-            onClose={() => { setOpenEditor(false); setEditingTactic(null) }}
+            onClose={() => router.back()}
             visionCones
           />
         </div>
@@ -163,7 +212,7 @@ export default function TacticasPage() {
               steps: viewingShared.play_data?.steps || [],
               courtType: viewingShared.play_data?.courtType,
             }}
-            onClose={() => setViewingShared(null)}
+            onClose={() => router.back()}
             onDuplicate={handleDuplicateClick}
             duplicating={duplicating}
             readOnlyLabel={`🏀 ${viewingShared.teams?.name || 'Equipo'}`}
@@ -213,7 +262,7 @@ export default function TacticasPage() {
         </div>
         {tab === 'mias' && (
           <button
-            onClick={() => { setEditingTactic(null); setOpenEditor(true) }}
+            onClick={() => pushParams({ new: '1' })}
             disabled={!selectedTeam}
             style={{ background: 'linear-gradient(135deg,#1C5C2A,#52B043)', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           >
@@ -266,7 +315,7 @@ export default function TacticasPage() {
               const teamName   = tac.teams?.name || 'Equipo'
               const stepCount  = tac.play_data?.steps?.length || 0
               return (
-                <div key={tac.id} onClick={() => setViewingShared(tac)} style={{
+                <div key={tac.id} onClick={() => pushParams({ view: tac.id })} style={{
                   backgroundColor: '#fff', borderRadius: 14, padding: '14px 16px',
                   border: '1px solid #ede9fe', boxShadow: '0 1px 4px rgba(124,58,237,0.06)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 12,
@@ -302,7 +351,7 @@ export default function TacticasPage() {
               <div style={{ fontSize: 48, marginBottom: 14 }}>📋</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin jugadas todavía</div>
               <div style={{ fontSize: 13, marginBottom: 20 }}>Diseña tu primera jugada con el editor visual</div>
-              <button onClick={() => { setEditingTactic(null); setOpenEditor(true) }}
+              <button onClick={() => pushParams({ new: '1' })}
                 style={{ background: 'linear-gradient(135deg,#1C5C2A,#52B043)', color: '#fff', border: 'none', borderRadius: 12, padding: '12px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 + Crear jugada
               </button>
@@ -342,7 +391,7 @@ export default function TacticasPage() {
                         }}>
                         📤
                       </button>
-                      <button onClick={() => { setEditingTactic(tac); setOpenEditor(true) }}
+                      <button onClick={() => pushParams({ edit: tac.id })}
                         style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: '#eff6ff', color: '#2563eb', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
                         Editar
                       </button>

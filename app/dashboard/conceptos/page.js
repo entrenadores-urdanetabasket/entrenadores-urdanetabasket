@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
 import ModalPortal from '@/components/ModalPortal'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -13,8 +14,19 @@ const CATS = {
 }
 
 export default function ConceptosPage() {
+  return (
+    <Suspense fallback={<div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>}>
+      <ConceptosInner />
+    </Suspense>
+  )
+}
+
+function ConceptosInner() {
   const { user, profile, supabase } = useAuth()
   const isDirector = profile?.role === 'director'
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [tab, setTab] = useState('ofensivo') // 'ofensivo' | 'defensivo'
   const [concepts, setConcepts] = useState([])
@@ -23,6 +35,44 @@ export default function ConceptosPage() {
   const [openEditor, setOpenEditor] = useState(false)
   const [editingConcept, setEditingConcept] = useState(null)
   const [viewingConcept, setViewingConcept] = useState(null)
+
+  // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  function pushParams(updates) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    const isNew = searchParams.get('new') === '1'
+    const viewId = searchParams.get('view')
+
+    if (isNew) {
+      if (!openEditor) { setEditingConcept(null); setOpenEditor(true) }
+    } else if (editId) {
+      if (editingConcept?.id !== editId) {
+        const found = concepts.find(c => c.id === editId)
+        if (found) { setEditingConcept(found); setOpenEditor(true) }
+        else if (concepts.length > 0) pushParams({ edit: null })
+      }
+    } else if (openEditor) {
+      setOpenEditor(false); setEditingConcept(null)
+    }
+
+    if (viewId) {
+      if (viewingConcept?.id !== viewId) {
+        const found = concepts.find(c => c.id === viewId)
+        if (found) setViewingConcept(found)
+        else if (concepts.length > 0) pushParams({ view: null })
+      }
+    } else if (viewingConcept) {
+      setViewingConcept(null)
+    }
+  }, [searchParams, concepts])
 
   useEffect(() => { if (user && profile) loadConcepts(tab) }, [user, profile, tab])
 
@@ -43,9 +93,8 @@ export default function ConceptosPage() {
     }
     if (editingConcept?.id) await supabase.from('concepts').update(payload).eq('id', editingConcept.id)
     else await supabase.from('concepts').insert(payload)
-    setOpenEditor(false)
-    setEditingConcept(null)
     await loadConcepts(tab)
+    router.back()
   }
 
   async function handleDelete(concept, e) {
@@ -57,8 +106,8 @@ export default function ConceptosPage() {
 
   function openConcept(concept) {
     const canEdit = concept.created_by === user.id || isDirector
-    if (canEdit) { setEditingConcept(concept); setOpenEditor(true) }
-    else setViewingConcept(concept)
+    if (canEdit) pushParams({ edit: concept.id })
+    else pushParams({ view: concept.id })
   }
 
   const cat = CATS[tab]
@@ -74,7 +123,7 @@ export default function ConceptosPage() {
           <CourtEditor
             initialData={initData}
             onSave={handleSave}
-            onClose={() => { setOpenEditor(false); setEditingConcept(null) }}
+            onClose={() => router.back()}
             notesPanel
             visionCones={(editingConcept ? editingConcept.category : tab) === 'defensivo'}
           />
@@ -97,7 +146,7 @@ export default function ConceptosPage() {
               steps: viewingConcept.play_data?.steps || [],
               courtType: viewingConcept.play_data?.courtType,
             }}
-            onClose={() => setViewingConcept(null)}
+            onClose={() => router.back()}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}
             notesPanel
             visionCones={viewingConcept.category === 'defensivo'}
@@ -124,7 +173,7 @@ export default function ConceptosPage() {
             {concepts.length} {concepts.length === 1 ? 'concepto' : 'conceptos'} explicados en la pizarra
           </p>
         </div>
-        <button onClick={() => { setEditingConcept(null); setOpenEditor(true) }} style={{
+        <button onClick={() => pushParams({ new: '1' })} style={{
           background: '#fff', color: cat.dark, border: 'none', borderRadius: 12,
           padding: '10px 18px', fontSize: 13, fontWeight: 800, cursor: 'pointer', flexShrink: 0,
           boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
@@ -163,7 +212,7 @@ export default function ConceptosPage() {
           <div style={{ fontSize: 48, marginBottom: 14 }}>{cat.emoji}</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin conceptos {cat.label.toLowerCase()} todavía</div>
           <div style={{ fontSize: 13, marginBottom: 20 }}>Dibuja el primero en la pizarra para que todo el club lo entienda de un vistazo</div>
-          <button onClick={() => { setEditingConcept(null); setOpenEditor(true) }} style={{
+          <button onClick={() => pushParams({ new: '1' })} style={{
             background: `linear-gradient(135deg,${cat.dark},${cat.color})`, color: '#fff', border: 'none',
             borderRadius: 12, padding: '12px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>+ Crear concepto</button>

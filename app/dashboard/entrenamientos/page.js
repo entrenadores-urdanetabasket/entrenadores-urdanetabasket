@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
 import dynamic from 'next/dynamic'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 
@@ -169,8 +170,19 @@ function ExerciseFormFields({ form, setForm }) {
 }
 
 export default function EntrenamientosPage() {
+  return (
+    <Suspense fallback={<div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>}>
+      <EntrenamientosInner />
+    </Suspense>
+  )
+}
+
+function EntrenamientosInner() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [teams, setTeams] = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -229,6 +241,63 @@ export default function EntrenamientosPage() {
   const [liveRunning, setLiveRunning] = useState(false)
   const [liveHasStarted, setLiveHasStarted] = useState(false) // para el texto "Empezar" vs "Reanudar"
   const [liveShowDiagram, setLiveShowDiagram] = useState(false) // ver la pizarra del ejercicio actual
+
+  // ── Navegación real por URL ──────────────────────────────────────
+  // Para que el botón atrás del móvil y el volver de una pestaña en
+  // segundo plano funcionen bien, "entrar" en una sesión o en el editor
+  // de un ejercicio empuja un parámetro a la URL en vez de ser solo
+  // estado interno; "salir" usa router.back() para deshacerlo de verdad.
+  function pushParams(updates) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  // Refleja los parámetros de la URL en el estado (al navegar, al pulsar
+  // atrás, o al recargar la página con una URL ya con parámetros)
+  useEffect(() => {
+    const sId = searchParams.get('session')
+    const exId = searchParams.get('ex')
+    const libId = searchParams.get('lib')
+
+    if (!sId) {
+      if (detailSession) setDetailSession(null)
+    } else if (detailSession?.id !== sId) {
+      const found = sessions.find(s => s.id === sId) || sharedSessions.find(s => s.id === sId)
+      if (found) {
+        setDetailSession(found)
+        loadExercises(found.id)
+      } else {
+        supabase.from('training_sessions').select('*, teams(name)').eq('id', sId).single()
+          .then(({ data }) => {
+            if (data) { setDetailSession(data); loadExercises(data.id) }
+            else router.replace(pathname)
+          })
+      }
+    }
+
+    if (!exId && !libId) {
+      if (editorExercise) setEditorExercise(null)
+      if (editorLibItem) setEditorLibItem(null)
+    } else if (exId) {
+      if (editorExercise?.id !== exId) {
+        const found = exercises.find(e => e.id === exId)
+        if (found) setEditorExercise(found)
+        // Si no está cargado (recarga en frío), no se puede restaurar el
+        // dibujo sin guardar — simplemente se limpia el parámetro
+        else if (exercises.length > 0) pushParams({ ex: null })
+      }
+    } else if (libId) {
+      if (editorLibItem?.id !== libId) {
+        const found = libItems.find(i => i.id === libId)
+        if (found) setEditorLibItem(found)
+        else if (libItems.length > 0) pushParams({ lib: null })
+      }
+    }
+  }, [searchParams, sessions, sharedSessions, exercises, libItems])
 
   useEffect(() => {
     if (!user || !profile) return
@@ -293,9 +362,8 @@ export default function EntrenamientosPage() {
     setExercises(data || [])
   }
 
-  async function openDetail(session) {
-    setDetailSession(session)
-    await loadExercises(session.id)
+  function openDetail(session) {
+    pushParams({ session: session.id })
   }
 
   function openNewSession() {
@@ -347,7 +415,7 @@ export default function EntrenamientosPage() {
   async function handleDeleteSession(id) {
     if (!confirm('¿Eliminar este entrenamiento?')) return
     await supabase.from('training_sessions').delete().eq('id', id)
-    if (detailSession?.id === id) setDetailSession(null)
+    if (detailSession?.id === id) router.replace(pathname)
     await loadSessions(selectedTeam)
   }
 
@@ -475,8 +543,8 @@ export default function EntrenamientosPage() {
       alert(`No se pudo guardar el diseño: ${error.message}`)
       return
     }
-    setEditorLibItem(null)
     await loadLibrary()
+    router.back()
   }
 
   // ── Plantillas ─────────────────────────────────────────────────
@@ -554,7 +622,7 @@ export default function EntrenamientosPage() {
     setDuplicating(false)
     setShowTeamPicker(false)
     const targetTeam = teams.find(t => t.id === teamId)
-    setDetailSession(null)
+    router.replace(pathname)
     setTab('proximos')
     if (targetTeam) await loadSessions(targetTeam)
   }
@@ -567,8 +635,8 @@ export default function EntrenamientosPage() {
       alert(`No se pudo guardar el diseño: ${error.message}`)
       return
     }
-    setEditorExercise(null)
     await loadExercises(detailSession.id)
+    router.back()
   }
 
   // ¿Puede editar esta sesión? Solo si es suya o es director
@@ -602,7 +670,7 @@ export default function EntrenamientosPage() {
           <CourtEditor
             initialData={initData}
             onSave={handleSaveExercisePlay}
-            onClose={() => setEditorExercise(null)}
+            onClose={() => router.back()}
             visionCones
             maxPlayers={15}
             multiBall
@@ -625,7 +693,7 @@ export default function EntrenamientosPage() {
             readOnly={!canEditLib}
             initialData={initData}
             onSave={canEditLib ? handleSaveLibItemPlay : undefined}
-            onClose={() => setEditorLibItem(null)}
+            onClose={() => router.back()}
             visionCones
             maxPlayers={15}
             multiBall
@@ -729,7 +797,7 @@ export default function EntrenamientosPage() {
       {/* Vista detalle sesión */}
       {detailSession ? (
         <div>
-          <button onClick={() => setDetailSession(null)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
+          <button onClick={() => router.back()} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#64748b', fontSize: 13, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20, padding: 0 }}>
             ← Volver a entrenamientos
           </button>
 
@@ -921,8 +989,8 @@ export default function EntrenamientosPage() {
                         display: 'inline-flex', alignItems: 'center', gap: 4
                       }}
                       onClick={() => {
-                        if (isReadOnly && ex.play_data) setEditorExercise(ex)
-                        else if (!isReadOnly) setEditorExercise(ex)
+                        if (isReadOnly && ex.play_data) pushParams({ ex: ex.id })
+                        else if (!isReadOnly) pushParams({ ex: ex.id })
                       }}
                     >
                       🏀 {ex.play_data ? (isReadOnly ? 'Ver diseño' : 'Ver/editar entrenamiento') : 'Diseñar entrenamiento'}
@@ -1132,7 +1200,7 @@ export default function EntrenamientosPage() {
                         <div style={{ marginTop: 4 }}><CategoryBadge category={item.category} /></div>
                         {item.description && <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 0', lineHeight: 1.5 }}>{item.description}</p>}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
-                          <button onClick={() => setEditorLibItem(item)} style={{
+                          <button onClick={() => pushParams({ lib: item.id })} style={{
                             fontSize: 12, fontWeight: 600, color: item.play_data ? '#2563eb' : '#9ca3af',
                             background: item.play_data ? '#eff6ff' : '#f9fafb', border: 'none', borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
                           }}>🏀 {item.play_data ? (mine ? 'Ver/editar' : 'Ver diseño') : 'Diseñar'}</button>

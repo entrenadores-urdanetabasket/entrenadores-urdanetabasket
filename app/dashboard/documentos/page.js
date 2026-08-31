@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 
 const MAX_SIZE = 25 * 1024 * 1024 // 25 MB
 
@@ -27,9 +28,20 @@ function fmtSize(bytes) {
 }
 
 export default function DocumentosPage() {
+  return (
+    <Suspense fallback={<div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>}>
+      <DocumentosInner />
+    </Suspense>
+  )
+}
+
+function DocumentosInner() {
   const { user, profile, supabase, myTeams, activeTeam } = useAuth()
   const isDirector = profile?.role === 'director'
   const fileInputRef = useRef(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const [teams, setTeams] = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
@@ -49,6 +61,28 @@ export default function DocumentosPage() {
   const [viewUrl, setViewUrl] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [viewError, setViewError] = useState('')
+
+  // ── Navegación real por URL (para que el botón atrás funcione bien) ──
+  function pushParams(updates) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (v == null) params.delete(k); else params.set(k, v)
+    }
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  useEffect(() => {
+    const docId = searchParams.get('doc')
+    if (!docId) {
+      if (viewingDoc) { setViewingDoc(null); setViewUrl(null); setViewError('') }
+      return
+    }
+    if (viewingDoc?.id === docId) return
+    const found = documents.find(d => d.id === docId) || sharedDocs.find(d => d.id === docId)
+    if (found) openDocViewer(found)
+    else if (documents.length > 0 || sharedDocs.length > 0) pushParams({ doc: null })
+  }, [searchParams, documents, sharedDocs])
 
   useEffect(() => {
     if (!user || !profile) return
@@ -155,8 +189,21 @@ export default function DocumentosPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Abre el visor en modal (imágenes y demás tipos no-PDF) y trae la URL firmada
+  async function openDocViewer(doc) {
+    setViewingDoc(doc)
+    setViewUrl(null)
+    setViewError('')
+    setViewLoading(true)
+    const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 3600)
+    setViewLoading(false)
+    if (error || !data?.signedUrl) { setViewError('No se pudo abrir el documento.'); return }
+    setViewUrl(data.signedUrl)
+  }
+
   async function handleView(doc) {
     const isPdf = (doc.file_type || '').includes('pdf')
+    if (!isPdf) { pushParams({ doc: doc.id }); return }
 
     // Los PDF se abren en una pestaña nueva con el visor nativo del navegador:
     // Safari en iPhone no renderiza PDFs embebidos en un iframe dentro de
@@ -164,35 +211,15 @@ export default function DocumentosPage() {
     // mostrarlo dentro de la app le dejamos usar su propio visor a pantalla
     // completa. La pestaña se abre ANTES del fetch (gesto de usuario) para
     // que Safari no la bloquee como popup.
-    const newTab = isPdf ? window.open('', '_blank') : null
-
-    if (!isPdf) {
-      setViewingDoc(doc)
-      setViewUrl(null)
-      setViewError('')
-    }
-    setViewLoading(true)
+    const newTab = window.open('', '_blank')
     const { data, error } = await supabase.storage.from('documents').createSignedUrl(doc.file_path, 3600)
-    setViewLoading(false)
-
-    if (error || !data?.signedUrl) {
-      if (newTab) newTab.close()
-      else setViewError('No se pudo abrir el documento.')
-      return
-    }
-
-    if (isPdf) {
-      if (newTab) newTab.location.href = data.signedUrl
-      else window.open(data.signedUrl, '_blank')
-    } else {
-      setViewUrl(data.signedUrl)
-    }
+    if (error || !data?.signedUrl) { if (newTab) newTab.close(); return }
+    if (newTab) newTab.location.href = data.signedUrl
+    else window.open(data.signedUrl, '_blank')
   }
 
   function closeView() {
-    setViewingDoc(null)
-    setViewUrl(null)
-    setViewError('')
+    router.back()
   }
 
   const tabStyle = (t) => ({

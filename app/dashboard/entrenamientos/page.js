@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
 import dynamic from 'next/dynamic'
+import TeamGroupPicker from '@/components/TeamGroupPicker'
 
 const CourtEditor = dynamic(() => import('@/components/CourtEditor'), { ssr: false })
 

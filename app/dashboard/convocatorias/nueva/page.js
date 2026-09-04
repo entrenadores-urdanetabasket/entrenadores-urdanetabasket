@@ -32,18 +32,13 @@ export default function NuevaConvocatoriaPage() {
       const teamId = activeTeam.id
 
       // Jugadores activos
-      const { data: playerList } = await supabase
+      const { data: pl0 } = await supabase
         .from('players')
         .select('*')
         .eq('team_id', teamId)
         .eq('active', true)
         .order('number')
-
-      if (!playerList || playerList.length === 0) {
-        setPlayers([])
-        setLoading(false)
-        return
-      }
+      const playerList = pl0 || []
 
       // Asistencia últimos 21 días (solo entrenamientos)
       const from = new Date()

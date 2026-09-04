@@ -241,7 +241,7 @@ export default function AsistenciaPage() {
 
   async function loadStats(team, playerList) {
     const t  = team || selectedTeam
-    const pl = playerList || players
+    const home = playerList || players
     const { data } = await supabase.from('attendance')
       .select('player_id, status, type').eq('team_id', t.id)
     if (!data) return
@@ -263,6 +263,11 @@ export default function AsistenciaPage() {
       if (isMatch) { bp.matches++;   if (att) bp.matchesAttended++ }
       else         { bp.trainings++; if (att) bp.trainingsAttended++ }
     })
+    // La plantilla propia sale siempre, aunque no tenga registros; los
+    // jugadores de otros equipos vinculados solo si de verdad han
+    // entrenado/jugado alguna vez con este equipo
+    const guestsWithData = borrowablePlayers.filter(p => byPlayer[p.id])
+    const pl = [...home, ...guestsWithData]
     const result = pl.map(p => ({
       ...p,
       ...byPlayer[p.id] || { total:0, attended:0, absent:0, late:0, justified:0, trainings:0, trainingsAttended:0, matches:0, matchesAttended:0 },
@@ -612,6 +617,21 @@ export default function AsistenciaPage() {
                             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                               <span style={{ width:22, height:22, borderRadius:5, background:'linear-gradient(135deg,#52B043,#1C5C2A)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:10, fontWeight:900, flexShrink:0 }}>{p.number??'—'}</span>
                               <span style={{ fontSize:13, color:'#374151', fontWeight:500 }}>{p.full_name}</span>
+                            </div>
+                            <span style={{ fontSize:11, fontWeight:700, color, backgroundColor:bg, padding:'3px 8px', borderRadius:6 }}>{label}</span>
+                          </div>
+                        )
+                      })}
+                      {Object.keys(detail).filter(pid => !players.find(p => p.id === pid)).map(pid => {
+                        const guest = borrowablePlayers.find(bp => bp.id === pid)
+                        const s = detail[pid] || 'present'
+                        const { label, color, bg } = STATUS[s]
+                        return (
+                          <div key={pid} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <span style={{ width:22, height:22, borderRadius:5, background:'linear-gradient(135deg,#7c3aed,#5b21b6)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:10, fontWeight:900, flexShrink:0 }}>{guest?.number ?? '—'}</span>
+                              <span style={{ fontSize:13, color:'#374151', fontWeight:500 }}>{guest?.full_name || 'Jugador de otro equipo'}</span>
+                              {guest?._fromTeamName && <span style={{ fontSize:10, fontWeight:700, color:'#7c3aed' }}>🔗 {guest._fromTeamName}</span>}
                             </div>
                             <span style={{ fontSize:11, fontWeight:700, color, backgroundColor:bg, padding:'3px 8px', borderRadius:6 }}>{label}</span>
                           </div>

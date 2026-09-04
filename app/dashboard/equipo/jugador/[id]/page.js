@@ -463,7 +463,7 @@ export default function JugadorPage() {
           {pct !== null && (
             <div style={cardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Tasa global de asistencia</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Tasa de asistencia con su equipo</span>
                 <span style={{ fontSize: 13, fontWeight: 800, color: pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444' }}>{pct}%</span>
               </div>
               <div style={{ height: 8, backgroundColor: '#eef2f7', borderRadius: 4, overflow: 'hidden' }}>

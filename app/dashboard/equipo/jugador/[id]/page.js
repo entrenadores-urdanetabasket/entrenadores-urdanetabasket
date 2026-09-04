@@ -196,7 +196,9 @@ export default function JugadorPage() {
   const [incidents, setIncidents] = useState([])
   const [gameLines, setGameLines] = useState([])
   const [season, setSeason] = useState(null)
+  const [otherSeason, setOtherSeason] = useState(null)
   const [stats, setStats] = useState({ total: 0, attended: 0, absent: 0, late: 0, justified: 0, trainings: 0, trainingsAttended: 0, matches: 0, matchesAttended: 0 })
+  const [otherStats, setOtherStats] = useState({ total: 0, attended: 0, byTeam: {} })
   const [playerRatings, setPlayerRatings] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('resumen')
@@ -209,10 +211,10 @@ export default function JugadorPage() {
     setPlayer(p)
 
     const [{ data: att }, { data: inc }, { data: gp }, { data: ratings }] = await Promise.all([
-      supabase.from('attendance').select('date, status, type').eq('player_id', id).order('date', { ascending: false }),
+      supabase.from('attendance').select('date, status, type, team_id, teams(name)').eq('player_id', id).order('date', { ascending: false }),
       supabase.from('incidents').select('*').eq('player_id', id).order('date', { ascending: false }),
-      supabase.from('game_players').select('game_id, jersey_number, starter, games(id, date, rival_name, our_score, rival_score, status, game_type)').eq('player_id', id),
-      supabase.from('training_player_ratings').select('*, training_sessions(date, title)').eq('player_id', id).order('created_at', { ascending: false }),
+      supabase.from('game_players').select('game_id, jersey_number, starter, games(id, date, rival_name, our_score, rival_score, status, game_type, team_id, teams(name))').eq('player_id', id),
+      supabase.from('training_player_ratings').select('*, training_sessions(date, title, team_id, teams(name))').eq('player_id', id).order('created_at', { ascending: false }),
     ])
 
     setRecords(att || [])
@@ -221,6 +223,8 @@ export default function JugadorPage() {
     // propias valoraciones, o todas si es director) — es privado por diseño
     setPlayerRatings((ratings || []).filter(r => r.training_sessions))
 
+    // Partidos: separados entre los de su propio equipo y los jugados con
+    // otro equipo (doble ficha federada), para valorarlos aparte
     try {
       const gameRows = (gp || []).filter(r => r.games && !Array.isArray(r.games))
       const gameIds = gameRows.map(r => r.game_id)
@@ -237,19 +241,38 @@ export default function JugadorPage() {
       const lines = gameRows
         .map(r => ({ ...r.games, jersey_number: r.jersey_number, starter: r.starter, line: lineByGame[r.game_id] || emptyLine() }))
         .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      setGameLines(lines)
+      const ownLines = lines.filter(g => g.team_id === p.team_id)
+      const otherLines = lines.filter(g => g.team_id !== p.team_id)
+      setGameLines(ownLines)
 
       const totals = emptyLine()
-      lines.forEach(g => { Object.keys(totals).forEach(k => { totals[k] += g.line[k] }) })
-      setSeason({ ...totals, gamesPlayed: lines.length })
+      ownLines.forEach(g => { Object.keys(totals).forEach(k => { totals[k] += g.line[k] }) })
+      setSeason({ ...totals, gamesPlayed: ownLines.length })
+
+      const otherTotals = emptyLine()
+      otherLines.forEach(g => { Object.keys(otherTotals).forEach(k => { otherTotals[k] += g.line[k] }) })
+      setOtherSeason({ ...otherTotals, gamesPlayed: otherLines.length, games: otherLines })
     } catch (err) {
       console.error('Error cargando estadísticas de partidos:', err)
       setGameLines([])
       setSeason({ ...emptyLine(), gamesPlayed: 0 })
+      setOtherSeason({ ...emptyLine(), gamesPlayed: 0, games: [] })
     }
+
+    // Asistencia: separada entre su propio equipo y otros equipos
     const s = { total: 0, attended: 0, absent: 0, late: 0, justified: 0, trainings: 0, trainingsAttended: 0, matches: 0, matchesAttended: 0 }
+    const os = { total: 0, attended: 0, byTeam: {} }
     att?.forEach(r => {
       const attd = r.status === 'present' || r.status === 'late'
+      if (r.team_id !== p.team_id) {
+        os.total++
+        if (attd) os.attended++
+        const teamName = r.teams?.name || 'Otro equipo'
+        if (!os.byTeam[teamName]) os.byTeam[teamName] = { total: 0, attended: 0 }
+        os.byTeam[teamName].total++
+        if (attd) os.byTeam[teamName].attended++
+        return
+      }
       const isMt = r.type === 'match'
       s.total++
       if (attd)                     s.attended++
@@ -260,6 +283,7 @@ export default function JugadorPage() {
       else      { s.trainings++; if (attd) s.trainingsAttended++ }
     })
     setStats(s)
+    setOtherStats(os)
     setLoading(false)
   }
 
@@ -272,19 +296,28 @@ export default function JugadorPage() {
 
   const activeIncidents = incidents.filter(i => !i.resolved).length
 
+  // Con su equipo vs. con otros equipos (doble ficha federada) — se
+  // valoran por separado en todo el perfil
+  const ownRecords = records.filter(r => r.team_id === player.team_id)
+  const otherRecords = records.filter(r => r.team_id !== player.team_id)
+  const ownRatings = playerRatings.filter(r => r.training_sessions?.team_id === player.team_id)
+  const otherRatings = playerRatings.filter(r => r.training_sessions?.team_id !== player.team_id)
+
   // Las estrellas son de 1 a 5, pero para que la media "se lea" como una
   // nota (y no como un suspenso: 4 estrellas es un notable, no un 4/10) se
   // muestra reescalada sobre 10
-  const ratedRatings = playerRatings.filter(r => r.rating)
+  const ratedRatings = ownRatings.filter(r => r.rating)
   const ratingAvg = ratedRatings.length > 0 ? ((ratedRatings.reduce((a, r) => a + r.rating, 0) / ratedRatings.length) * 2).toFixed(1) : null
+  const otherRatedRatings = otherRatings.filter(r => r.rating)
+  const otherRatingAvg = otherRatedRatings.length > 0 ? ((otherRatedRatings.reduce((a, r) => a + r.rating, 0) / otherRatedRatings.length) * 2).toFixed(1) : null
 
-  // ── Progresión mes a mes / partido a partido ──────────────────────
+  // ── Progresión mes a mes / partido a partido (siempre de su propio equipo) ──
   const monthKeys = lastNMonthKeys(6)
 
   const attendanceTrend = (() => {
     const byMonth = {}
     monthKeys.forEach(m => { byMonth[m] = { total: 0, attended: 0 } })
-    records.forEach(r => {
+    ownRecords.forEach(r => {
       const mk = monthKey(r.date)
       if (!byMonth[mk]) return
       byMonth[mk].total++
@@ -296,7 +329,7 @@ export default function JugadorPage() {
   const ratingTrend = (() => {
     const byMonth = {}
     monthKeys.forEach(m => { byMonth[m] = { sum: 0, count: 0 } })
-    playerRatings.forEach(r => {
+    ownRatings.forEach(r => {
       const mk = monthKey(r.training_sessions?.date)
       if (!byMonth[mk] || !r.rating) return
       byMonth[mk].sum += r.rating
@@ -314,7 +347,7 @@ export default function JugadorPage() {
       value: g.line.pts,
     }))
 
-  const insights = buildInsights({ records, playerRatings, gameLines, activeIncidents })
+  const insights = buildInsights({ records: ownRecords, playerRatings: ownRatings, gameLines, activeIncidents })
 
   const cardStyle = { backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 16 }
   const cardTitleStyle = { fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12 }
@@ -485,18 +518,18 @@ export default function JugadorPage() {
           </div>
 
           <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de asistencia</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {records.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: otherRecords.length > 0 ? 28 : 0 }}>
+            {ownRecords.length === 0 && (
               <div className="empty-state">
                 <div className="empty-state-icon">📅</div>
                 <div className="empty-state-title">Sin registros todavía</div>
               </div>
             )}
-            {records.map(r => {
+            {ownRecords.map(r => {
               const { label, color, bg } = STATUS[r.status] || STATUS.present
               const isMatch = r.type === 'match'
               return (
-                <div key={r.date} style={{
+                <div key={r.date + r.type} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   backgroundColor: '#fff', borderRadius: 12, padding: '12px 16px',
                   border: `1px solid ${isMatch ? '#bfdbfe' : '#f3f4f6'}`,
@@ -517,6 +550,47 @@ export default function JugadorPage() {
               )
             })}
           </div>
+
+          {/* Actividad con otros equipos (doble ficha federada) */}
+          {otherRecords.length > 0 && (
+            <>
+              <h3 className="section-title" style={{ marginBottom: 12, color: '#7c3aed' }}>🔗 Actividad con otros equipos</h3>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {Object.entries(otherStats.byTeam).map(([teamName, v]) => (
+                  <span key={teamName} style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '5px 12px', borderRadius: 10 }}>
+                    {teamName}: {v.attended}/{v.total} sesiones
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {otherRecords.map(r => {
+                  const { label, color, bg } = STATUS[r.status] || STATUS.present
+                  const isMatch = r.type === 'match'
+                  return (
+                    <div key={r.date + r.type + r.team_id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      backgroundColor: '#fff', borderRadius: 12, padding: '12px 16px',
+                      border: '1px dashed #ddd6fe',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.04)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 5, flexShrink: 0,
+                          backgroundColor: isMatch ? '#dbeafe' : '#dcfce7',
+                          color: isMatch ? '#1d4ed8' : '#15803d',
+                        }}>{isMatch ? '🏆' : '🏋️'}</span>
+                        <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>
+                          {new Date(r.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>{r.teams?.name}</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color, backgroundColor: bg, padding: '4px 10px', borderRadius: 8 }}>{label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -585,6 +659,54 @@ export default function JugadorPage() {
                         {g.date ? new Date(g.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'}
                         {g.status === 'finished' ? ` · ${g.our_score}-${g.rival_score}` : g.status === 'live' ? ' · En directo' : ' · Pendiente'}
                       </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
+                      {[['PTS', g.line.pts], ['REB', g.line.reb], ['AST', g.line.ast]].map(([label, val]) => (
+                        <div key={label} style={{ textAlign: 'center', minWidth: 30 }}>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{val}</div>
+                          <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 700 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0 }}>›</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Estadísticas con otros equipos (doble ficha federada) */}
+          {otherSeason && otherSeason.gamesPlayed > 0 && (
+            <>
+              <h3 className="section-title" style={{ marginTop: 24, marginBottom: 12, color: '#7c3aed' }}>🔗 Estadísticas con otros equipos</h3>
+              <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: '1px dashed #ddd6fe' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #f5f3ff', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
+                  {otherSeason.gamesPlayed} {otherSeason.gamesPlayed === 1 ? 'partido' : 'partidos'} fuera de su equipo
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, backgroundColor: '#f5f3ff' }}>
+                  {[
+                    { label: 'Puntos', value: avg(otherSeason.pts, otherSeason.gamesPlayed) },
+                    { label: 'Rebotes', value: avg(otherSeason.reb, otherSeason.gamesPlayed) },
+                    { label: 'Asistencias', value: avg(otherSeason.ast, otherSeason.gamesPlayed) },
+                  ].map(s => (
+                    <div key={s.label} style={{ backgroundColor: '#fff', padding: '14px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: '#0f172a' }}>{s.value}</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.3 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {otherSeason.games.map(g => (
+                  <Link key={g.id} href={`/live/${g.id}`} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px',
+                    borderTop: '1px solid #f9fafb', textDecoration: 'none', color: 'inherit'
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>vs {g.rival_name}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        {g.date ? new Date(g.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : '—'}
+                        {g.status === 'finished' ? ` · ${g.our_score}-${g.rival_score}` : g.status === 'live' ? ' · En directo' : ' · Pendiente'}
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', marginTop: 2 }}>{g.teams?.name}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 14, flexShrink: 0 }}>
                       {[['PTS', g.line.pts], ['REB', g.line.reb], ['AST', g.line.ast]].map(([label, val]) => (
@@ -674,13 +796,13 @@ export default function JugadorPage() {
           </div>
 
           <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de valoraciones</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {playerRatings.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: otherRatings.length > 0 ? 28 : 0 }}>
+            {ownRatings.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-state-icon">⭐</div>
                 <div className="empty-state-title">Sin valoraciones todavía</div>
               </div>
-            ) : playerRatings.map(r => (
+            ) : ownRatings.map(r => (
               <div key={r.id} style={{ backgroundColor: '#fff', borderRadius: 12, border: '1px solid #fde68a', padding: '12px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: r.notes ? 6 : 0 }}>
                   <div style={{ minWidth: 0 }}>
@@ -695,6 +817,39 @@ export default function JugadorPage() {
               </div>
             ))}
           </div>
+
+          {/* Valoraciones con otros equipos (doble ficha federada) */}
+          {otherRatings.length > 0 && (
+            <>
+              <h3 className="section-title" style={{ marginBottom: 12, color: '#7c3aed' }}>🔗 Valoraciones con otros equipos</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
+                <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px dashed #ddd6fe', textAlign: 'center' }}>
+                  <div style={{ fontSize: 30, fontWeight: 900, color: '#7c3aed', lineHeight: 1 }}>{otherRatingAvg ?? '—'}</div>
+                  <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 700, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Valoración media</div>
+                </div>
+                <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px dashed #ddd6fe', textAlign: 'center' }}>
+                  <div style={{ fontSize: 30, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{otherRatedRatings.length}</div>
+                  <div style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 700, marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Entrenamientos valorados</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {otherRatings.map(r => (
+                  <div key={r.id} style={{ backgroundColor: '#fff', borderRadius: 12, border: '1px dashed #ddd6fe', padding: '12px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: r.notes ? 6 : 0 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.training_sessions.title}</div>
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                          {new Date(r.training_sessions.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })} · <span style={{ color: '#7c3aed', fontWeight: 700 }}>{r.training_sessions.teams?.name}</span>
+                        </div>
+                      </div>
+                      <Stars value={r.rating} />
+                    </div>
+                    {r.notes && <p style={{ fontSize: 12.5, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>{r.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

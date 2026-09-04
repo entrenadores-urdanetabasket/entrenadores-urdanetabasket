@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
-import { categoryRank, categoryGroup } from '@/lib/teamCategoryOrder'
+import { categoryRank, categoryGroup, sortTeamsByCategory } from '@/lib/teamCategoryOrder'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
@@ -75,6 +75,10 @@ export default function DirectorPage() {
   const [addingCoach, setAddingCoach] = useState('')
   const [saving, setSaving]           = useState(false)
   const [deleting, setDeleting]       = useState(null)
+
+  // Vinculación con equipos "cantera" (jugadores que puede convocar/entrenar)
+  const [borrowLinks, setBorrowLinks]       = useState([]) // [{ id, to_team_id, teams:{name,category} }]
+  const [addingBorrowTeam, setAddingBorrowTeam] = useState('')
 
   useEffect(() => {
     if (!profile) return
@@ -320,13 +324,19 @@ export default function DirectorPage() {
     setForm({ name: team.name, category: team.category || 'Senior', season: team.season || '2025-2026', gender: team.gender || 'masculino' })
     setTeamCoaches(team.coaches || [])
     setAddingCoach('')
+    setBorrowLinks([])
+    setAddingBorrowTeam('')
     setShowForm(true)
+    const { data } = await supabase.from('team_borrow_links').select('id, to_team_id, teams:to_team_id(name, category)').eq('from_team_id', team.id)
+    setBorrowLinks(data || [])
   }
 
   function openNew() {
     setEditing(null)
     setForm({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
-    setTeamCoaches([]); setAddingCoach(''); setShowForm(true)
+    setTeamCoaches([]); setAddingCoach('')
+    setBorrowLinks([]); setAddingBorrowTeam('')
+    setShowForm(true)
   }
 
   async function handleSave(e) {
@@ -355,6 +365,22 @@ export default function DirectorPage() {
     loadTeams()
   }
 
+  async function handleAddBorrowLink() {
+    if (!addingBorrowTeam || !editing) return
+    if (borrowLinks.find(l => l.to_team_id === addingBorrowTeam)) return
+    const { data, error } = await supabase.from('team_borrow_links')
+      .insert({ from_team_id: editing, to_team_id: addingBorrowTeam })
+      .select('id, to_team_id, teams:to_team_id(name, category)').single()
+    if (error) { alert(`No se pudo vincular: ${error.message}`); return }
+    setBorrowLinks(prev => [...prev, data])
+    setAddingBorrowTeam('')
+  }
+
+  async function handleRemoveBorrowLink(linkId) {
+    await supabase.from('team_borrow_links').delete().eq('id', linkId)
+    setBorrowLinks(prev => prev.filter(l => l.id !== linkId))
+  }
+
   async function handleDelete(id, e) {
     e.stopPropagation()
     if (!confirm('¿Eliminar este equipo?')) return
@@ -367,6 +393,9 @@ export default function DirectorPage() {
 
   const assignedCoachIds = new Set(teamCoaches.map(tc => tc.coach_id))
   const availableCoaches = coaches.filter(c => !assignedCoachIds.has(c.id))
+
+  const linkedTeamIds = new Set(borrowLinks.map(l => l.to_team_id))
+  const availableBorrowTeams = sortTeamsByCategory(teams.filter(t => t.id !== editing && !linkedTeamIds.has(t.id)))
 
   // Equipos del grupo activo (escolar/federado), ordenados de categoría más
   // baja a más alta y luego por nombre (o temporada si es el histórico)
@@ -984,6 +1013,39 @@ export default function DirectorPage() {
                     </div>
                   ) : (
                     <div style={{ fontSize: 13, color: '#94a3b8', padding: '9px 12px', borderRadius: 10, backgroundColor: '#f8fafc', border: '1px solid #eef2f7' }}>Todos los entrenadores ya están asignados</div>
+                  )}
+                </div>
+              )}
+
+              {editing && (
+                <div>
+                  <label className="label-field" style={{ marginBottom: 2 }}>Puede convocar/entrenar jugadores de...</label>
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 8px' }}>
+                    Para casos de doble ficha federada: un Cadete que sube a Junior, un Junior que sube a Senior, o un equipo B que sube al A.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                    {borrowLinks.length === 0 && <div style={{ fontSize: 13, color: '#94a3b8', padding: '8px 0' }}>Ningún equipo vinculado todavía</div>}
+                    {borrowLinks.map(l => (
+                      <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 12px', borderRadius: 10, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#1d4ed8' }}>🔗 {l.teams?.name} <span style={{ fontWeight: 500, color: '#60a5fa' }}>· {l.teams?.category}</span></span>
+                        <button type='button' onClick={() => handleRemoveBorrowLink(l.id)} style={{ padding: '4px 11px', borderRadius: 7, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
+                      </div>
+                    ))}
+                  </div>
+                  {availableBorrowTeams.length > 0 ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={addingBorrowTeam} onChange={e => setAddingBorrowTeam(e.target.value)}
+                        className="input-field" style={{ flex: 1, cursor: 'pointer' }}>
+                        <option value=''>— Selecciona equipo —</option>
+                        {availableBorrowTeams.map(t => <option key={t.id} value={t.id}>{t.name} · {t.category}</option>)}
+                      </select>
+                      <button type='button' onClick={handleAddBorrowLink} disabled={!addingBorrowTeam}
+                        style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: addingBorrowTeam ? 'linear-gradient(135deg,#2563eb,#1d4ed8)' : '#e2e8f0', color: addingBorrowTeam ? '#fff' : '#94a3b8', fontSize: 13, fontWeight: 700, cursor: addingBorrowTeam ? 'pointer' : 'not-allowed' }}>
+                        Vincular
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, color: '#94a3b8', padding: '9px 12px', borderRadius: 10, backgroundColor: '#f8fafc', border: '1px solid #eef2f7' }}>No hay más equipos para vincular</div>
                   )}
                 </div>
               )}

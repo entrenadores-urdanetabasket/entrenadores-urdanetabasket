@@ -109,6 +109,9 @@ export default function AsistenciaPage() {
   const [teams,        setTeams]        = useState([])
   const [selectedTeam, setSelectedTeam] = useState(null)
   const [players,      setPlayers]      = useState([])
+  const [borrowablePlayers, setBorrowablePlayers] = useState([]) // jugadores de equipos vinculados (cantera)
+  const [guestPlayers, setGuestPlayers] = useState([]) // invitados en la sesión del día actual
+  const [showGuestPicker, setShowGuestPicker] = useState(false)
   const [tab,          setTab]          = useState('lista')
   const [date,         setDate]         = useState(new Date().toISOString().split('T')[0])
   const [attendance,   setAttendance]   = useState({})
@@ -152,9 +155,10 @@ export default function AsistenciaPage() {
     const { data: p } = await supabase.from('players').select('*').eq('team_id', team.id).eq('active', true).order('number')
     const playerList = p || []
     setPlayers(playerList)
+    const borrowables = await loadBorrowablePlayers(team)
     const today = new Date()
     await Promise.all([
-      loadAttendanceForDate(team, playerList, date),
+      loadAttendanceForDate(team, playerList, date, borrowables),
       loadMarkedDays(team, today.getFullYear(), today.getMonth() + 1),
     ])
     if (currentTab === 'historial')    await loadHistory(team)
@@ -162,18 +166,47 @@ export default function AsistenciaPage() {
     setLoading(false)
   }
 
+  /* Jugadores de equipos vinculados como cantera (doble ficha federada) */
+  async function loadBorrowablePlayers(team) {
+    const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', team.id)
+    const teamIds = (links || []).map(l => l.to_team_id)
+    if (teamIds.length === 0) { setBorrowablePlayers([]); return [] }
+    const teamNameById = Object.fromEntries((links || []).map(l => [l.to_team_id, l.teams?.name]))
+    const { data: pl } = await supabase.from('players').select('*').in('team_id', teamIds).eq('active', true).order('number')
+    const result = (pl || []).map(p => ({ ...p, _fromTeamName: teamNameById[p.team_id] || 'Otro equipo' }))
+    setBorrowablePlayers(result)
+    return result
+  }
+
   /* Carga asistencia de un día concreto (y el tipo de sesión guardado) */
-  async function loadAttendanceForDate(team, playerList, d) {
+  async function loadAttendanceForDate(team, playerList, d, borrowables) {
+    const pool = borrowables ?? borrowablePlayers
     const { data } = await supabase.from('attendance').select('*').eq('team_id', team.id).eq('date', d)
     const map = {}
+    const homeIds = new Set(playerList.map(p => p.id))
     if (data?.length > 0) {
       data.forEach(r => { map[r.player_id] = r.status })
       setSessionType(data[0].type || 'training')
+      const guestIds = data.map(r => r.player_id).filter(id => !homeIds.has(id))
+      setGuestPlayers(pool.filter(p => guestIds.includes(p.id)))
     } else {
       playerList.forEach(p => { map[p.id] = 'present' })
+      setGuestPlayers([])
       // mantener el tipo actual como defecto
     }
     setAttendance(map)
+  }
+
+  function addGuestPlayer(player) {
+    setGuestPlayers(prev => prev.find(p => p.id === player.id) ? prev : [...prev, player])
+    setAttendance(a => ({ ...a, [player.id]: 'present' }))
+    setShowGuestPicker(false)
+  }
+
+  async function removeGuestPlayer(playerId) {
+    setGuestPlayers(prev => prev.filter(p => p.id !== playerId))
+    setAttendance(a => { const { [playerId]: _, ...rest } = a; return rest })
+    if (selectedTeam) await supabase.from('attendance').delete().eq('team_id', selectedTeam.id).eq('date', date).eq('player_id', playerId)
   }
 
   /* Carga días marcados del mes visible en el calendario */
@@ -257,7 +290,7 @@ export default function AsistenciaPage() {
 
   async function handleSave() {
     setSaving(true)
-    const rows = players.map(p => ({
+    const rows = [...players, ...guestPlayers].map(p => ({
       team_id:   selectedTeam.id,
       player_id: p.id,
       date,
@@ -265,7 +298,7 @@ export default function AsistenciaPage() {
       type:      sessionType,
       present:   (attendance[p.id] ?? 'present') !== 'absent',
     }))
-    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date' })
+    const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date,type,team_id' })
     setSaving(false)
     if (error) { alert('Error: ' + error.message); return }
     setMarkedDays(prev => ({ ...prev, [date]: sessionType }))
@@ -308,7 +341,7 @@ export default function AsistenciaPage() {
     </div>
   )
 
-  const counts = players.reduce((acc, p) => {
+  const counts = [...players, ...guestPlayers].reduce((acc, p) => {
     const s = attendance[p.id] ?? 'present'
     acc[s] = (acc[s] || 0) + 1
     return acc
@@ -353,7 +386,7 @@ export default function AsistenciaPage() {
             markedDays={markedDays}
             onSelectDate={d => {
               setDate(d)
-              loadAttendanceForDate(selectedTeam, players, d)
+              loadAttendanceForDate(selectedTeam, players, d, borrowablePlayers)
             }}
             onMonthChange={(y, m) => loadMarkedDays(selectedTeam, y, m)}
           />
@@ -418,9 +451,66 @@ export default function AsistenciaPage() {
                 </div>
               )
             })}
+
+            {guestPlayers.map(player => {
+              const status = attendance[player.id] ?? 'present'
+              const { label, color, bg, border } = STATUS[status]
+              return (
+                <div key={player.id} style={{
+                  display:'flex', alignItems:'center', justifyContent:'space-between',
+                  padding:'13px 16px', borderRadius:14,
+                  backgroundColor:bg, border:`1.5px dashed ${border}`,
+                  boxShadow:'0 1px 3px rgba(0,0,0,0.04)', transition:'all 0.15s'
+                }}>
+                  <div onClick={() => cycleStatus(player.id)} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      width:42, height:42, borderRadius:11, flexShrink:0,
+                      background: status==='present' ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#fff',
+                      border: status==='present' ? 'none' : '1.5px solid #e2e8f0',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      color: status==='present' ? '#fff' : '#94a3b8', fontSize:15, fontWeight:900,
+                      boxShadow: status==='present' ? '0 2px 8px rgba(91,33,182,0.20)' : 'none'
+                    }}>{player.number ?? '—'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight:800, fontSize:14, color:'#0f172a', letterSpacing:-0.2 }}>{player.full_name}</div>
+                      <div style={{ fontSize:11, color:'#7c3aed', fontWeight:700 }}>🔗 {player._fromTeamName}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span onClick={() => cycleStatus(player.id)} style={{ cursor: 'pointer', fontSize:12, fontWeight:800, color, padding:'5px 12px', borderRadius:9, backgroundColor:'#fff', boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>{label}</span>
+                    <button onClick={() => removeGuestPlayer(player.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14, padding: 0 }}>✕</button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
-          <button onClick={handleSave} disabled={saving || players.length === 0} style={{
+          {borrowablePlayers.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <button type='button' onClick={() => setShowGuestPicker(v => !v)} style={{
+                width: '100%', padding: '11px', borderRadius: 12, border: '1.5px dashed #ddd6fe', cursor: 'pointer',
+                backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: 13, fontWeight: 700,
+              }}>+ Añadir jugador de otro equipo</button>
+              {showGuestPicker && (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6, backgroundColor: '#fff', border: '1px solid #ede9fe', borderRadius: 12, padding: 8, maxHeight: 240, overflowY: 'auto' }}>
+                  {borrowablePlayers.filter(p => !guestPlayers.find(g => g.id === p.id)).length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: '#9ca3af', padding: '8px 4px' }}>No hay más jugadores disponibles</div>
+                  ) : borrowablePlayers.filter(p => !guestPlayers.find(g => g.id === p.id)).map(p => (
+                    <button key={p.id} type='button' onClick={() => addGuestPlayer(p)} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                      padding: '9px 12px', borderRadius: 9, border: '1px solid #f3f4f6', background: '#fafafa',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>{p.number != null ? `#${p.number} ` : ''}{p.full_name}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed' }}>{p._fromTeamName}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button onClick={handleSave} disabled={saving || (players.length === 0 && guestPlayers.length === 0)} style={{
             width:'100%', padding:'15px', borderRadius:12, border:'none',
             background: saving ? '#e2e8f0' : sessionType === 'match'
               ? 'linear-gradient(135deg,#2563eb,#1d4ed8)'

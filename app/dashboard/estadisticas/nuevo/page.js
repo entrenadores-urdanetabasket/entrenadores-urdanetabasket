@@ -52,9 +52,21 @@ export default function NuevoPartidoPage() {
       .eq('active', true)
       .order('number', { ascending: true })
 
+    // Jugadores de equipos vinculados (doble ficha federada) que este
+    // equipo puede convocar además de su propia plantilla — no se marcan
+    // seleccionados por defecto, el entrenador los añade si han jugado
+    const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', teams[0].id)
+    const linkedTeamIds = (links || []).map(l => l.to_team_id)
+    const teamNameById = Object.fromEntries((links || []).map(l => [l.to_team_id, l.teams?.name]))
+    let borrowedList = []
+    if (linkedTeamIds.length > 0) {
+      const { data: bp } = await supabase.from('players').select('id, full_name, number, position').in('team_id', linkedTeamIds).eq('active', true).order('number')
+      borrowedList = (bp || []).map(p => ({ ...p, _fromTeamName: teamNameById[p.team_id] || 'Otro equipo' }))
+    }
+
     const ps = pl || []
-    setPlayers(ps)
-    setSelected(new Set(ps.map(p => p.id))) // todos seleccionados por defecto
+    setPlayers([...ps, ...borrowedList])
+    setSelected(new Set(ps.map(p => p.id))) // la plantilla propia, seleccionada por defecto
   }
 
   function addRivalJersey() {
@@ -280,7 +292,7 @@ export default function NuevoPartidoPage() {
                   <div key={p.id} onClick={() => togglePlayer(p.id)} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                    border: `1.5px solid ${on ? '#bbf7d0' : '#f3f4f6'}`,
+                    border: `1.5px ${p._fromTeamName ? 'dashed' : 'solid'} ${on ? '#bbf7d0' : p._fromTeamName ? '#ddd6fe' : '#f3f4f6'}`,
                     backgroundColor: on ? '#f0fdf4' : '#fafafa',
                     transition: 'all 0.12s',
                   }}>
@@ -292,7 +304,9 @@ export default function NuevoPartidoPage() {
                     }}>{p.number ?? '?'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: on ? '#111827' : '#6b7280' }}>{p.full_name}</div>
-                      {p.position && <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.position}</div>}
+                      {p._fromTeamName ? (
+                        <div style={{ fontSize: 11, color: '#7c3aed', fontWeight: 700 }}>🔗 {p._fromTeamName}</div>
+                      ) : p.position && <div style={{ fontSize: 11, color: '#9ca3af' }}>{p.position}</div>}
                     </div>
                     <div style={{
                       width: 20, height: 20, borderRadius: 5,

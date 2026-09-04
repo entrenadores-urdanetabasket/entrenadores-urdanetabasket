@@ -84,7 +84,18 @@ export default function NuevaConvocatoriaPage() {
         }
       })
 
-      const enriched = playerList.map(p => ({
+      // Jugadores de equipos vinculados (doble ficha federada) que este
+      // equipo puede convocar además de su propia plantilla
+      const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', teamId)
+      const linkedTeamIds = (links || []).map(l => l.to_team_id)
+      const teamNameById = Object.fromEntries((links || []).map(l => [l.to_team_id, l.teams?.name]))
+      let borrowedList = []
+      if (linkedTeamIds.length > 0) {
+        const { data: bp } = await supabase.from('players').select('*').in('team_id', linkedTeamIds).eq('active', true).order('number')
+        borrowedList = (bp || []).map(p => ({ ...p, _fromTeamName: teamNameById[p.team_id] || 'Otro equipo' }))
+      }
+
+      const enriched = [...playerList, ...borrowedList].map(p => ({
         ...p,
         trainingDates: teamDates,
         attendance: attByPlayer[p.id] || {},
@@ -326,7 +337,7 @@ export default function NuevaConvocatoriaPage() {
                   onClick={() => togglePlayer(p.id)}
                   style={{
                     padding: '12px 14px', borderRadius: 13, cursor: 'pointer',
-                    border: `2px solid ${isSelected ? '#52B043' : hasIncidents ? '#fde68a' : '#eef2f7'}`,
+                    border: `2px ${p._fromTeamName ? 'dashed' : 'solid'} ${isSelected ? '#52B043' : hasIncidents ? '#fde68a' : p._fromTeamName ? '#ddd6fe' : '#eef2f7'}`,
                     backgroundColor: isSelected ? '#f0fdf4' : hasIncidents ? '#fffbeb' : '#fff',
                     transition: 'all 0.15s',
                   }}
@@ -358,6 +369,11 @@ export default function NuevaConvocatoriaPage() {
                             boxShadow: '0 1px 4px rgba(220,38,38,0.30)'
                           }}>
                             ⚠️ {INCIDENT_TYPE[p.incidents[0].type] || 'Incidencia'}
+                          </span>
+                        )}
+                        {p._fromTeamName && (
+                          <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 7, backgroundColor: '#f5f3ff', color: '#7c3aed' }}>
+                            🔗 {p._fromTeamName}
                           </span>
                         )}
                       </div>

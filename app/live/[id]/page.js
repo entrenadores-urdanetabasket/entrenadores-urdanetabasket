@@ -982,7 +982,15 @@ export default function LivePage() {
       let next = []
       setEvents(prev => { next = [...prev, ev]; return next })
       const sc = computeScores(next)
-      await supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival, status:'live', quarter, clock_seconds:secs }).eq('id', id)
+      // No se escribe aquí "quarter" ni "clock_seconds": esos campos los
+      // gestionan en exclusiva los cambios de cuarto y la sincronización
+      // periódica del reloj. Escribirlos también aquí, con el valor que
+      // tuviera esta jugada en el momento de dispararse, podía llegar a la
+      // base de datos DESPUÉS de un cambio de cuarto real (la petición de
+      // guardar la jugada puede tardar más que la del cambio de cuarto) y
+      // "revertir" el cuarto de la partida a uno anterior sin que se note
+      // hasta recargar la página.
+      await supabase.from('games').update({ our_score:sc.us, rival_score:sc.rival, status:'live' }).eq('id', id)
       setGame(prev => prev ? { ...prev, our_score:sc.us, rival_score:sc.rival, status:'live' } : prev)
       return ev
     }
@@ -1084,9 +1092,12 @@ export default function LivePage() {
 
   async function confirmFtSeq(made) {
     const m = modal
-    await saveEv(made?'ft_made':'ft_miss', m.team, m.ref)
+    const ev = await saveEv(made?'ft_made':'ft_miss', m.team, m.ref)
     const done = (m.done||0)+1
     if (done < m.total) setModal({ ...m, done })
+    // Igual que con un 2/3 fallado: si el ÚLTIMO tiro libre de la serie
+    // falla, hay rebote que asignar — antes se cerraba el modal sin preguntar
+    else if (!made) setModal({ type:'ask_rebound', shooterTeam:m.team, linked: ev?.id||null })
     else setModal(null)
   }
 

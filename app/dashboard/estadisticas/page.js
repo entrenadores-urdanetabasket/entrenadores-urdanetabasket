@@ -48,6 +48,45 @@ function DiffTrendChart({ data }) {
   )
 }
 
+// Forma reciente: fila de círculos V/D/E, el más reciente a la derecha
+function FormRow({ form }) {
+  if (form.length === 0) return null
+  const COLOR = { V: { bg: '#22c55e', text: '#fff' }, D: { bg: '#ef4444', text: '#fff' }, E: { bg: '#94a3b8', text: '#fff' } }
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {[...form].reverse().map(g => {
+        const c = COLOR[g.result]
+        return (
+          <div key={g.id} title={`vs ${g.rival} · ${g.us}-${g.riv}`} style={{
+            width: 30, height: 30, borderRadius: '50%', backgroundColor: c.bg, color: c.text,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, flexShrink: 0,
+          }}>{g.result}</div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Puntos anotados/recibidos de media por cuarto, a lo largo de la temporada
+function QuarterTrendChart({ data }) {
+  const max = Math.max(...data.flatMap(d => [d.us, d.rival]), 1)
+  const barArea = 60
+  return (
+    <div style={{ display: 'flex', gap: 14, justifyContent: 'space-around' }}>
+      {data.map(d => (
+        <div key={d.q} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: barArea }}>
+            <div title={`${d.us.toFixed(1)} pts`} style={{ width: 14, height: Math.max(2, (d.us / max) * barArea), backgroundColor: '#22c55e', borderRadius: 3 }} />
+            <div title={`${d.rival.toFixed(1)} pts`} style={{ width: 14, height: Math.max(2, (d.rival / max) * barArea), backgroundColor: '#ef4444', borderRadius: 3 }} />
+          </div>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: '#64748b' }}>C{d.q}</div>
+          <div style={{ fontSize: 8.5, color: '#9ca3af' }}>{d.us.toFixed(1)}–{d.rival.toFixed(1)}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function EstadisticasPage() {
   const { user, profile, supabase, activeTeam } = useAuth()
   const router = useRouter()
@@ -65,6 +104,7 @@ export default function EstadisticasPage() {
   const [resumen, setResumen] = useState(null)
   const [resumenLoading, setResumenLoading] = useState(false)
   const [resumenLoadedFor, setResumenLoadedFor] = useState(null) // team id ya cargado
+  const [copiedResumen, setCopiedResumen] = useState(false)
 
   useEffect(() => {
     if (view === 'resumen' && selectedTeam && !loading && resumenLoadedFor !== selectedTeam.id) {
@@ -139,16 +179,32 @@ export default function EstadisticasPage() {
         us: g.our_score || 0, rival: g.rival_score || 0,
       }))
 
+    // Forma reciente: últimos 5 partidos, el más reciente primero
+    const form = [...finished]
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .slice(0, 5)
+      .map(g => {
+        const diff = (g.our_score || 0) - (g.rival_score || 0)
+        return { id: g.id, result: diff > 0 ? 'V' : diff < 0 ? 'D' : 'E', rival: g.rival_name, us: g.our_score || 0, riv: g.rival_score || 0 }
+      })
+
     const gameIds = gamesList.map(g => g.id)
     let leaders = []
+    let quarterAvg = null
     if (gameIds.length > 0) {
       const [{ data: evs }, { data: playerRows }] = await Promise.all([
-        supabase.from('game_events').select('player_id, event_type, game_id').eq('team', 'us').in('game_id', gameIds).not('player_id', 'is', null),
+        supabase.from('game_events').select('player_id, team, event_type, game_id, quarter').in('game_id', gameIds),
         supabase.from('players').select('id, full_name, number').eq('team_id', team.id),
       ])
       const nameById = Object.fromEntries((playerRows || []).map(p => [p.id, { name: p.full_name, number: p.number }]))
       const byPlayer = {}
+      const qStats = { 1: { us: 0, rival: 0 }, 2: { us: 0, rival: 0 }, 3: { us: 0, rival: 0 }, 4: { us: 0, rival: 0 } }
       ;(evs || []).forEach(e => {
+        const pts = e.event_type === '2pt_made' ? 2 : e.event_type === '3pt_made' ? 3 : e.event_type === 'ft_made' ? 1 : 0
+        const q = Number(e.quarter) || 1
+        if (pts > 0 && q >= 1 && q <= 4) qStats[q][e.team === 'us' ? 'us' : 'rival'] += pts
+
+        if (e.team !== 'us' || !e.player_id) return
         if (!byPlayer[e.player_id]) byPlayer[e.player_id] = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, games: new Set() }
         const s = byPlayer[e.player_id]
         s.games.add(e.game_id)
@@ -166,11 +222,40 @@ export default function EstadisticasPage() {
         const info = nameById[pid] || {}
         return { id: pid, name: info.name || 'Jugador', number: info.number, gamesPlayed: gp, pts: s.pts, reb: s.reb, ast: s.ast, stl: s.stl }
       })
+      const gc = finished.length || 1
+      quarterAvg = [1, 2, 3, 4].map(q => ({ q, us: qStats[q].us / gc, rival: qStats[q].rival / gc }))
     }
 
-    setResumen({ record: { w, d, l }, ptsFor, ptsAgainst, gamesCount: finished.length, trend, leaders })
+    setResumen({ record: { w, d, l }, ptsFor, ptsAgainst, gamesCount: finished.length, trend, leaders, form, quarterAvg })
     setResumenLoadedFor(team.id)
     setResumenLoading(false)
+  }
+
+  function buildResumenText() {
+    if (!resumen) return ''
+    const { record, ptsFor, ptsAgainst, gamesCount, leaders } = resumen
+    let text = `📊 *RESUMEN DE TEMPORADA*\n🏀 ${selectedTeam?.name || ''}\n\n`
+    text += `${record.w}V - ${record.d}E - ${record.l}D  (${gamesCount} ${gamesCount === 1 ? 'partido' : 'partidos'})\n`
+    if (gamesCount > 0) {
+      text += `📈 ${(ptsFor / gamesCount).toFixed(1)} pts a favor · ${(ptsAgainst / gamesCount).toFixed(1)} en contra\n`
+    }
+    const topScorer = [...leaders].sort((a, b) => b.pts - a.pts)[0]
+    const topReb = [...leaders].sort((a, b) => b.reb - a.reb)[0]
+    const topAst = [...leaders].sort((a, b) => b.ast - a.ast)[0]
+    if (topScorer?.pts > 0) text += `\n🏆 Máx. anotador: ${topScorer.name} (${topScorer.pts} pts)`
+    if (topReb?.reb > 0) text += `\n💪 Máx. reboteador: ${topReb.name} (${topReb.reb} reb)`
+    if (topAst?.ast > 0) text += `\n🎯 Máx. asistente: ${topAst.name} (${topAst.ast} ast)`
+    return text
+  }
+
+  async function handleShareResumen() {
+    try {
+      await navigator.clipboard.writeText(buildResumenText())
+      setCopiedResumen(true)
+      setTimeout(() => setCopiedResumen(false), 2500)
+    } catch {
+      alert('No se pudo copiar al portapapeles')
+    }
   }
 
   async function deleteGame(gameId, e) {
@@ -255,6 +340,21 @@ export default function EstadisticasPage() {
           </div>
         ) : (
           <div>
+            {/* Forma reciente + compartir */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Forma reciente</div>
+                <FormRow form={resumen.form} />
+              </div>
+              <button onClick={handleShareResumen} style={{
+                padding: '10px 16px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                background: copiedResumen ? '#1da851' : '#25D366', color: '#fff', fontSize: 12.5, fontWeight: 800,
+                boxShadow: '0 4px 14px rgba(37,211,102,0.35)', flexShrink: 0,
+              }}>
+                {copiedResumen ? '✓ ¡Copiado!' : '📲 Copiar para WhatsApp'}
+              </button>
+            </div>
+
             {/* Balance */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
               {[
@@ -280,10 +380,18 @@ export default function EstadisticasPage() {
               </div>
             </div>
 
-            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 20 }}>
+            <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>Últimos {resumen.trend.length} partidos</div>
               <DiffTrendChart data={resumen.trend} />
             </div>
+
+            {resumen.quarterAvg && (
+              <div style={{ backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>Puntos de media por cuarto</div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>🟢 Anotados · 🔴 Recibidos</div>
+                <QuarterTrendChart data={resumen.quarterAvg} />
+              </div>
+            )}
 
             {/* Líderes del equipo */}
             <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>🏆 Líderes del equipo</div>

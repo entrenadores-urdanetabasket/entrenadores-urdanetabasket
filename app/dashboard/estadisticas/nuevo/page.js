@@ -23,12 +23,32 @@ export default function NuevoPartidoPage() {
   const [location, setLocation]     = useState('')
   const [rivalJerseyInput, setRivalJerseyInput] = useState('')
   const [rivalJerseys, setRivalJerseys]         = useState([]) // array of numbers
+  const [h2h, setH2h] = useState(null) // historial contra este rival: { count, w, d, l }
 
   // El equipo es el que esté activo en el selector del menú lateral — antes
   // esta página hacía su propia búsqueda (sin ordenar) y para un entrenador
   // con más de un equipo podía coger cualquiera de ellos, no el que tenías
   // seleccionado.
   useEffect(() => { if (user && activeTeam) loadTeam() }, [user, activeTeam])
+
+  // Historial contra este rival — para saber de un vistazo cómo os han ido
+  // los enfrentamientos anteriores al escribir el nombre
+  useEffect(() => {
+    if (!team || rivalName.trim().length < 2) { setH2h(null); return }
+    const t = setTimeout(async () => {
+      const { data } = await supabase.from('games').select('our_score, rival_score')
+        .eq('team_id', team.id).eq('status', 'finished').ilike('rival_name', rivalName.trim())
+      if (!data || data.length === 0) { setH2h({ count: 0 }); return }
+      let w = 0, d = 0, l = 0
+      data.forEach(g => {
+        if ((g.our_score || 0) > (g.rival_score || 0)) w++
+        else if ((g.our_score || 0) < (g.rival_score || 0)) l++
+        else d++
+      })
+      setH2h({ count: data.length, w, d, l })
+    }, 500)
+    return () => clearTimeout(t)
+  }, [rivalName, team])
 
   async function loadTeam() {
     setTeam(activeTeam)
@@ -172,6 +192,11 @@ export default function NuevoPartidoPage() {
               <div>
                 <label style={labelStyle}>Rival *</label>
                 <input style={inputStyle} placeholder="Nombre del equipo rival" value={rivalName} onChange={e => setRivalName(e.target.value)} />
+                {h2h && h2h.count > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 8, padding: '6px 10px' }}>
+                    🆚 Contra este rival: {h2h.w}V - {h2h.d}E - {h2h.l}D ({h2h.count} {h2h.count === 1 ? 'partido' : 'partidos'})
+                  </div>
+                )}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>

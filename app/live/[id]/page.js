@@ -1228,6 +1228,13 @@ export default function LivePage() {
   const plusMinusRival = computePlusMinusRival(events, rivalInitialFive)
   const quarterScores = computeQuarterScores(events)
 
+  // Jugador del partido: el de mayor PIR de nuestro equipo (mínimo 1, para
+  // no destacar a nadie en un partido sin apenas estadística registrada)
+  const mvp = gps.reduce((best, gp) => {
+    const pir = computePIR(ourBS[gp.player_id] || {})
+    return pir > (best?.pir ?? 0) ? { name: gp.players?.full_name, number: gp.players?.number, pir } : best
+  }, null)
+
   const aActive = !!armed
   const bActive = !!armed
   const ourName  = ourTeamName || 'Urdaneta'
@@ -1565,6 +1572,11 @@ export default function LivePage() {
           {isFinished && (
             <div style={{ textAlign:'center', padding:'10px', backgroundColor:'#052e16', borderTop:'1px solid #14532d', flexShrink:0 }}>
               <div style={{ fontSize:12, fontWeight:800, color:'#22c55e' }}>Partido finalizado · {scores.us}–{scores.rival}</div>
+              {mvp && (
+                <div style={{ fontSize:11, fontWeight:700, color:'#fbbf24', marginTop:4 }}>
+                  ⭐ Jugador del partido: {mvp.number != null ? `#${mvp.number} ` : ''}{mvp.name} ({mvp.pir} PIR)
+                </div>
+              )}
               <button onClick={() => window.print()}
                 style={{ marginTop:6, padding:'6px 16px', background:'linear-gradient(135deg,#1C5C2A,#52B043)',
                   color:'#fff', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>

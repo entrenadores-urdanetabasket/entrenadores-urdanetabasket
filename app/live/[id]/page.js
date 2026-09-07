@@ -109,40 +109,6 @@ function computePlusMinusRival(evs, initialFive) {
   return pm
 }
 
-// ── Minutos jugados ───────────────────────────────────────────────────────────
-// Duracion de cada cuarto: 10 min los 4 primeros, 5 min cada prorroga (PT).
-function quarterDurationSecs(q) { return q <= 4 ? 600 : 300 }
-function absoluteGameSeconds(quarter, secsRemaining) {
-  let total = 0
-  for (let i = 1; i < quarter; i++) total += quarterDurationSecs(i)
-  return total + (quarterDurationSecs(quarter) - secsRemaining)
-}
-
-// Genera minutos jugados por jugador a partir de los eventos de sustitucion que
-// llevan el reloj guardado (shot_x = segundos restantes en ese momento). Los
-// partidos/sustituciones antiguas sin ese dato no se pueden reconstruir.
-function computeMinutesPlayed(evs, initialIds, team, nowAbsTime) {
-  const timeline = []
-  initialIds.forEach(id => timeline.push({ id, type:'enter', t:0 }))
-  evs.forEach(ev => {
-    if (ev.event_type !== 'substitution' || ev.team !== team || ev.shot_x == null) return
-    const t = absoluteGameSeconds(Number(ev.quarter)||1, ev.shot_x)
-    if (team === 'us') {
-      if (ev.linked_event_id) timeline.push({ id: ev.linked_event_id, type:'leave', t })
-      if (ev.player_id) timeline.push({ id: ev.player_id, type:'enter', t })
-    } else {
-      if (ev.rival_jersey != null) timeline.push({ id: ev.rival_jersey, type: ev.points===1?'enter':'leave', t })
-    }
-  })
-  timeline.sort((a,b) => a.t - b.t)
-  const since = {}, total = {}
-  timeline.forEach(ev => {
-    if (ev.type === 'enter') since[ev.id] = ev.t
-    else if (since[ev.id] != null) { total[ev.id] = (total[ev.id]||0) + (ev.t - since[ev.id]); delete since[ev.id] }
-  })
-  Object.keys(since).forEach(id => { total[id] = (total[id]||0) + (nowAbsTime - since[id]) })
-  return total
-}
 
 // ── Racha actual (aciertos/fallos consecutivos de tiro) ───────────────────────
 function computeStreak(evs, team, ref) {
@@ -504,7 +470,6 @@ function BSSection({ title, color, rows, showPM }) {
           <thead>
             <tr>
               <th style={{ ...th, textAlign:'left', paddingLeft:8, minWidth:80 }}>Jugador</th>
-              <th style={{ ...th, minWidth:38 }}>MIN</th>
               {['PTS','2P','3P','TC','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
               {showPM && <th style={{ ...th, minWidth:34 }}>+/-</th>}
               <th style={{ ...th, minWidth:34 }}>RACHA</th>
@@ -522,7 +487,6 @@ function BSSection({ title, color, rows, showPM }) {
                   <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:600 }}>
                     <span style={{ fontSize:10, color:'#4b5563', marginRight:4 }}>#{r.num}</span>{r.name.split(' ')[0]}
                   </td>
-                  <td style={td}>{s.min!=null ? `${Math.floor(s.min/60)}:${String(s.min%60).padStart(2,'0')}` : '—'}</td>
                   <td style={{ ...td, fontWeight:800, color:(s.pts||0)>0?'#f0f0f0':'#374151' }}>{s.pts||0}</td>
                   <td style={td}>{s.fg2m||0}/{s.fg2a||0}</td>
                   <td style={td}>{s.fg3m||0}/{s.fg3a||0}</td>
@@ -553,7 +517,6 @@ function BSSection({ title, color, rows, showPM }) {
             {rows.length > 0 && (
               <tr style={{ backgroundColor:'#1a2030' }}>
                 <td style={{ ...td, textAlign:'left', paddingLeft:8, fontWeight:800, color:'#9ca3af' }}>TOTAL</td>
-                <td style={td}>—</td>
                 <td style={{ ...td, fontWeight:800, color:'#f0f0f0' }}>{tot.pts}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg2m}/{tot.fg2a}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.fg3m}/{tot.fg3a}</td>
@@ -1129,10 +1092,9 @@ export default function LivePage() {
 
   async function confirmSub(inPlayer) {
     const { outPlayer, team:subTeam, currentCourt } = modal
-    // shot_x guarda el reloj restante en el momento del cambio — sin él,
-    // computeMinutesPlayed() ignora la sustitución entera (se documenta así
-    // en la propia función), así que el jugador que entraba nunca sumaba
-    // minutos y el marcador de arriba (confirmOurLineup) sí lo hacía bien.
+    // shot_x guarda el reloj restante en el momento del cambio, igual que
+    // hace confirmOurLineup — se mantiene por consistencia aunque ya no se
+    // use para calcular minutos jugados.
     const t = secsRef.current
     if (subTeam === 'us') {
       const prevCourt = currentCourt || onCourt
@@ -1264,9 +1226,6 @@ export default function LivePage() {
   const plusMinusUs = computePlusMinusUs(events, gps)
   const rivalInitialFive = (game.rival_roster || []).slice(0,5)
   const plusMinusRival = computePlusMinusRival(events, rivalInitialFive)
-  const nowAbsTime = absoluteGameSeconds(quarter, secs)
-  const minutesUs = computeMinutesPlayed(events, gps.slice(0,5).map(p=>p.player_id), 'us', nowAbsTime)
-  const minutesRival = computeMinutesPlayed(events, rivalInitialFive, 'rival', nowAbsTime)
   const quarterScores = computeQuarterScores(events)
 
   const aActive = !!armed
@@ -1629,18 +1588,18 @@ export default function LivePage() {
           </div>
           <BSSection title={`🟢 ${ourName} — ${scores.us} pts`} color="#22c55e" showPM
             rows={gps.map(gp => ({ num:gp.players?.number??'?', name:gp.players?.full_name||'—', s:{
-              ...(ourBS[gp.player_id]||{}), pm: plusMinusUs[gp.player_id], min: minutesUs[gp.player_id],
+              ...(ourBS[gp.player_id]||{}), pm: plusMinusUs[gp.player_id],
               streak: computeStreak(events, 'us', gp.player_id),
             } }))}/>
           <div style={{ marginTop:16 }}>
             <BSSection title={`🔵 ${rivalName} — ${scores.rival} pts`} color="#3b82f6" showPM
               rows={rivals.map(n => ({ num:n, name:`#${n}`, s:{
-                ...(rivBS[n]||{}), pm: plusMinusRival[n], min: minutesRival[n],
+                ...(rivBS[n]||{}), pm: plusMinusRival[n],
                 streak: computeStreak(events, 'rival', n),
               } }))}/>
           </div>
           <p style={{ fontSize:10, color:'#4b5563', marginTop:6, lineHeight:1.5 }}>
-            VAL = valoración FIBA · EFI% = % de tiro real (TS%) · MIN y +/- se calculan desde que se activó este seguimiento — las sustituciones de partidos/cambios anteriores a hoy no cuentan.
+            VAL = valoración FIBA · EFI% = % de tiro real (TS%) · +/- se calcula desde que se activó este seguimiento — los cambios de partidos anteriores a hoy no cuentan.
           </p>
 
           {/* Marcador por cuarto */}

@@ -1128,24 +1128,36 @@ export default function LivePage() {
 
   async function confirmSub(inPlayer) {
     const { outPlayer, team:subTeam, currentCourt } = modal
+    // shot_x guarda el reloj restante en el momento del cambio — sin él,
+    // computeMinutesPlayed() ignora la sustitución entera (se documenta así
+    // en la propia función), así que el jugador que entraba nunca sumaba
+    // minutos y el marcador de arriba (confirmOurLineup) sí lo hacía bien.
+    const t = secsRef.current
     if (subTeam === 'us') {
       const prevCourt = currentCourt || onCourt
       const newCourt = prevCourt.map(p => p===outPlayer ? inPlayer : p)
       setOnCourt(newCourt)
       await supabase.from('game_events').insert({
         game_id:id, team:'us', event_type:'substitution', quarter,
-        points:0, player_id:inPlayer, linked_event_id:outPlayer, shot_x:null, shot_y:null,
+        points:0, player_id:inPlayer, linked_event_id:outPlayer, shot_x:t, shot_y:null,
       })
-      setEvents(prev => [...prev, { id:'sub_'+Date.now(), team:'us', event_type:'substitution', quarter, player_id:inPlayer, linked_event_id:outPlayer }])
+      setEvents(prev => [...prev, { id:'sub_'+Date.now(), team:'us', event_type:'substitution', quarter, player_id:inPlayer, linked_event_id:outPlayer, shot_x:t }])
       setModal({ type:'sub', team:'us', currentCourt:newCourt })
     } else {
       const newCourt = rivalOnCourt.map(n => n===outPlayer ? inPlayer : n)
       setRivalOnCourt(newCourt)
-      await supabase.from('game_events').insert({
-        game_id:id, team:'rival', event_type:'substitution', quarter,
-        points:0, rival_jersey:inPlayer, linked_event_id:null, shot_x:null, shot_y:null,
-      })
-      setEvents(prev => [...prev, { id:'sub_r_'+Date.now(), team:'rival', event_type:'substitution', quarter, rival_jersey:inPlayer }])
+      // El rival no tiene linked_event_id: la entrada y la salida se guardan
+      // como dos filas independientes, distinguidas por "points" (1=entra,
+      // 0=sale) — igual que ya hace el editor de plantilla del rival.
+      const inserts = [
+        { game_id:id, team:'rival', event_type:'substitution', quarter, points:1, rival_jersey:inPlayer,  linked_event_id:null, shot_x:t, shot_y:null },
+        { game_id:id, team:'rival', event_type:'substitution', quarter, points:0, rival_jersey:outPlayer, linked_event_id:null, shot_x:t, shot_y:null },
+      ]
+      await supabase.from('game_events').insert(inserts)
+      setEvents(prev => [...prev,
+        { id:'sub_r_in_'+Date.now(),  team:'rival', event_type:'substitution', quarter, rival_jersey:inPlayer,  points:1, shot_x:t },
+        { id:'sub_r_out_'+Date.now(), team:'rival', event_type:'substitution', quarter, rival_jersey:outPlayer, points:0, shot_x:t },
+      ])
       setModal(null)
     }
   }

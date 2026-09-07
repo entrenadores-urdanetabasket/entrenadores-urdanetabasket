@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function NuevoPartidoPage() {
-  const { user, supabase } = useAuth()
+  const { user, supabase, activeTeam } = useAuth()
   const router = useRouter()
 
   const [step, setStep]           = useState(1) // 1 = info + rival, 2 = convocatoria
@@ -24,38 +24,26 @@ export default function NuevoPartidoPage() {
   const [rivalJerseyInput, setRivalJerseyInput] = useState('')
   const [rivalJerseys, setRivalJerseys]         = useState([]) // array of numbers
 
-  useEffect(() => { if (user) loadTeam() }, [user])
+  // El equipo es el que esté activo en el selector del menú lateral — antes
+  // esta página hacía su propia búsqueda (sin ordenar) y para un entrenador
+  // con más de un equipo podía coger cualquiera de ellos, no el que tenías
+  // seleccionado.
+  useEffect(() => { if (user && activeTeam) loadTeam() }, [user, activeTeam])
 
   async function loadTeam() {
-    // Los entrenadores se asignan via tabla team_coaches (igual que en equipo/page.js)
-    const { data: tc } = await supabase
-      .from('team_coaches')
-      .select('team_id')
-      .eq('coach_id', user.id)
-
-    const teamIds = (tc || []).map(r => r.team_id)
-    if (teamIds.length === 0) return
-
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('id, name, category')
-      .in('id', teamIds)
-      .eq('active', true)
-
-    if (!teams || teams.length === 0) return
-    setTeam(teams[0])
+    setTeam(activeTeam)
 
     const { data: pl } = await supabase
       .from('players')
       .select('id, full_name, number, position')
-      .eq('team_id', teams[0].id)
+      .eq('team_id', activeTeam.id)
       .eq('active', true)
       .order('number', { ascending: true })
 
     // Jugadores de equipos vinculados (doble ficha federada) que este
     // equipo puede convocar además de su propia plantilla — no se marcan
     // seleccionados por defecto, el entrenador los añade si han jugado
-    const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', teams[0].id)
+    const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', activeTeam.id)
     const linkedTeamIds = (links || []).map(l => l.to_team_id)
     const teamNameById = Object.fromEntries((links || []).map(l => [l.to_team_id, l.teams?.name]))
     let borrowedList = []

@@ -1117,7 +1117,8 @@ export default function LivePage() {
       }
     }
     if (inserts.length) {
-      await supabase.from('game_events').insert(inserts)
+      const { error } = await supabase.from('game_events').insert(inserts)
+      if (error) { console.error('confirmOurLineup insert error:', error); alert('No se pudo guardar el cambio: ' + error.message) }
       const newEvs = inserts.map((ins, i) => ({ id:'sub_'+Date.now()+i, team:'us', event_type:'substitution', quarter, player_id:ins.player_id, linked_event_id:ins.linked_event_id, shot_x:ins.shot_x }))
       setEvents(prev => [...prev, ...newEvs])
     }
@@ -1137,10 +1138,11 @@ export default function LivePage() {
       const prevCourt = currentCourt || onCourt
       const newCourt = prevCourt.map(p => p===outPlayer ? inPlayer : p)
       setOnCourt(newCourt)
-      await supabase.from('game_events').insert({
+      const { error } = await supabase.from('game_events').insert({
         game_id:id, team:'us', event_type:'substitution', quarter,
         points:0, player_id:inPlayer, linked_event_id:outPlayer, shot_x:t, shot_y:null,
       })
+      if (error) { console.error('confirmSub insert error:', error); alert('No se pudo guardar el cambio: ' + error.message) }
       setEvents(prev => [...prev, { id:'sub_'+Date.now(), team:'us', event_type:'substitution', quarter, player_id:inPlayer, linked_event_id:outPlayer, shot_x:t }])
       setModal({ type:'sub', team:'us', currentCourt:newCourt })
     } else {
@@ -1153,7 +1155,8 @@ export default function LivePage() {
         { game_id:id, team:'rival', event_type:'substitution', quarter, points:1, rival_jersey:inPlayer,  linked_event_id:null, shot_x:t, shot_y:null },
         { game_id:id, team:'rival', event_type:'substitution', quarter, points:0, rival_jersey:outPlayer, linked_event_id:null, shot_x:t, shot_y:null },
       ]
-      await supabase.from('game_events').insert(inserts)
+      const { error } = await supabase.from('game_events').insert(inserts)
+      if (error) { console.error('confirmSub (rival) insert error:', error); alert('No se pudo guardar el cambio: ' + error.message) }
       setEvents(prev => [...prev,
         { id:'sub_r_in_'+Date.now(),  team:'rival', event_type:'substitution', quarter, rival_jersey:inPlayer,  points:1, shot_x:t },
         { id:'sub_r_out_'+Date.now(), team:'rival', event_type:'substitution', quarter, rival_jersey:outPlayer, points:0, shot_x:t },

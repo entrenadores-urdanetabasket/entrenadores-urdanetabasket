@@ -227,10 +227,13 @@ function EntrenamientosInner() {
   const [duplicating, setDuplicating] = useState(false)
   const [showTeamPicker, setShowTeamPicker] = useState(false)
 
-  // Biblioteca de ejercicios (común a todo el club)
+  // Biblioteca de ejercicios: un ejercicio guardado queda etiquetado con el
+  // equipo que lo subió (team_id), y "Club" es simplemente todos los
+  // ejercicios sin filtrar — así aparece en las dos vistas sin duplicar filas.
   const [libItems, setLibItems] = useState([])
   const [libLoading, setLibLoading] = useState(false)
   const [libFilter, setLibFilter] = useState('')
+  const [libScope, setLibScope] = useState('equipo') // 'equipo' | 'club'
   const [showLibForm, setShowLibForm] = useState(false)
   const [editingLibItem, setEditingLibItem] = useState(null)
   const [libForm, setLibForm] = useState(emptyExForm)
@@ -676,8 +679,9 @@ function EntrenamientosInner() {
   }
 
   async function saveExerciseToLibrary(ex) {
-    await supabase.from('exercise_library').insert({ ...pickExFields(ex), play_data: ex.play_data, created_by: user.id })
-    alert(`«${ex.title}» guardado en tu biblioteca de ejercicios`)
+    const teamId = selectedTeam?.id || detailSession?.team_id || null
+    await supabase.from('exercise_library').insert({ ...pickExFields(ex), play_data: ex.play_data, created_by: user.id, team_id: teamId })
+    alert(`«${ex.title}» guardado en la biblioteca de tu equipo y en la del club`)
   }
 
   async function addExerciseFromLibrary(item) {
@@ -713,7 +717,7 @@ function EntrenamientosInner() {
     setSavingLib(true)
     const payload = pickExFields(libForm)
     if (editingLibItem) await supabase.from('exercise_library').update(payload).eq('id', editingLibItem.id)
-    else await supabase.from('exercise_library').insert({ ...payload, created_by: user.id })
+    else await supabase.from('exercise_library').insert({ ...payload, created_by: user.id, team_id: selectedTeam?.id || null })
     setSavingLib(false)
     setShowLibForm(false)
     setEditingLibItem(null)
@@ -837,7 +841,8 @@ function EntrenamientosInner() {
 
   const today = new Date().toISOString().split('T')[0]
   const filtered = sessions.filter(s => tab === 'proximos' ? s.date >= today && !s.completed : s.date < today || s.completed)
-  const filteredLib = libFilter ? libItems.filter(i => i.category === libFilter) : libItems
+  const scopedLib = libScope === 'equipo' && selectedTeam ? libItems.filter(i => i.team_id === selectedTeam.id) : libItems
+  const filteredLib = libFilter ? scopedLib.filter(i => i.category === libFilter) : scopedLib
 
   const tabStyle = (t) => ({
     padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
@@ -1230,12 +1235,38 @@ function EntrenamientosInner() {
             <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
               onClick={e => { if (e.target === e.currentTarget) setShowLibPicker(false) }}>
               <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 460, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 16px' }}>📚 Elegir de la biblioteca</h2>
-                {libItems.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 13 }}>Tu biblioteca está vacía todavía. Guarda ejercicios en ella desde el botón 💾 de cada ejercicio.</div>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', margin: '0 0 14px' }}>📚 Elegir de la biblioteca</h2>
+
+                <div style={{ display: 'flex', gap: 4, marginBottom: 10, backgroundColor: '#f1f5f9', borderRadius: 20, padding: 3, width: 'fit-content' }}>
+                  {[{ key: 'equipo', label: '🏀 Mi equipo' }, { key: 'club', label: '🌐 Club' }].map(s => (
+                    <button key={s.key} type='button' onClick={() => setLibScope(s.key)} style={{
+                      padding: '6px 13px', borderRadius: 16, cursor: 'pointer',
+                      fontSize: 12, fontWeight: 700, transition: 'all 0.15s', border: 'none',
+                      background: libScope === s.key ? '#1f2937' : 'transparent',
+                      color: libScope === s.key ? '#fff' : '#64748b',
+                    }}>{s.label}</button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <button type='button' onClick={() => setLibFilter('')} style={{
+                    padding: '4px 11px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+                    background: libFilter === '' ? '#111827' : '#f3f4f6', color: libFilter === '' ? '#fff' : '#374151',
+                  }}>Todos</button>
+                  {Object.entries(CATEGORIES).map(([key, c]) => (
+                    <button key={key} type='button' onClick={() => setLibFilter(key)} style={{
+                      padding: '4px 11px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+                      background: libFilter === key ? c.color : c.color + '1a', color: libFilter === key ? '#fff' : c.color,
+                    }}>{c.emoji} {c.label}</button>
+                  ))}
+                </div>
+
+                {filteredLib.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '30px 0', color: '#9ca3af', fontSize: 13 }}>
+                    {libScope === 'equipo' ? 'Tu equipo no tiene ejercicios guardados con este filtro.' : 'Sin ejercicios en la biblioteca con este filtro.'} Guarda ejercicios en ella desde el botón 💾 de cada ejercicio.
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {libItems.map(item => {
+                    {filteredLib.map(item => {
                       const mine = item.created_by === user.id || isDirector
                       return (
                         <div key={item.id} style={{
@@ -1373,14 +1404,14 @@ function EntrenamientosInner() {
           }}>
             <div>
               <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
-                {tab === 'compartidos' ? 'Compartidos en el club' : tab === 'biblioteca' ? 'Común a todo el club' : tab === 'historial' ? 'Valoraciones guardadas' : (selectedTeam?.name || 'Planificar sesiones')}
+                {tab === 'compartidos' ? 'Compartidos en el club' : tab === 'biblioteca' ? (libScope === 'equipo' ? (selectedTeam?.name || 'Tu equipo') : 'Común a todo el club') : tab === 'historial' ? 'Valoraciones guardadas' : (selectedTeam?.name || 'Planificar sesiones')}
               </p>
               <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 900, margin: '0 0 4px', letterSpacing: -0.5 }}>{tab === 'biblioteca' ? 'Biblioteca de ejercicios' : tab === 'historial' ? 'Historial de valoraciones' : 'Entrenamientos'}</h1>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
                 {tab === 'compartidos'
                   ? `Sesiones compartidas por todos los entrenadores`
                   : tab === 'biblioteca'
-                  ? `${libItems.length} ${libItems.length === 1 ? 'ejercicio guardado' : 'ejercicios guardados'}`
+                  ? `${scopedLib.length} ${scopedLib.length === 1 ? 'ejercicio guardado' : 'ejercicios guardados'}`
                   : tab === 'historial'
                   ? `Cómo avanza el equipo entrenamiento a entrenamiento`
                   : `${sessions.length} ${sessions.length === 1 ? 'sesión' : 'sesiones'}`}
@@ -1428,6 +1459,17 @@ function EntrenamientosInner() {
           {/* PESTAÑA BIBLIOTECA */}
           {tab === 'biblioteca' && (
             <div>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 12, backgroundColor: '#f1f5f9', borderRadius: 20, padding: 3, width: 'fit-content' }}>
+                {[{ key: 'equipo', label: `🏀 Mi equipo${selectedTeam ? ` (${selectedTeam.name})` : ''}` }, { key: 'club', label: '🌐 Club' }].map(s => (
+                  <button key={s.key} onClick={() => setLibScope(s.key)} style={{
+                    padding: '7px 14px', borderRadius: 16, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700, transition: 'all 0.15s', border: 'none',
+                    background: libScope === s.key ? '#1f2937' : 'transparent',
+                    color: libScope === s.key ? '#fff' : '#64748b',
+                  }}>{s.label}</button>
+                ))}
+              </div>
+
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
                 <button onClick={() => setLibFilter('')} style={{
                   padding: '5px 12px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
@@ -1449,8 +1491,12 @@ function EntrenamientosInner() {
               ) : filteredLib.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '56px 24px', color: '#94a3b8', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3' }}>
                   <div style={{ fontSize: 48, marginBottom: 14 }}>📚</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin ejercicios en la biblioteca</div>
-                  <div style={{ fontSize: 13 }}>Crea el primero, o guarda uno desde una sesión con el botón 💾</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+                    {libScope === 'equipo' ? 'Tu equipo no tiene ejercicios guardados todavía' : 'Sin ejercicios en la biblioteca'}
+                  </div>
+                  <div style={{ fontSize: 13 }}>
+                    {libScope === 'equipo' ? 'Prueba a buscar en "🌐 Club", o crea el primero de tu equipo' : 'Crea el primero, o guarda uno desde una sesión con el botón 💾'}
+                  </div>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>

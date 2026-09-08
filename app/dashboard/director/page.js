@@ -13,6 +13,7 @@ const WEEKDAYS = [
   { value: 1, label: 'L' }, { value: 2, label: 'M' }, { value: 3, label: 'X' },
   { value: 4, label: 'J' }, { value: 5, label: 'V' }, { value: 6, label: 'S' }, { value: 0, label: 'D' },
 ]
+const card = { backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)' }
 
 function nextSeason(season) {
   const [a, b] = String(season || '').split('-').map(n => parseInt(n, 10))

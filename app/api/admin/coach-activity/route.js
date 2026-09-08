@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { PING_INTERVAL_SECONDS } from '@/lib/activityConfig'
-import { computeExpectedDates, classifyCompliance, toDateStr, SEASON_START_DATE } from '@/lib/trainingCompliance'
+import { computeExpectedDates, classifyCompliance, toDateStr, seasonStartFor } from '@/lib/trainingCompliance'
 
 export async function POST(request) {
   try {
@@ -187,7 +187,8 @@ export async function POST(request) {
       const teamExceptions = (scheduleExceptions || []).filter(x => x.team_id === t.id)
       const suspendedSet = new Set(teamExceptions.map(x => x.date))
       const createdStr = (t.created_at || todayStr).slice(0, 10)
-      const startStr = createdStr < SEASON_START_DATE ? SEASON_START_DATE : createdStr
+      const seasonStart = seasonStartFor(t)
+      const startStr = createdStr < seasonStart ? seasonStart : createdStr
       const expected = computeExpectedDates(t, startStr, todayStr, suspendedSet)
       const compliance = classifyCompliance(expected, teamSessions, teamAtt)
       return { ...t, compliance: { ...compliance, exceptionsCount: teamExceptions.length, since: startStr } }

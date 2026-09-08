@@ -5,9 +5,14 @@ import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
 import { categoryRank, categoryGroup, sortTeamsByCategory } from '@/lib/teamCategoryOrder'
+import { computeExpectedDates, classifyCompliance, toDateStr } from '@/lib/trainingCompliance'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
+const WEEKDAYS = [
+  { value: 1, label: 'L' }, { value: 2, label: 'M' }, { value: 3, label: 'X' },
+  { value: 4, label: 'J' }, { value: 5, label: 'V' }, { value: 6, label: 'S' }, { value: 0, label: 'D' },
+]
 
 function nextSeason(season) {
   const [a, b] = String(season || '').split('-').map(n => parseInt(n, 10))
@@ -70,7 +75,7 @@ export default function DirectorPage() {
 
   const [showForm, setShowForm]       = useState(false)
   const [editing, setEditing]         = useState(null)
-  const [form, setForm]               = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
+  const [form, setForm]               = useState({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino', training_weekdays: [2, 4, 5] })
   const [teamCoaches, setTeamCoaches] = useState([])
   const [addingCoach, setAddingCoach] = useState('')
   const [saving, setSaving]           = useState(false)
@@ -80,6 +85,14 @@ export default function DirectorPage() {
   const [borrowLinks, setBorrowLinks]       = useState([]) // [{ id, to_team_id, teams:{name,category} }]
   const [addingBorrowTeam, setAddingBorrowTeam] = useState('')
 
+  // ── Seguimiento ──────────────────────────────────────────
+  const [seguimiento, setSeguimiento]           = useState(null)
+  const [loadingSeguimiento, setLoadingSeguimiento] = useState(false)
+  const [expandedSeguimiento, setExpandedSeguimiento] = useState(null)
+  const [suspendingDay, setSuspendingDay]       = useState(null) // { teamId, date }
+  const [suspendReason, setSuspendReason]       = useState('')
+  const [savingSuspend, setSavingSuspend]       = useState(false)
+
   useEffect(() => {
     if (!profile) return
     if (profile.role !== 'director') { router.replace('/dashboard'); return }
@@ -87,6 +100,70 @@ export default function DirectorPage() {
     loadOverview()
     loadCoachProfiles()
   }, [profile])
+
+  useEffect(() => {
+    if (tab === 'seguimiento' && !seguimiento && profile?.role === 'director') loadSeguimiento()
+  }, [tab, profile])
+
+  // ── SEGUIMIENTO ──────────────────────────────────────────
+  // Ventana "reciente" para la vista rápida: últimas 3 semanas (suficiente
+  // para cubrir los 3 días de entreno de cada equipo varias veces).
+  async function loadSeguimiento() {
+    setLoadingSeguimiento(true)
+    try {
+      const { data: tList } = await supabase.from('teams').select('*').eq('active', true).order('name')
+      const activeTeams = tList || []
+      const teamIds = activeTeams.map(t => t.id)
+      if (teamIds.length === 0) { setSeguimiento([]); return }
+
+      const today = new Date()
+      const start = new Date(today); start.setDate(start.getDate() - 20)
+      const startStr = toDateStr(start)
+      const endStr = toDateStr(today)
+
+      const [{ data: tc }, { data: sessions }, { data: att }, { data: exceptions }] = await Promise.all([
+        supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)').in('team_id', teamIds),
+        supabase.from('training_sessions').select('team_id, date').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
+        supabase.from('attendance').select('team_id, date').eq('type', 'training').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
+        supabase.from('team_schedule_exceptions').select('id, team_id, date, reason').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
+      ])
+
+      const result = activeTeams.map(team => {
+        const teamCoaches = (tc || []).filter(r => r.team_id === team.id)
+        const teamSessions = new Set((sessions || []).filter(s => s.team_id === team.id).map(s => s.date))
+        const teamAtt = new Set((att || []).filter(a => a.team_id === team.id).map(a => a.date))
+        const teamExceptions = (exceptions || []).filter(x => x.team_id === team.id)
+        const suspendedSet = new Set(teamExceptions.map(x => x.date))
+        const expected = computeExpectedDates(team, startStr, endStr, suspendedSet)
+        const compliance = classifyCompliance(expected, teamSessions, teamAtt)
+        return { team, coaches: teamCoaches, compliance, exceptions: teamExceptions }
+      })
+      setSeguimiento(result)
+    } catch (err) {
+      console.error('loadSeguimiento error:', err)
+    } finally {
+      setLoadingSeguimiento(false)
+    }
+  }
+
+  async function handleSuspendDay() {
+    if (!suspendingDay) return
+    setSavingSuspend(true)
+    try {
+      await supabase.from('team_schedule_exceptions').insert({
+        team_id: suspendingDay.teamId, date: suspendingDay.date, reason: suspendReason.trim() || null, created_by: profile.id,
+      })
+      setSuspendingDay(null); setSuspendReason('')
+      loadSeguimiento()
+    } finally {
+      setSavingSuspend(false)
+    }
+  }
+
+  async function handleRemoveSuspension(id) {
+    await supabase.from('team_schedule_exceptions').delete().eq('id', id)
+    loadSeguimiento()
+  }
 
   // ── RESUMEN ──────────────────────────────────────────────
   async function loadOverview() {
@@ -321,7 +398,7 @@ export default function DirectorPage() {
   async function openEdit(team, e) {
     e.stopPropagation()
     setEditing(team.id)
-    setForm({ name: team.name, category: team.category || 'Senior', season: team.season || '2025-2026', gender: team.gender || 'masculino' })
+    setForm({ name: team.name, category: team.category || 'Senior', season: team.season || '2025-2026', gender: team.gender || 'masculino', training_weekdays: team.training_weekdays && team.training_weekdays.length > 0 ? team.training_weekdays : [2, 4, 5] })
     setTeamCoaches(team.coaches || [])
     setAddingCoach('')
     setBorrowLinks([])
@@ -333,7 +410,7 @@ export default function DirectorPage() {
 
   function openNew() {
     setEditing(null)
-    setForm({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino' })
+    setForm({ name: '', category: 'Senior', season: '2025-2026', gender: 'masculino', training_weekdays: [2, 4, 5] })
     setTeamCoaches([]); setAddingCoach('')
     setBorrowLinks([]); setAddingBorrowTeam('')
     setShowForm(true)
@@ -343,9 +420,9 @@ export default function DirectorPage() {
     e.preventDefault(); setSaving(true)
     try {
       if (editing) {
-        await supabase.from('teams').update({ name: form.name, category: form.category, season: form.season, gender: form.gender }).eq('id', editing)
+        await supabase.from('teams').update({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays }).eq('id', editing)
       } else {
-        await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender })
+        await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays })
       }
     } finally { setSaving(false); setShowForm(false); loadTeams(); loadOverview() }
   }
@@ -440,7 +517,7 @@ export default function DirectorPage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }].map(t => {
+        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }, { key: 'seguimiento', label: '✅ Seguimiento' }].map(t => {
           const active = tab === t.key
           return (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
@@ -790,6 +867,116 @@ export default function DirectorPage() {
         </div>
       )}
 
+      {/* ── SEGUIMIENTO ── */}
+      {tab === 'seguimiento' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
+              Últimos 21 días · se comprueba si hay una sesión de entrenamiento creada y asistencia registrada cada día que le toca entrenar a cada equipo.
+            </p>
+            <button onClick={loadSeguimiento} disabled={loadingSeguimiento} style={{
+              padding: '8px 14px', borderRadius: 9, border: '1.5px solid #e2e8f0', backgroundColor: '#fff',
+              color: '#374151', fontSize: 12, fontWeight: 700, cursor: loadingSeguimiento ? 'not-allowed' : 'pointer', flexShrink: 0,
+            }}>{loadingSeguimiento ? 'Actualizando...' : '🔄 Actualizar'}</button>
+          </div>
+
+          {loadingSeguimiento && !seguimiento ? (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8', fontSize: 14 }}>Cargando...</div>
+          ) : !seguimiento || seguimiento.length === 0 ? (
+            <div style={{ ...card, padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>No hay equipos activos.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {seguimiento.map(({ team, coaches: teamCoaches, compliance: c, exceptions }) => {
+                const pct = c.total > 0 ? Math.round((c.ok / c.total) * 100) : null
+                const status = c.total === 0
+                  ? { label: 'Sin días esperados en el periodo', color: '#94a3b8', bg: '#f8fafc' }
+                  : pct === 100 ? { label: '🟢 Al día', color: '#15803d', bg: '#f0fdf4' }
+                  : pct >= 70 ? { label: '🟡 Algún hueco', color: '#b45309', bg: '#fffbeb' }
+                  : { label: '🔴 Necesita atención', color: '#dc2626', bg: '#fef2f2' }
+                const expanded = expandedSeguimiento === team.id
+                return (
+                  <div key={team.id} style={{ ...card, overflow: 'hidden' }}>
+                    <div onClick={() => setExpandedSeguimiento(expanded ? null : team.id)} style={{
+                      padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: '#0f172a' }}>{team.name} <span style={{ fontWeight: 500, color: '#94a3b8', fontSize: 12 }}>· {team.category}</span></div>
+                        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                          {teamCoaches.length === 0 ? 'Sin entrenador asignado' : teamCoaches.map(tc => tc.profiles?.full_name).filter(Boolean).join(', ')}
+                        </div>
+                      </div>
+                      {c.total > 0 && <span style={{ fontSize: 12, color: '#94a3b8', flexShrink: 0 }}>{c.ok}/{c.total} días completos</span>}
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, color: status.color, backgroundColor: status.bg, flexShrink: 0 }}>{status.label}</span>
+                      <span style={{ color: '#cbd5e1', fontSize: 16, flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'none' }}>›</span>
+                    </div>
+
+                    {expanded && (
+                      <div style={{ borderTop: '1px solid #eef2f7', padding: '10px 18px 16px' }}>
+                        {c.dates.length === 0 ? (
+                          <div style={{ fontSize: 13, color: '#94a3b8', padding: '10px 0' }}>Sin días esperados en este periodo.</div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                            {[...c.dates].reverse().map(d => {
+                              const ok = d.hasSession && d.hasAttendance
+                              const isSuspending = suspendingDay && suspendingDay.teamId === team.id && suspendingDay.date === d.date
+                              return (
+                                <div key={d.date}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 9, backgroundColor: ok ? '#f0fdf4' : '#fef2f2' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#374151', width: 90, flexShrink: 0 }}>
+                                      {new Date(d.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                                    </span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: d.hasSession ? '#15803d' : '#dc2626' }}>{d.hasSession ? '📝 Sesión ✓' : '📝 Sin sesión'}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: d.hasAttendance ? '#15803d' : '#dc2626' }}>{d.hasAttendance ? '✅ Asistencia ✓' : '✅ Sin asistencia'}</span>
+                                    {!ok && (
+                                      <button onClick={() => { setSuspendingDay({ teamId: team.id, date: d.date }); setSuspendReason('') }} style={{
+                                        marginLeft: 'auto', padding: '4px 10px', borderRadius: 7, border: '1.5px solid #e2e8f0', backgroundColor: '#fff',
+                                        color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                                      }}>Marcar suspendido</button>
+                                    )}
+                                  </div>
+                                  {isSuspending && (
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 6, padding: '0 4px' }}>
+                                      <input type='text' value={suspendReason} onChange={e => setSuspendReason(e.target.value)}
+                                        placeholder='Motivo (opcional): festivo, pabellón cerrado...' className="input-field" style={{ flex: 1, fontSize: 12, padding: '7px 10px' }} />
+                                      <button onClick={handleSuspendDay} disabled={savingSuspend} style={{
+                                        padding: '7px 12px', borderRadius: 8, border: 'none', backgroundColor: '#1f2937', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                                      }}>{savingSuspend ? '...' : 'Confirmar'}</button>
+                                      <button onClick={() => setSuspendingDay(null)} style={{
+                                        padding: '7px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                                      }}>Cancelar</button>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {exceptions.length > 0 && (
+                          <div style={{ marginTop: 14 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>Días suspendidos</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {exceptions.map(x => (
+                                <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 10px', borderRadius: 9, backgroundColor: '#f8fafc', border: '1px solid #eef2f7' }}>
+                                  <span style={{ fontSize: 12, color: '#64748b' }}>
+                                    🚫 {new Date(x.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}{x.reason ? ` · ${x.reason}` : ''}
+                                  </span>
+                                  <button onClick={() => handleRemoveSuspension(x.id)} style={{ padding: '3px 9px', borderRadius: 6, border: '1.5px solid #fecaca', backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Quitar</button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── MODAL CERRAR TEMPORADA ── */}
       {showCloseSeasonModal && (
         <ModalPortal>
@@ -979,6 +1166,26 @@ export default function DirectorPage() {
                   className="input-field" style={{ cursor: 'pointer' }}>
                   {SEASONS.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+              </div>
+
+              <div>
+                <label className="label-field" style={{ marginBottom: 8 }}>Días de entrenamiento</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {WEEKDAYS.map(w => {
+                    const active = form.training_weekdays.includes(w.value)
+                    return (
+                      <button key={w.value} type='button' onClick={() => setForm(f => ({
+                        ...f, training_weekdays: active ? f.training_weekdays.filter(d => d !== w.value) : [...f.training_weekdays, w.value].sort()
+                      }))} style={{
+                        flex: 1, padding: '9px 0', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+                        color: active ? '#fff' : '#94a3b8',
+                        border: active ? 'none' : '1.5px solid #e2e8f0',
+                      }}>{w.label}</button>
+                    )
+                  })}
+                </div>
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>Se usa para el seguimiento de cumplimiento (pestaña Seguimiento).</p>
               </div>
 
               {!editing && (

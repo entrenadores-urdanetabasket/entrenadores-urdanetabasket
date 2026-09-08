@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { PING_INTERVAL_SECONDS } from '@/lib/activityConfig'
+import { computeExpectedDates, classifyCompliance, toDateStr } from '@/lib/trainingCompliance'
 
 export async function POST(request) {
   try {
@@ -33,7 +34,7 @@ export async function POST(request) {
     const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(coachId)
 
     const { data: teamLinks } = await supabaseAdmin
-      .from('team_coaches').select('teams(id, name, category, season)').eq('coach_id', coachId)
+      .from('team_coaches').select('teams(id, name, category, season, training_weekdays, created_at)').eq('coach_id', coachId)
     const teams = (teamLinks || []).map(t => t.teams).filter(Boolean)
     const teamIds = teams.map(t => t.id)
 
@@ -76,6 +77,8 @@ export async function POST(request) {
       { data: convocatorias },
       { data: games },
       { data: attendanceRows },
+      { data: allSessions },
+      { data: scheduleExceptions },
       { count: totalPingsCount },
       { data: lastPingRows },
       pingList,
@@ -87,6 +90,12 @@ export async function POST(request) {
       supabaseAdmin.from('games').select('id, rival_name, date, our_score, rival_score, status, team_id, teams(name)').eq('created_by', coachId).order('date', { ascending: false }).limit(100),
       teamIds.length > 0
         ? supabaseAdmin.from('attendance').select('team_id, status, date, type').in('team_id', teamIds)
+        : Promise.resolve({ data: [] }),
+      teamIds.length > 0
+        ? supabaseAdmin.from('training_sessions').select('team_id, date').in('team_id', teamIds)
+        : Promise.resolve({ data: [] }),
+      teamIds.length > 0
+        ? supabaseAdmin.from('team_schedule_exceptions').select('team_id, date, reason').in('team_id', teamIds)
         : Promise.resolve({ data: [] }),
       supabaseAdmin.from('activity_pings').select('id', { count: 'exact', head: true }).eq('coach_id', coachId),
       supabaseAdmin.from('activity_pings').select('created_at').eq('coach_id', coachId).order('created_at', { ascending: false }).limit(1),
@@ -167,11 +176,27 @@ export async function POST(request) {
     const daysActiveLast30 = last30.filter(d => d.minutes > 0).length
     const lastActivityAt = lastPingRows?.[0]?.created_at || null
 
+    // Seguimiento: cumplimiento de entrenamientos+asistencia desde que el
+    // equipo se creó (proxy del inicio de temporada, ver "cerrar temporada").
+    // Cuenta si existe una sesión de entrenamiento creada ese día, no si
+    // está marcada como "completada" — eso se decidió dejar fuera a propósito.
+    const todayStr = toDateStr(new Date())
+    const teamsWithCompliance = teams.map(t => {
+      const teamSessions = new Set((allSessions || []).filter(s => s.team_id === t.id).map(s => s.date))
+      const teamAtt = new Set((attendanceRows || []).filter(a => a.team_id === t.id && (a.type || 'training') === 'training').map(a => a.date))
+      const teamExceptions = (scheduleExceptions || []).filter(x => x.team_id === t.id)
+      const suspendedSet = new Set(teamExceptions.map(x => x.date))
+      const startStr = (t.created_at || todayStr).slice(0, 10)
+      const expected = computeExpectedDates(t, startStr, todayStr, suspendedSet)
+      const compliance = classifyCompliance(expected, teamSessions, teamAtt)
+      return { ...t, compliance: { ...compliance, exceptionsCount: teamExceptions.length, since: startStr } }
+    })
+
     return NextResponse.json({
       profile: coachProfile,
       lastSignInAt: authUser?.user?.last_sign_in_at || null,
       accountCreatedAt: authUser?.user?.created_at || coachProfile.created_at,
-      teams,
+      teams: teamsWithCompliance,
       trainings: trainingsWithExercises,
       tactics: tactics || [],
       incidents: incidents || [],

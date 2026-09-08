@@ -140,6 +140,39 @@ export default function CoachActivityPage() {
         ))}
       </div>
 
+      {/* Cumplimiento (Seguimiento) */}
+      <div style={{ ...card, marginBottom: 20, overflow: 'hidden' }}>
+        <div style={sectionTitle}>✅ Cumplimiento de la temporada</div>
+        {teams.length === 0 ? <div style={emptyRow}>Sin equipo asignado</div> : teams.map(t => {
+          const c = t.compliance
+          if (!c) return null
+          const pct = c.total > 0 ? Math.round((c.ok / c.total) * 100) : null
+          const status = c.total === 0
+            ? { label: 'Sin días esperados todavía', color: '#94a3b8', bg: '#f8fafc' }
+            : pct === 100 ? { label: '🟢 Al día', color: '#15803d', bg: '#f0fdf4' }
+            : pct >= 70 ? { label: '🟡 Algún hueco', color: '#b45309', bg: '#fffbeb' }
+            : { label: '🔴 Necesita atención', color: '#dc2626', bg: '#fef2f2' }
+          return (
+            <div key={t.id} style={{ padding: '14px 18px', borderBottom: '1px solid #f9fafb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>{t.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 7, color: status.color, backgroundColor: status.bg, flexShrink: 0 }}>{status.label}</span>
+              </div>
+              {c.total > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, color: '#64748b' }}>
+                  <span>📅 {c.total} días esperados desde {fmtDate(c.since)}</span>
+                  <span>📝 {c.total - c.missingSession}/{c.total} con sesión creada</span>
+                  <span>✅ {c.total - c.missingAttendance}/{c.total} con asistencia</span>
+                  {c.exceptionsCount > 0 && <span>🚫 {c.exceptionsCount} días suspendidos</span>}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Todavía no le tocaba entrenar según su horario configurado.</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
       {/* Resumen */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10, marginBottom: 20 }}>
         {[

@@ -5,7 +5,7 @@ import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
 import ModalPortal from '@/components/ModalPortal'
 import { categoryRank, categoryGroup, sortTeamsByCategory } from '@/lib/teamCategoryOrder'
-import { computeExpectedDates, classifyCompliance, toDateStr } from '@/lib/trainingCompliance'
+import { computeExpectedDates, classifyCompliance, toDateStr, SEASON_START_DATE } from '@/lib/trainingCompliance'
 
 const CATEGORIES = ['Premini', 'Mini', 'Infantil', 'Cadete', 'Junior', 'Senior', 'Femenino Senior', 'Femenino Junior']
 const SEASONS = ['2024-2025', '2025-2026', '2026-2027']
@@ -119,7 +119,7 @@ export default function DirectorPage() {
 
       const today = new Date()
       const start = new Date(today); start.setDate(start.getDate() - 20)
-      const startStr = toDateStr(start)
+      const startStr = toDateStr(start) < SEASON_START_DATE ? SEASON_START_DATE : toDateStr(start)
       const endStr = toDateStr(today)
 
       const [{ data: tc }, { data: sessions }, { data: att }, { data: exceptions }] = await Promise.all([

@@ -725,6 +725,11 @@ function EntrenamientosInner() {
     await loadLibrary()
   }
 
+  async function handleAssignLibTeam(itemId, teamId) {
+    await supabase.from('exercise_library').update({ team_id: teamId || null }).eq('id', itemId)
+    setLibItems(prev => prev.map(i => i.id === itemId ? { ...i, team_id: teamId || null } : i))
+  }
+
   async function handleDeleteLibItem(id) {
     if (!confirm('¿Eliminar este ejercicio de la biblioteca?')) return
     const { error, count } = await supabase.from('exercise_library').delete({ count: 'exact' }).eq('id', id)
@@ -1508,7 +1513,20 @@ function EntrenamientosInner() {
                           <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>{item.title}</div>
                           <span style={{ fontSize: 11, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 7px', borderRadius: 6, flexShrink: 0 }}>{item.duration_minutes} min</span>
                         </div>
-                        <div style={{ marginTop: 4 }}><CategoryBadge category={item.category} /></div>
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <CategoryBadge category={item.category} />
+                          {mine ? (
+                            <select value={item.team_id || ''} onChange={e => handleAssignLibTeam(item.id, e.target.value)} style={{
+                              fontSize: 11, fontWeight: 600, color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 6,
+                              padding: '1px 4px', backgroundColor: '#fff', cursor: 'pointer', maxWidth: 130,
+                            }}>
+                              <option value=''>Sin equipo</option>
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          ) : item.team_id ? (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>🏀 {teams.find(t => t.id === item.team_id)?.name || '—'}</span>
+                          ) : null}
+                        </div>
                         {item.description && <p style={{ fontSize: 12.5, color: '#6b7280', margin: '6px 0 0', lineHeight: 1.5 }}>{item.description}</p>}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                           <button onClick={() => pushParams({ lib: item.id })} style={{

@@ -88,6 +88,33 @@ function exToForm(row) {
   return out
 }
 
+// Destino al guardar en la biblioteca: 'equipo' (solo el equipo), 'club'
+// (solo el club, sin equipo asociado) o 'ambas' (por defecto, como antes).
+function libDestinationFromItem(item) {
+  if (!item.team_id) return 'club'
+  return item.shared_club === false ? 'equipo' : 'ambas'
+}
+function libDestinationToFields(destination, teamId) {
+  if (destination === 'equipo') return { team_id: teamId, shared_club: false }
+  if (destination === 'club') return { team_id: null, shared_club: true }
+  return { team_id: teamId, shared_club: true }
+}
+function LibDestinationPicker({ value, onChange }) {
+  const OPTIONS = [{ key: 'equipo', label: '🏀 Mi equipo' }, { key: 'club', label: '🌐 Solo club' }, { key: 'ambas', label: '✅ Ambas' }]
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {OPTIONS.map(o => (
+        <button key={o.key} type='button' onClick={() => onChange(o.key)} style={{
+          flex: 1, padding: '8px 0', borderRadius: 9, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+          border: `1.5px solid ${value === o.key ? '#2563eb' : '#e2e8f0'}`,
+          background: value === o.key ? '#eff6ff' : '#fff',
+          color: value === o.key ? '#2563eb' : '#64748b',
+        }}>{o.label}</button>
+      ))}
+    </div>
+  )
+}
+
 const inputStyle = { width: '100%', padding: '11px 14px', borderRadius: 10, fontSize: 14, border: '1.5px solid #e2e8f0', color: '#0f172a', outline: 'none', boxSizing: 'border-box', backgroundColor: '#fff', transition: 'border-color 0.15s, box-shadow 0.15s' }
 const labelStyle = { display: 'block', fontSize: 13, fontWeight: 700, color: '#334155', marginBottom: 7 }
 const inputFocus = e => { e.target.style.borderColor = '#52B043'; e.target.style.boxShadow = '0 0 0 3px rgba(82,176,67,0.12)' }
@@ -234,6 +261,9 @@ function EntrenamientosInner() {
   const [libLoading, setLibLoading] = useState(false)
   const [libFilter, setLibFilter] = useState('')
   const [libScope, setLibScope] = useState('equipo') // 'equipo' | 'club'
+  const [libFormDestination, setLibFormDestination] = useState('ambas')
+  const [savingLibFor, setSavingLibFor] = useState(null) // ejercicio de una sesión pendiente de guardar en biblioteca
+  const [quickLibDestination, setQuickLibDestination] = useState('ambas')
   const [showLibForm, setShowLibForm] = useState(false)
   const [editingLibItem, setEditingLibItem] = useState(null)
   const [libForm, setLibForm] = useState(emptyExForm)
@@ -678,10 +708,12 @@ function EntrenamientosInner() {
     await loadExercises(detailSession.id)
   }
 
-  async function saveExerciseToLibrary(ex) {
+  async function confirmSaveExerciseToLibrary() {
+    if (!savingLibFor) return
     const teamId = selectedTeam?.id || detailSession?.team_id || null
-    await supabase.from('exercise_library').insert({ ...pickExFields(ex), play_data: ex.play_data, created_by: user.id, team_id: teamId })
-    alert(`«${ex.title}» guardado en la biblioteca de tu equipo y en la del club`)
+    const fields = libDestinationToFields(quickLibDestination, teamId)
+    await supabase.from('exercise_library').insert({ ...pickExFields(savingLibFor), play_data: savingLibFor.play_data, created_by: user.id, ...fields })
+    setSavingLibFor(null)
   }
 
   async function addExerciseFromLibrary(item) {
@@ -703,12 +735,14 @@ function EntrenamientosInner() {
   function openNewLibItem() {
     setEditingLibItem(null)
     setLibForm(emptyExForm)
+    setLibFormDestination('ambas')
     setShowLibForm(true)
   }
 
   function openEditLibItem(item) {
     setEditingLibItem(item)
     setLibForm(exToForm(item))
+    setLibFormDestination(libDestinationFromItem(item))
     setShowLibForm(true)
   }
 
@@ -716,8 +750,9 @@ function EntrenamientosInner() {
     e.preventDefault()
     setSavingLib(true)
     const payload = pickExFields(libForm)
-    if (editingLibItem) await supabase.from('exercise_library').update(payload).eq('id', editingLibItem.id)
-    else await supabase.from('exercise_library').insert({ ...payload, created_by: user.id, team_id: selectedTeam?.id || null })
+    const fields = libDestinationToFields(libFormDestination, selectedTeam?.id || null)
+    if (editingLibItem) await supabase.from('exercise_library').update({ ...payload, ...fields }).eq('id', editingLibItem.id)
+    else await supabase.from('exercise_library').insert({ ...payload, ...fields, created_by: user.id })
     setSavingLib(false)
     setShowLibForm(false)
     setEditingLibItem(null)
@@ -846,7 +881,9 @@ function EntrenamientosInner() {
 
   const today = new Date().toISOString().split('T')[0]
   const filtered = sessions.filter(s => tab === 'proximos' ? s.date >= today && !s.completed : s.date < today || s.completed)
-  const scopedLib = libScope === 'equipo' && selectedTeam ? libItems.filter(i => i.team_id === selectedTeam.id) : libItems
+  const scopedLib = libScope === 'equipo' && selectedTeam
+    ? libItems.filter(i => i.team_id === selectedTeam.id)
+    : libItems.filter(i => i.shared_club !== false)
   const filteredLib = libFilter ? scopedLib.filter(i => i.category === libFilter) : scopedLib
 
   const tabStyle = (t) => ({
@@ -1170,7 +1207,7 @@ function EntrenamientosInner() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#52B043', backgroundColor: '#f0fdf4', padding: '2px 8px', borderRadius: 6 }}>{ex.duration_minutes} min</span>
                       {canEditDetail && (
                         <>
-                          <button onClick={() => saveExerciseToLibrary(ex)} title="Guardar en mi biblioteca" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>💾</button>
+                          <button onClick={() => { setSavingLibFor(ex); setQuickLibDestination('ambas') }} title="Guardar en la biblioteca" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>💾</button>
                           <button onClick={() => openEditExercise(ex)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', fontSize: 13, padding: 0 }}>✏️</button>
                           <button onClick={() => handleDeleteExercise(ex.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: 0 }}>✕</button>
                         </>
@@ -1229,6 +1266,24 @@ function EntrenamientosInner() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+            </ModalPortal>
+          )}
+
+          {/* Modal elegir destino al guardar un ejercicio en la biblioteca */}
+          {savingLibFor && (
+            <ModalPortal>
+            <div className="fade-in" style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(2px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+              onClick={e => { if (e.target === e.currentTarget) setSavingLibFor(null) }}>
+              <div className="scale-in" style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380, boxShadow: '0 24px 70px rgba(0,0,0,0.22)' }}>
+                <h2 style={{ fontSize: 17, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>💾 Guardar «{savingLibFor.title}»</h2>
+                <p style={{ fontSize: 12.5, color: '#6b7280', margin: '0 0 16px' }}>¿Dónde quieres guardar este ejercicio?</p>
+                <LibDestinationPicker value={quickLibDestination} onChange={setQuickLibDestination} />
+                <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+                  <button onClick={() => setSavingLibFor(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                  <button onClick={confirmSaveExerciseToLibrary} className="btn-primary" style={{ flex: 1, padding: '11px' }}>Guardar</button>
+                </div>
               </div>
             </div>
             </ModalPortal>
@@ -1554,6 +1609,10 @@ function EntrenamientosInner() {
                     <h2 style={{ fontSize: 19, fontWeight: 800, color: '#0f172a', margin: '0 0 20px', letterSpacing: -0.3 }}>{editingLibItem ? 'Editar ejercicio' : 'Nuevo ejercicio de biblioteca'}</h2>
                     <form onSubmit={handleSaveLibItem} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                       <ExerciseFormFields form={libForm} setForm={setLibForm} />
+                      <div>
+                        <label style={labelStyle}>¿Dónde se guarda?</label>
+                        <LibDestinationPicker value={libFormDestination} onChange={setLibFormDestination} />
+                      </div>
                       <div style={{ display: 'flex', gap: 10 }}>
                         <button type='button' onClick={() => { setShowLibForm(false); setEditingLibItem(null) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: '1.5px solid #e2e8f0', backgroundColor: '#fff', color: '#334155', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                         <button type='submit' disabled={savingLib} className="btn-primary" style={{ flex: 1, padding: '12px' }}>

@@ -424,10 +424,23 @@ function EntrenamientosInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlParams, sessions, sharedSessions, exercises, libItems])
 
+  // Al cambiar de equipo activo desde el selector de la barra lateral (un
+  // entrenador con varios equipos), si había una sesión/ejercicio abierto se
+  // queda "pegado" en pantalla — nada lo cerraba, porque este efecto solo
+  // recarga la lista, y el otro efecto (arriba) solo reacciona si el
+  // parámetro ?session= de la URL cambia de valor, cosa que no pasa aquí.
+  // Por eso se limpian los parámetros de detalle al detectar un cambio real
+  // de equipo (no en la carga inicial de la página).
+  const prevActiveTeamIdRef = useRef(undefined)
   useEffect(() => {
     if (!user || !profile) return
     loadLibrary()
     if (!isDirector && !activeTeam) return
+    const activeId = activeTeam?.id ?? null
+    if (prevActiveTeamIdRef.current !== undefined && prevActiveTeamIdRef.current !== activeId) {
+      clearParams()
+    }
+    prevActiveTeamIdRef.current = activeId
     loadTeams()
   }, [user, profile, activeTeam])
 
@@ -1486,7 +1499,7 @@ function EntrenamientosInner() {
 
           {/* Selector de equipo — solo en pestañas de sesiones propias */}
           {tab !== 'compartidos' && tab !== 'biblioteca' && isDirector && teams.length > 1 && (
-            <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { setLoading(true); loadSessions(t); if (tab === 'historial') loadRatingsHistory(t) }} />
+            <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { clearParams(); setLoading(true); loadSessions(t); if (tab === 'historial') loadRatingsHistory(t) }} />
           )}
 
           {/* Pestañas */}

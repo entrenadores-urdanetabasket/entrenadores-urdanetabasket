@@ -156,6 +156,7 @@ function TacticasInner() {
   }
 
   async function handleSelectTeam(id) {
+    clearParams()
     setSelectedTeam(id); setTactics([])
     await loadTactics(id)
   }

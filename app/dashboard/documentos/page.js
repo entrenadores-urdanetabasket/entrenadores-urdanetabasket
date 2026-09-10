@@ -94,6 +94,10 @@ function DocumentosInner() {
     window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
     setUrlParams(params)
   }
+  function clearParams() {
+    window.history.replaceState(null, '', pathname)
+    setUrlParams(new URLSearchParams())
+  }
 
   useEffect(() => {
     const docId = urlParams.get('doc')
@@ -107,9 +111,19 @@ function DocumentosInner() {
     else if (documents.length > 0 || sharedDocs.length > 0) pushParams({ doc: null })
   }, [urlParams, documents, sharedDocs])
 
+  // Al cambiar de equipo activo desde el selector de la barra lateral (un
+  // entrenador con varios equipos), si había un documento abierto se queda
+  // "pegado" en pantalla — se limpian los parámetros de detalle al detectar
+  // un cambio real de equipo (no en la carga inicial de la página).
+  const prevActiveTeamIdRef = useRef(undefined)
   useEffect(() => {
     if (!user || !profile) return
     if (!isDirector && !activeTeam) return
+    const activeId = activeTeam?.id ?? null
+    if (prevActiveTeamIdRef.current !== undefined && prevActiveTeamIdRef.current !== activeId) {
+      clearParams()
+    }
+    prevActiveTeamIdRef.current = activeId
     loadTeams()
   }, [user, profile, activeTeam])
 
@@ -299,7 +313,7 @@ function DocumentosInner() {
 
       {/* Selector de equipo — solo en "Mis documentos" */}
       {tab !== 'compartidos' && isDirector && teams.length > 1 && (
-        <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { setLoading(true); loadDocuments(t) }} />
+        <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { clearParams(); setLoading(true); loadDocuments(t) }} />
       )}
 
       {/* Pestañas */}

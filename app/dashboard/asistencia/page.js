@@ -152,6 +152,11 @@ export default function AsistenciaPage() {
 
   async function loadTeamData(team, currentTab) {
     setSelectedTeam(team)
+    // expandedData está indexado solo por fecha (no por equipo+fecha): si se
+    // cambia de equipo con un día ya expandido, se vería el detalle en caché
+    // del equipo anterior para esa misma fecha hasta que se cargara de nuevo.
+    setExpanded(null)
+    setExpandedData({})
     const { data: p } = await supabase.from('players').select('*').eq('team_id', team.id).eq('active', true).order('number')
     const playerList = p || []
     setPlayers(playerList)

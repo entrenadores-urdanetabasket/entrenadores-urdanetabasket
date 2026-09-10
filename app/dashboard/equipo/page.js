@@ -32,6 +32,7 @@ export default function EquipoPage() {
   async function loadData() {
     setLoading(true)
     setError(null)
+    setEditing(null) // si había un jugador en edición del equipo anterior, se cierra al cambiar de equipo
     try {
       if (isDirector) {
         const { data: t, error: tErr } = await supabase.from('teams').select('*').eq('active', true).order('name')

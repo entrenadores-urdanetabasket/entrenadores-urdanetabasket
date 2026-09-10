@@ -887,8 +887,11 @@ function EntrenamientosInner() {
     safeBack({ ex: null })
   }
 
-  // ¿Puede editar esta sesión? Solo si es suya o es director
-  const canEditDetail = detailSession && (isDirector || detailSession.created_by === user?.id)
+  // ¿Puede editar esta sesión? Cualquier entrenador del equipo puede
+  // gestionar sus entrenamientos, no solo quien lo creó — no hay entrenador
+  // "jefe" con más permisos que otro dentro de un mismo equipo. Solo se
+  // bloquea si es una sesión de OTRO equipo vista desde "Compartidos".
+  const canEditDetail = detailSession && (isDirector || teams.some(t => t.id === detailSession.team_id))
   // ¿Es una sesión compartida de otro entrenador (solo lectura)?
   const isReadOnly = detailSession && !canEditDetail
 

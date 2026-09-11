@@ -295,7 +295,7 @@ function DocumentosInner() {
             {tab === 'compartidos' ? 'Documentos compartidos por todos los entrenadores' : `${documents.length} ${documents.length === 1 ? 'documento' : 'documentos'}`}
           </p>
         </div>
-        {tab !== 'compartidos' ? (
+        {tab !== 'compartidos' && isDirector ? (
           <>
             <input ref={fileInputRef} type="file" onChange={handleFilePicked} style={{ display: 'none' }} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="btn-primary" style={{ flexShrink: 0 }}>
@@ -381,7 +381,7 @@ function DocumentosInner() {
             <div style={{ textAlign: 'center', padding: '60px 0', color: '#9ca3af', backgroundColor: '#fff', borderRadius: 16, border: '1px solid #f3f4f6' }}>
               <div style={{ fontSize: 48, marginBottom: 14 }}>📁</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Sin documentos todavía</div>
-              <div style={{ fontSize: 13 }}>Sube el primero con el botón de arriba</div>
+              <div style={{ fontSize: 13 }}>{isDirector ? 'Sube el primero con el botón de arriba' : 'El director aún no ha subido documentos para este equipo'}</div>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -406,20 +406,24 @@ function DocumentosInner() {
                   <button onClick={() => handleDownload(doc)} disabled={downloadingId === doc.id} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#eff6ff', color: '#2563eb', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
                     {downloadingId === doc.id ? '⏳' : '⬇'}
                   </button>
-                  <button
-                    onClick={() => handleToggleShared(doc)}
-                    disabled={sharingId === doc.id}
-                    title={doc.shared ? 'Dejar de compartir' : 'Compartir con el club'}
-                    style={{
-                      padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12,
-                      border: doc.shared ? 'none' : '1.5px solid #ddd6fe',
-                      background: doc.shared ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#f5f3ff',
-                      color: doc.shared ? '#fff' : '#7c3aed',
-                      opacity: sharingId === doc.id ? 0.6 : 1,
-                    }}>
-                    📤
-                  </button>
-                  <button onClick={() => handleDelete(doc)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: '#fef2f2', color: '#ef4444', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🗑</button>
+                  {isDirector && (
+                    <>
+                      <button
+                        onClick={() => handleToggleShared(doc)}
+                        disabled={sharingId === doc.id}
+                        title={doc.shared ? 'Dejar de compartir' : 'Compartir con el club'}
+                        style={{
+                          padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12,
+                          border: doc.shared ? 'none' : '1.5px solid #ddd6fe',
+                          background: doc.shared ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#f5f3ff',
+                          color: doc.shared ? '#fff' : '#7c3aed',
+                          opacity: sharingId === doc.id ? 0.6 : 1,
+                        }}>
+                        📤
+                      </button>
+                      <button onClick={() => handleDelete(doc)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: '#fef2f2', color: '#ef4444', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🗑</button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

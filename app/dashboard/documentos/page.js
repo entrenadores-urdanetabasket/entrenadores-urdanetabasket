@@ -26,6 +26,21 @@ function fmtSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Supabase Storage rechaza tildes/eñes/espacios/etc. en la ruta del archivo
+// ("Invalid key") — se sanea solo la ruta interna; el nombre visible y el
+// de descarga (title/file_name) se guardan tal cual, con acentos y todo.
+const DIACRITICS_RE = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g')
+function sanitizeForStorageKey(name) {
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  const safeBase = base
+    .normalize('NFD').replace(DIACRITICS_RE, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .slice(0, 80)
+  return `${safeBase || 'archivo'}${ext}`
+}
+
 export default function DocumentosPage() {
   return (
     <Suspense fallback={<div style={{ color: '#94a3b8', fontSize: 14 }}>Cargando...</div>}>
@@ -119,7 +134,7 @@ function DocumentosInner() {
     if (file.size > MAX_SIZE) { setUploadError('El archivo pesa más de 25 MB — súbelo comprimido o en partes.'); return }
 
     setUploading(true)
-    const path = `${crypto.randomUUID()}-${file.name}`
+    const path = `${crypto.randomUUID()}-${sanitizeForStorageKey(file.name)}`
     const { error: upErr } = await supabase.storage.from('documents').upload(path, file)
     if (upErr) {
       console.error('Error subiendo a Storage:', upErr)

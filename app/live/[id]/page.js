@@ -854,7 +854,15 @@ export default function LivePage() {
     }
 
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
-    const ps = rows || []
+    // El dorsal de ESTE partido (jersey_number, editable al montar la
+    // convocatoria) manda sobre el dorsal habitual del jugador — cubre
+    // convocar a alguien de un equipo vinculado cuyo número coincide con
+    // el de un jugador propio, o jugar con equipación distinta. Se aplica
+    // aquí una única vez para que todo lo demás (box score, PDF, pizarra
+    // de sustituciones...) lo herede sin tener que tocar cada sitio.
+    const ps = (rows || []).map(r => (r.jersey_number != null && r.players)
+      ? { ...r, players: { ...r.players, number: r.jersey_number } }
+      : r)
     setGps(ps)
 
     // "Quién está en pista ahora" se guarda directamente en games (current_lineup /

@@ -14,6 +14,12 @@ export default function NuevoPartidoPage() {
   const [team, setTeam]           = useState(null)
   const [players, setPlayers]     = useState([]) // team players
   const [selected, setSelected]   = useState(new Set()) // selected player ids
+  // Dorsal para ESTE partido en concreto, editable — por defecto el dorsal
+  // habitual del jugador, pero se puede cambiar (p.ej. un jugador convocado
+  // de un equipo vinculado cuyo número coincide con uno ya usado en este
+  // equipo, o si se juega con equipación alternativa). No toca la ficha del
+  // jugador, solo el partido.
+  const [jerseyOverrides, setJerseyOverrides] = useState({}) // { [playerId]: number }
 
   // Paso 1 — datos del partido
   const [rivalName, setRivalName]   = useState('')
@@ -73,8 +79,15 @@ export default function NuevoPartidoPage() {
     }
 
     const ps = pl || []
-    setPlayers([...ps, ...borrowedList])
+    const allPlayers = [...ps, ...borrowedList]
+    setPlayers(allPlayers)
     setSelected(new Set(ps.map(p => p.id))) // la plantilla propia, seleccionada por defecto
+    setJerseyOverrides(Object.fromEntries(allPlayers.map(p => [p.id, p.number])))
+  }
+
+  function setJerseyOverride(playerId, value) {
+    const n = value === '' ? '' : parseInt(value, 10)
+    setJerseyOverrides(prev => ({ ...prev, [playerId]: Number.isNaN(n) ? '' : n }))
   }
 
   function addRivalJersey() {
@@ -105,6 +118,10 @@ export default function NuevoPartidoPage() {
 
   async function handleCreate() {
     if (selected.size === 0) { alert('Selecciona al menos un jugador'); return }
+    if (duplicateJerseys.size > 0) {
+      alert(`Hay dorsales repetidos en la convocatoria: ${[...duplicateJerseys].join(', ')}. Cambia el dorsal de alguno de esos jugadores antes de iniciar el partido.`)
+      return
+    }
     setSaving(true)
     try {
       const { data: game, error } = await supabase
@@ -133,7 +150,7 @@ export default function NuevoPartidoPage() {
         .map(p => ({
           game_id: game.id,
           player_id: p.id,
-          jersey_number: p.number,
+          jersey_number: jerseyOverrides[p.id] === '' || jerseyOverrides[p.id] == null ? p.number : jerseyOverrides[p.id],
           starter: false,
         }))
 
@@ -156,6 +173,19 @@ export default function NuevoPartidoPage() {
     boxSizing: 'border-box', color: '#111827', fontFamily: 'inherit',
   }
   const labelStyle = { fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 5, display: 'block' }
+
+  // Dorsales repetidos entre los CONVOCADOS (con el dorsal ya editado para
+  // este partido) — típico al convocar a alguien de un equipo vinculado
+  // cuyo número coincide con el de un jugador propio.
+  const duplicateJerseys = (() => {
+    const counts = {}
+    players.filter(p => selected.has(p.id)).forEach(p => {
+      const n = jerseyOverrides[p.id]
+      if (n === '' || n == null) return
+      counts[n] = (counts[n] || 0) + 1
+    })
+    return new Set(Object.entries(counts).filter(([, c]) => c > 1).map(([n]) => n))
+  })()
 
   return (
     <div>
@@ -293,6 +323,14 @@ export default function NuevoPartidoPage() {
                 }}>Ninguno</button>
               </div>
             </div>
+            <p style={{ fontSize: 11.5, color: '#9ca3af', margin: '-8px 0 12px' }}>
+              Toca el dorsal para cambiarlo solo en este partido (no afecta a la ficha del jugador) — útil si convocas a alguien de un equipo vinculado con el mismo número que uno tuyo, o si jugáis con otra equipación.
+            </p>
+            {duplicateJerseys.size > 0 && (
+              <div style={{ padding: '9px 12px', borderRadius: 9, backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>
+                ⚠️ Dorsal repetido entre convocados: {[...duplicateJerseys].join(', ')}. Cámbialo antes de iniciar el partido.
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {players.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '20px 0', color: '#9ca3af', fontSize: 13 }}>
@@ -301,20 +339,23 @@ export default function NuevoPartidoPage() {
               )}
               {players.map(p => {
                 const on = selected.has(p.id)
+                const jersey = jerseyOverrides[p.id]
+                const isDup = on && jersey !== '' && jersey != null && duplicateJerseys.has(String(jersey))
                 return (
                   <div key={p.id} onClick={() => togglePlayer(p.id)} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
-                    border: `1.5px ${p._fromTeamName ? 'dashed' : 'solid'} ${on ? '#bbf7d0' : p._fromTeamName ? '#ddd6fe' : '#f3f4f6'}`,
-                    backgroundColor: on ? '#f0fdf4' : '#fafafa',
+                    border: `1.5px ${p._fromTeamName ? 'dashed' : 'solid'} ${isDup ? '#fca5a5' : on ? '#bbf7d0' : p._fromTeamName ? '#ddd6fe' : '#f3f4f6'}`,
+                    backgroundColor: isDup ? '#fef2f2' : on ? '#f0fdf4' : '#fafafa',
                     transition: 'all 0.12s',
                   }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                      backgroundColor: on ? '#1C5C2A' : '#e5e7eb',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: on ? '#fff' : '#9ca3af', fontSize: 14, fontWeight: 900,
-                    }}>{p.number ?? '?'}</div>
+                    <input type='number' value={jersey ?? ''} onClick={e => e.stopPropagation()}
+                      onChange={e => setJerseyOverride(p.id, e.target.value)} style={{
+                      width: 32, height: 32, borderRadius: 8, flexShrink: 0, textAlign: 'center', padding: 0,
+                      backgroundColor: isDup ? '#dc2626' : on ? '#1C5C2A' : '#e5e7eb',
+                      border: 'none', outline: 'none',
+                      color: (isDup || on) ? '#fff' : '#9ca3af', fontSize: 14, fontWeight: 900,
+                    }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: on ? '#111827' : '#6b7280' }}>{p.full_name}</div>
                       {p._fromTeamName ? (
@@ -339,13 +380,13 @@ export default function NuevoPartidoPage() {
               flex: 1, padding: '13px', backgroundColor: '#f3f4f6',
               color: '#374151', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer'
             }}>← Volver</button>
-            <button onClick={handleCreate} disabled={saving} style={{
-              flex: 2, padding: '13px', background: 'linear-gradient(135deg,#1C5C2A,#52B043)',
+            <button onClick={handleCreate} disabled={saving || duplicateJerseys.size > 0} style={{
+              flex: 2, padding: '13px', background: duplicateJerseys.size > 0 ? '#d1d5db' : 'linear-gradient(135deg,#1C5C2A,#52B043)',
               color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 800,
-              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-              boxShadow: '0 3px 10px rgba(82,176,67,0.35)'
+              cursor: (saving || duplicateJerseys.size > 0) ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+              boxShadow: duplicateJerseys.size > 0 ? 'none' : '0 3px 10px rgba(82,176,67,0.35)'
             }}>
-              {saving ? 'Creando...' : '🏀 Iniciar partido'}
+              {saving ? 'Creando...' : duplicateJerseys.size > 0 ? 'Resuelve los dorsales repetidos' : '🏀 Iniciar partido'}
             </button>
           </div>
         </div>

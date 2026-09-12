@@ -1348,9 +1348,17 @@ export default function LivePage() {
       {tab==='live' && (
         <div className="np" style={{ flex:1, overflow:'hidden', display:'flex', flexDirection:'column' }}>
 
-          {/* SWISH layout: [our players] [rival players] [marcador + log] [actions] */}
+          {/* SWISH layout: [our players] [rival players] [marcador + log] [actions].
+              overflowX:'auto' es un colchón de seguridad: en algunos móviles
+              Android la barra de navegación del sistema (modo "botones", en
+              vez de gestos) se superpone al borde de la pantalla sin que el
+              navegador reserve ese espacio correctamente (env(safe-area-
+              inset-right) no siempre lo reporta bien en Android), tapando
+              los botones de la derecha. Con scroll horizontal, en el peor
+              caso siguen siendo alcanzables deslizando, en vez de quedar
+              inaccesibles. En un móvil sin ese problema no cambia nada. */}
           <div style={{ display:'grid', gridTemplateColumns:'96px 96px 1fr minmax(190px,260px)',
-            gridTemplateRows:'auto minmax(0,1fr)', flex:1, overflow:'hidden', minWidth:0 }}>
+            gridTemplateRows:'auto minmax(0,1fr)', flex:1, overflow:'hidden', overflowX:'auto', minWidth:0 }}>
 
             {/* ── Col A: Our players (ocupa las 2 filas) ── */}
             <div style={{ gridColumn:1, gridRow:'1 / 3', overflow:'hidden', borderRight:'1px solid #1a2540', display:'flex', flexDirection:'column', minWidth:0 }}>

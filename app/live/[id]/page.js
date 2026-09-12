@@ -708,6 +708,7 @@ export default function LivePage() {
 
   const [game, setGame]                 = useState(null)
   const [gps, setGps]                   = useState([])
+  const [fullRoster, setFullRoster]     = useState([]) // plantilla completa + convocables de otros equipos, para gestionar la convocatoria en directo
   const [ourTeamName, setOurTeamName]   = useState('')
   const [ourTeamLogo, setOurTeamLogo]   = useState(null)
   const [onCourt, setOnCourt]           = useState([])
@@ -1135,37 +1136,98 @@ export default function LivePage() {
     }
   }
 
-  // Guarda los dorsales editados de nuestro equipo para ESTE partido. Solo
-  // toca game_players.jersey_number (lo que ya usa el marcador para
-  // mostrar el número, ver load()) — los eventos ya guardados referencian
-  // al jugador por su id, no por dorsal, así que no hace falta tocar nada
-  // más y no se pierde ninguna estadística registrada.
-  async function saveOurJerseys(edits) {
-    const vals = Object.values(edits).filter(v => v !== '' && v != null)
+  // Trae la plantilla completa del equipo (incluidos convocables de
+  // equipos vinculados, doble ficha) para poder convocar/desconvocar en
+  // directo — no solo editar el dorsal de quien ya está en la convocatoria.
+  // Mismo patrón que app/dashboard/estadisticas/nuevo/page.js.
+  async function loadFullRoster() {
+    if (!game?.team_id) return []
+    const { data: pl } = await supabase.from('players').select('id, full_name, number, position')
+      .eq('team_id', game.team_id).eq('active', true).order('number', { ascending: true })
+    const { data: links } = await supabase.from('team_borrow_links').select('to_team_id, teams:to_team_id(name)').eq('from_team_id', game.team_id)
+    const linkedTeamIds = (links || []).map(l => l.to_team_id)
+    const teamNameById = Object.fromEntries((links || []).map(l => [l.to_team_id, l.teams?.name]))
+    let borrowedList = []
+    if (linkedTeamIds.length > 0) {
+      const { data: bp } = await supabase.from('players').select('id, full_name, number, position').in('team_id', linkedTeamIds).eq('active', true).order('number')
+      borrowedList = (bp || []).map(p => ({ ...p, _fromTeamName: teamNameById[p.team_id] || 'Otro equipo' }))
+    }
+    const roster = [...(pl || []), ...borrowedList]
+    setFullRoster(roster)
+    return roster
+  }
+
+  // Abre "Gestionar convocatoria": trae la plantilla completa y quiénes de
+  // ellos ya tienen estadísticas registradas en este partido (a esos no se
+  // les puede desconvocar sin perder sus datos, se les bloquea el check).
+  async function openManageOurRoster() {
+    const roster = await loadFullRoster()
+    const { data: evRows } = await supabase.from('game_events').select('player_id').eq('game_id', id).eq('team', 'us').not('player_id', 'is', null)
+    const locked = new Set((evRows || []).map(r => r.player_id))
+    const convened = new Map(gps.map(gp => [gp.player_id, gp.players?.number ?? '']))
+    setModal({
+      type: 'edit_our_jerseys',
+      selected: new Set(gps.map(gp => gp.player_id)),
+      locked,
+      edits: Object.fromEntries(roster.map(p => [p.id, convened.has(p.id) ? convened.get(p.id) : (p.number ?? '')])),
+    })
+  }
+
+  // Guarda convocatoria + dorsales de nuestro equipo para ESTE partido:
+  // altas (nuevo game_players), bajas (solo si el jugador no tiene ningún
+  // evento registrado todavía, para no perder estadísticas), y cambios de
+  // dorsal de quien sigue convocado. Los eventos ya guardados referencian
+  // al jugador por su id, no por dorsal, así que renumerar no toca nada más.
+  async function saveOurJerseys(selected, edits, locked) {
+    const selectedIds = [...selected]
+    const vals = selectedIds.map(pid => edits[pid]).filter(v => v !== '' && v != null)
     const dupSet = new Set(vals.filter((v, i) => vals.indexOf(v) !== i))
     if (dupSet.size > 0) { alert('Hay dorsales repetidos: ' + [...dupSet].join(', ')); return }
-    for (const [playerId, newNum] of Object.entries(edits)) {
-      const current = gps.find(gp => gp.player_id === playerId)
-      const currentNum = current?.players?.number ?? ''
-      if (String(currentNum) !== String(newNum)) {
-        await supabase.from('game_players').update({ jersey_number: newNum === '' ? null : parseInt(newNum, 10) })
-          .eq('game_id', id).eq('player_id', playerId)
+
+    const originalIds = new Set(gps.map(gp => gp.player_id))
+
+    for (const pid of selectedIds) {
+      if (!originalIds.has(pid)) {
+        const num = edits[pid]
+        await supabase.from('game_players').insert({ game_id: id, player_id: pid, jersey_number: num === '' || num == null ? null : parseInt(num, 10), starter: false })
+      }
+    }
+    for (const pid of originalIds) {
+      if (!selected.has(pid)) {
+        if (locked.has(pid)) {
+          alert(`No se puede desconvocar a ${gps.find(gp => gp.player_id === pid)?.players?.full_name || 'este jugador'}: ya tiene estadísticas registradas en este partido.`)
+          continue
+        }
+        await supabase.from('game_players').delete().eq('game_id', id).eq('player_id', pid)
+      }
+    }
+    for (const pid of selectedIds) {
+      if (originalIds.has(pid)) {
+        const current = gps.find(gp => gp.player_id === pid)
+        const currentNum = current?.players?.number ?? ''
+        const newNum = edits[pid]
+        if (String(currentNum) !== String(newNum)) {
+          await supabase.from('game_players').update({ jersey_number: newNum === '' ? null : parseInt(newNum, 10) })
+            .eq('game_id', id).eq('player_id', pid)
+        }
       }
     }
     setModal(null)
     await load()
   }
 
-  // Guarda los dorsales editados del rival. A diferencia de los nuestros,
-  // el rival no tiene un id estable — sus eventos se identifican por el
-  // propio número (rival_jersey), así que cambiar un dorsal tiene que
-  // RENOMBRAR ese número en todos los eventos ya guardados de este
-  // partido (y en el roster/alineación actual), para no perder ni
+  // Guarda los dorsales editados del rival, más los que se hayan añadido de
+  // nuevo (jugadores que aparecen al llegar al partido). A diferencia de
+  // los nuestros, el rival no tiene un id estable — sus eventos se
+  // identifican por el propio número (rival_jersey), así que renombrar un
+  // dorsal existente tiene que actualizar todos los eventos ya guardados
+  // de este partido (y el roster/alineación actual), para no perder ni
   // desligar las estadísticas ya registradas de ese jugador.
-  async function saveRivalJerseys(edits) {
+  async function saveRivalJerseys(edits, newRivals) {
     const entries = Object.entries(edits).map(([oldStr, newVal]) => [parseInt(oldStr, 10), newVal === '' ? null : parseInt(newVal, 10)])
-    const newVals = entries.map(([, n]) => n).filter(n => n != null)
-    const dupSet = new Set(newVals.filter((v, i) => newVals.indexOf(v) !== i))
+    const renamedVals = entries.map(([, n]) => n).filter(n => n != null)
+    const allFinalVals = [...renamedVals, ...newRivals]
+    const dupSet = new Set(allFinalVals.filter((v, i) => allFinalVals.indexOf(v) !== i))
     if (dupSet.size > 0) { alert('Hay dorsales repetidos: ' + [...dupSet].join(', ')); return }
 
     let roster = [...(game.rival_roster || [])]
@@ -1175,6 +1237,9 @@ export default function LivePage() {
       await supabase.from('game_events').update({ rival_jersey: newNum }).eq('game_id', id).eq('team', 'rival').eq('rival_jersey', oldNum)
       roster = roster.map(n => n === oldNum ? newNum : n)
       if (lineup) lineup = lineup.map(n => n === oldNum ? newNum : n)
+    }
+    for (const n of newRivals) {
+      if (!roster.includes(n)) roster.push(n)
     }
     const gameUpdate = { rival_roster: roster }
     if (lineup) gameUpdate.rival_current_lineup = lineup
@@ -1472,8 +1537,8 @@ export default function LivePage() {
                   convocado de otro equipo) y hay que corregirlo sin perder
                   lo ya registrado: no toca los eventos, solo el dorsal que
                   se les muestra a partir de ahora. */}
-              <button onClick={() => setModal({ type:'edit_our_jerseys', edits: Object.fromEntries(gps.map(gp => [gp.player_id, gp.players?.number ?? ''])) })}
-                title="Editar dorsales" style={{
+              <button onClick={openManageOurRoster}
+                title="Editar dorsales y convocatoria" style={{
                 width:24, height:24, borderRadius:7, flexShrink:0, border:'1px solid #22c55e55',
                 backgroundColor:'#0c1f15', color:'#22c55e', fontSize:11, fontWeight:900, cursor:'pointer',
                 display:'flex', alignItems:'center', justifyContent:'center', padding:0,
@@ -1549,8 +1614,8 @@ export default function LivePage() {
               {/* Editar dorsales — rival. Renombra el número en TODOS los
                   eventos ya guardados de ese dorsal (no crea un jugador
                   nuevo), así no se pierden las estadísticas registradas. */}
-              <button onClick={() => setModal({ type:'edit_rival_jerseys', edits: Object.fromEntries(rivals.map(n => [n, n])) })}
-                title="Editar dorsales" style={{
+              <button onClick={() => setModal({ type:'edit_rival_jerseys', edits: Object.fromEntries(rivals.map(n => [n, n])), newRivals: [], newRivalInput: '' })}
+                title="Editar dorsales y añadir jugador" style={{
                 width:24, height:24, borderRadius:7, flexShrink:0, border:'1px solid #3b82f655',
                 backgroundColor:'#0c1c33', color:'#3b82f6', fontSize:11, fontWeight:900, cursor:'pointer',
                 display:'flex', alignItems:'center', justifyContent:'center', padding:0,
@@ -2326,37 +2391,60 @@ export default function LivePage() {
         </Overlay>
       )}
 
-      {/* ── Editar dorsales — nuestro equipo (por si hay un error o un
-          convocado de otro equipo coincide en número; no borra nada) ── */}
+      {/* ── Gestionar convocatoria — nuestro equipo: editar dorsal, convocar
+          a última hora (incluidos convocables de equipos vinculados), o
+          desconvocar a quien no vaya a jugar (bloqueado si ya tiene
+          estadísticas registradas, para no perderlas) ── */}
       {modal?.type==='edit_our_jerseys' && (
         <Overlay onClose={() => setModal(null)}>
-          <div style={{ color:'#22c55e', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>✏️ Editar dorsales — {ourName}</div>
-          <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Solo cambia el número para este partido, no toca lo ya registrado</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14 }}>
-            {gps.map(gp => (
-              <div key={gp.player_id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, backgroundColor:'#1a2030', border:'1px solid #263047' }}>
-                <input type='number' value={modal.edits[gp.player_id] ?? ''}
-                  onChange={e => setModal(m => ({ ...m, edits:{ ...m.edits, [gp.player_id]: e.target.value } }))}
-                  style={{ width:40, height:32, borderRadius:6, textAlign:'center', flexShrink:0,
-                    backgroundColor:'#0c1f15', border:'1px solid #22c55e55', color:'#22c55e', fontSize:14, fontWeight:900 }}/>
-                <span style={{ flex:1, fontSize:12, fontWeight:700, color:'#d1fae5', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {gp.players?.full_name || '—'}
-                </span>
-              </div>
-            ))}
+          <div style={{ color:'#22c55e', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>✏️ Convocatoria y dorsales — {ourName}</div>
+          <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Marca/desmarca para convocar o desconvocar · el dorsal solo aplica a este partido</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14, maxHeight:340, overflowY:'auto' }}>
+            {fullRoster.map(p => {
+              const on = modal.selected.has(p.id)
+              const isLocked = on && modal.locked.has(p.id)
+              return (
+                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8,
+                  backgroundColor: on ? '#1a2030' : '#12161f', border:`1.5px ${p._fromTeamName ? 'dashed' : 'solid'} ${on ? '#263047' : '#1c2230'}`, opacity: on ? 1 : 0.75 }}>
+                  <button onClick={() => {
+                    if (isLocked) { alert(`${p.full_name} ya tiene estadísticas registradas en este partido — no se puede desconvocar.`); return }
+                    setModal(m => {
+                      const next = new Set(m.selected)
+                      next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                      return { ...m, selected: next }
+                    })
+                  }} title={isLocked ? 'Ya jugó — no se puede desconvocar' : (on ? 'Desconvocar' : 'Convocar')} style={{
+                    width:22, height:22, borderRadius:6, flexShrink:0, cursor: isLocked ? 'not-allowed' : 'pointer',
+                    border:`2px solid ${on ? '#16a34a' : '#4b5563'}`, backgroundColor: on ? '#16a34a' : 'transparent',
+                    color:'#fff', fontSize:12, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>{on ? (isLocked ? '🔒' : '✓') : ''}</button>
+                  <input type='number' value={modal.edits[p.id] ?? ''}
+                    onChange={e => setModal(m => ({ ...m, edits:{ ...m.edits, [p.id]: e.target.value } }))}
+                    style={{ width:38, height:30, borderRadius:6, textAlign:'center', flexShrink:0,
+                      backgroundColor:'#0c1f15', border:'1px solid #22c55e55', color:'#22c55e', fontSize:13, fontWeight:900 }}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color: on ? '#d1fae5' : '#9ca3af', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {p.full_name}
+                    </div>
+                    {p._fromTeamName && <div style={{ fontSize:9.5, fontWeight:700, color:'#a78bfa' }}>🔗 {p._fromTeamName}</div>}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-          <button onClick={() => saveOurJerseys(modal.edits)} style={{ ...btnStyle('#16a34a'), marginBottom:8 }}>✓ Guardar</button>
+          <button onClick={() => saveOurJerseys(modal.selected, modal.edits, modal.locked)} style={{ ...btnStyle('#16a34a'), marginBottom:8 }}>✓ Guardar</button>
           <button onClick={() => setModal(null)} style={btnStyle('#1f2937',12)}>Cancelar</button>
         </Overlay>
       )}
 
-      {/* ── Editar dorsales — rival (renombra el número en TODOS los eventos
-          ya guardados con ese dorsal, no crea un jugador nuevo) ── */}
+      {/* ── Editar dorsales — rival: renombra el número en TODOS los eventos
+          ya guardados con ese dorsal (no crea un jugador nuevo), y permite
+          añadir jugadores que aparecen al llegar al partido ── */}
       {modal?.type==='edit_rival_jerseys' && (
         <Overlay onClose={() => setModal(null)}>
           <div style={{ color:'#3b82f6', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>✏️ Editar dorsales — {rivalName}</div>
           <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Cambia el dorsal en todas las estadísticas ya registradas de ese número, no las pierde</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:10, maxHeight:280, overflowY:'auto' }}>
             {rivals.map(n => (
               <div key={n} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, backgroundColor:'#1a2030', border:'1px solid #263047' }}>
                 <span style={{ fontSize:11, fontWeight:700, color:'#7a8da8' }}>Dorsal #{n} →</span>
@@ -2366,11 +2454,33 @@ export default function LivePage() {
                     backgroundColor:'#0c1c33', border:'1px solid #3b82f655', color:'#3b82f6', fontSize:14, fontWeight:900 }}/>
               </div>
             ))}
-            {rivals.length === 0 && (
+            {modal.newRivals.map((n, i) => (
+              <div key={'new_'+n} style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 10px', borderRadius:8, backgroundColor:'#0c1c33', border:'1px dashed #3b82f6' }}>
+                <span style={{ fontSize:12, fontWeight:900, color:'#93c5fd' }}>+ Nuevo #{n}</span>
+                <button onClick={() => setModal(m => ({ ...m, newRivals: m.newRivals.filter((_, idx) => idx !== i) }))}
+                  style={{ marginLeft:'auto', background:'none', border:'none', color:'#ef4444', fontSize:14, cursor:'pointer', padding:0 }}>✕</button>
+              </div>
+            ))}
+            {rivals.length === 0 && modal.newRivals.length === 0 && (
               <div style={{ textAlign:'center', color:'#6b7280', fontSize:12, padding:'10px 0' }}>Todavía no hay dorsales del rival registrados</div>
             )}
           </div>
-          <button onClick={() => saveRivalJerseys(modal.edits)} style={{ ...btnStyle('#2563eb'), marginBottom:8 }}>✓ Guardar</button>
+          <div style={{ display:'flex', gap:6, marginBottom:14 }}>
+            <input type='number' placeholder='Nº dorsal' value={modal.newRivalInput}
+              onChange={e => setModal(m => ({ ...m, newRivalInput: e.target.value }))}
+              style={{ flex:1, height:34, borderRadius:8, textAlign:'center', backgroundColor:'#111520', border:'1px solid #263047', color:'#e5e7eb', fontSize:13, fontWeight:700 }}/>
+            <button onClick={() => {
+              const n = parseInt(modal.newRivalInput, 10)
+              if (isNaN(n) || n < 0 || n > 99) return
+              if (rivals.includes(n) || modal.newRivals.includes(n) || Object.values(modal.edits).some(v => String(v) === String(n))) {
+                alert(`El dorsal #${n} ya está en uso.`); return
+              }
+              setModal(m => ({ ...m, newRivals: [...m.newRivals, n], newRivalInput: '' }))
+            }} style={{ padding:'0 16px', borderRadius:8, border:'none', backgroundColor:'#2563eb', color:'#fff', fontSize:12, fontWeight:800, cursor:'pointer' }}>
+              + Añadir jugador
+            </button>
+          </div>
+          <button onClick={() => saveRivalJerseys(modal.edits, modal.newRivals)} style={{ ...btnStyle('#2563eb'), marginBottom:8 }}>✓ Guardar</button>
           <button onClick={() => setModal(null)} style={btnStyle('#1f2937',12)}>Cancelar</button>
         </Overlay>
       )}

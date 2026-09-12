@@ -18,17 +18,25 @@ function computeScores(evs) {
 }
 
 function computeBoxScore(evs, gamePlayers, rivalJerseys) {
-  const init = () => ({ pts:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, reb:0, ast:0, stl:0, blk:0, tov:0, fouls:0 })
+  const init = () => ({ pts:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, reb:0, ast:0, stl:0, blk:0, tov:0, fouls:0,
+    transM:0, transA:0, statM:0, statA:0 })
   const our = {}; gamePlayers.forEach(p => { our[p.player_id] = init() })
   const riv = {}; rivalJerseys.forEach(n => { riv[n] = init() })
+  // Transición/estático: solo se pregunta en 2pt/3pt (ver modal 'shot'), no
+  // en tiros libres. Los tiros de partidos anteriores a esta funcionalidad
+  // no tienen shot_context — simplemente no suman a ninguna de las dos.
+  function addContext(s, ev, made) {
+    if (ev.shot_context === 'transicion') { s.transA++; if (made) s.transM++ }
+    else if (ev.shot_context === 'estatico') { s.statA++; if (made) s.statM++ }
+  }
   evs.forEach(ev => {
     const s = ev.team === 'us' ? our[ev.player_id] : riv[ev.rival_jersey]
     if (!s) return
     switch (ev.event_type) {
-      case '2pt_made':       s.pts+=2; s.fg2m++; s.fg2a++; break
-      case '2pt_miss':       s.fg2a++; break
-      case '3pt_made':       s.pts+=3; s.fg3m++; s.fg3a++; break
-      case '3pt_miss':       s.fg3a++; break
+      case '2pt_made':       s.pts+=2; s.fg2m++; s.fg2a++; addContext(s, ev, true); break
+      case '2pt_miss':       s.fg2a++; addContext(s, ev, false); break
+      case '3pt_made':       s.pts+=3; s.fg3m++; s.fg3a++; addContext(s, ev, true); break
+      case '3pt_miss':       s.fg3a++; addContext(s, ev, false); break
       case 'ft_made':        s.pts+=1; s.ftm++; s.fta++; break
       case 'ft_miss':        s.fta++; break
       case 'rebound_off': case 'rebound_def': s.reb++; break
@@ -190,6 +198,37 @@ const ACTION_LABEL = {
 }
 
 // ─── COURT SVG ────────────────────────────────────────────────────────────────
+// Triángulo (apuntando hacia arriba) centrado en (cx,cy) — marca los tiros
+// en transición en el mapa de tiro; a balón parado ("estático") se sigue
+// dibujando como círculo, igual que siempre.
+function trianglePoints(cx, cy, r) {
+  return [-90, 30, 150].map(a => {
+    const rad = a * Math.PI / 180
+    return `${(cx + r*Math.cos(rad)).toFixed(2)},${(cy + r*Math.sin(rad)).toFixed(2)}`
+  }).join(' ')
+}
+
+function ShotLegend() {
+  const item = (shape, label) => (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+      <svg width="12" height="12" viewBox="0 0 14 14">
+        {shape === 'circle'
+          ? <circle cx="7" cy="7" r="6" fill="none" stroke="#9ca3af" strokeWidth="1.5"/>
+          : <polygon points={trianglePoints(7,7,6.5)} fill="none" stroke="#9ca3af" strokeWidth="1.5"/>}
+      </svg>
+      {label}
+    </span>
+  )
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:10, fontSize:10, color:'#6b7280', marginTop:6 }}>
+      <span>🟢 Anotado</span>
+      <span>🔴 Fallado</span>
+      {item('circle', 'Estático')}
+      {item('triangle', 'Transición')}
+    </div>
+  )
+}
+
 function CourtSVG({ onShot, shots = [], only3pt = false }) {
   const W = 320, H = 300, P = 12
   const CW = W - P*2
@@ -288,13 +327,22 @@ function CourtSVG({ onShot, shots = [], only3pt = false }) {
       <circle cx={bx} cy={by} r={7} fill="none" stroke="#ff5722" strokeWidth={3}/>
       {shots.map((s, i) => {
         const px = P + s.x * CW, py = P + s.y * CH
-        return s.made
-          ? <circle key={i} cx={px} cy={py} r={6} fill="rgba(34,197,94,0.88)" stroke="#15803d" strokeWidth={1.5}/>
-          : <g key={i}>
-              <circle cx={px} cy={py} r={6} fill="rgba(239,68,68,0.85)" stroke="#b91c1c" strokeWidth={1.5}/>
-              <line x1={px-3.5} y1={py-3.5} x2={px+3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
-              <line x1={px+3.5} y1={py-3.5} x2={px-3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
-            </g>
+        const fill = s.made ? 'rgba(34,197,94,0.88)' : 'rgba(239,68,68,0.85)'
+        const stroke = s.made ? '#15803d' : '#b91c1c'
+        const isTrans = s.context === 'transicion'
+        return (
+          <g key={i}>
+            {isTrans
+              ? <polygon points={trianglePoints(px,py,7.5)} fill={fill} stroke={stroke} strokeWidth={1.5}/>
+              : <circle cx={px} cy={py} r={6} fill={fill} stroke={stroke} strokeWidth={1.5}/>}
+            {!s.made && (
+              <>
+                <line x1={px-3.5} y1={py-3.5} x2={px+3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
+                <line x1={px+3.5} y1={py-3.5} x2={px-3.5} y2={py+3.5} stroke="#fff" strokeWidth={1.5}/>
+              </>
+            )}
+          </g>
+        )
       })}
       {onShot && (
         <text x={W/2} y={H*0.6} textAnchor="middle" fontSize={11} fill="rgba(255,255,255,0.5)" fontWeight="600">
@@ -459,8 +507,9 @@ function BSSection({ title, color, rows, showPM }) {
     return { pts:a.pts+(s.pts||0), fg2m:a.fg2m+(s.fg2m||0), fg2a:a.fg2a+(s.fg2a||0),
       fg3m:a.fg3m+(s.fg3m||0), fg3a:a.fg3a+(s.fg3a||0), ftm:a.ftm+(s.ftm||0), fta:a.fta+(s.fta||0),
       reb:a.reb+(s.reb||0), ast:a.ast+(s.ast||0), stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0),
-      pir:a.pir+(s.pir||0) }
-  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,ast:0,stl:0,blk:0,tov:0,fouls:0,pir:0 })
+      pir:a.pir+(s.pir||0),
+      transM:a.transM+(s.transM||0), transA:a.transA+(s.transA||0), statM:a.statM+(s.statM||0), statA:a.statA+(s.statA||0) }
+  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,ast:0,stl:0,blk:0,tov:0,fouls:0,pir:0,transM:0,transA:0,statM:0,statA:0 })
   const totTS = computeTS(tot)
   return (
     <div>
@@ -470,7 +519,7 @@ function BSSection({ title, color, rows, showPM }) {
           <thead>
             <tr>
               <th style={{ ...th, textAlign:'left', paddingLeft:8, minWidth:80 }}>Jugador</th>
-              {['PTS','2P','3P','TC','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
+              {['PTS','2P','3P','TC','TRANS','ESTÁT','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(c => <th key={c} style={{ ...th, minWidth:34 }}>{c}</th>)}
               {showPM && <th style={{ ...th, minWidth:34 }}>+/-</th>}
               <th style={{ ...th, minWidth:34 }}>RACHA</th>
             </tr>
@@ -494,6 +543,8 @@ function BSSection({ title, color, rows, showPM }) {
                     {fgm}/{fga}
                     <div style={{ fontSize:9, color:'#6b7280', fontWeight:400 }}>{fgPct!==null ? `${fgPct}%` : '—'}</div>
                   </td>
+                  <td style={{ ...td, color:(s.transA||0)>0?'#fbbf24':td.color }}>{s.transM||0}/{s.transA||0}</td>
+                  <td style={{ ...td, color:(s.statA||0)>0?'#38bdf8':td.color }}>{s.statM||0}/{s.statA||0}</td>
                   <td style={td}>{s.ftm||0}/{s.fta||0}</td>
                   <td style={td}>{s.reb||0}</td>
                   <td style={td}>{s.ast||0}</td>
@@ -526,6 +577,8 @@ function BSSection({ title, color, rows, showPM }) {
                     {(tot.fg2a+tot.fg3a)>0 ? `${Math.round((tot.fg2m+tot.fg3m)/(tot.fg2a+tot.fg3a)*100)}%` : '—'}
                   </div>
                 </td>
+                <td style={{ ...td, fontWeight:700, color:'#fbbf24' }}>{tot.transM}/{tot.transA}</td>
+                <td style={{ ...td, fontWeight:700, color:'#38bdf8' }}>{tot.statM}/{tot.statA}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ftm}/{tot.fta}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.reb}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ast}</td>
@@ -551,7 +604,7 @@ function PrintBS({ rows }) {
     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
       <thead>
         <tr style={{ backgroundColor:'#f3f4f6' }}>
-          {['#','Jugador','PTS','2P','3P','TC','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(h => (
+          {['#','Jugador','PTS','2P','3P','TC','TRANS','ESTÁT','TL','REB','AST','ROB','TAP','PÉR','F','VAL','EFI%'].map(h => (
             <th key={h} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:h==='Jugador'?'left':'center' }}>{h}</th>
           ))}
         </tr>
@@ -565,7 +618,7 @@ function PrintBS({ rows }) {
             <tr key={i}>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{r.num}</td>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb' }}>{r.name}</td>
-              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${fgm}/${fga}${fgPct!==null?` (${fgPct}%)`:''}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
+              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${fgm}/${fga}${fgPct!==null?` (${fgPct}%)`:''}`,`${s.transM||0}/${s.transA||0}`,`${s.statM||0}/${s.statA||0}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
                 <td key={j} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{v}</td>
               ))}
             </tr>
@@ -608,9 +661,17 @@ function PrintCourtSVG({ shots = [] }) {
       <circle cx={bx} cy={by} r={5} fill="none" stroke="#ff5722" strokeWidth={2.5}/>
       {shots.map((s,i)=>{
         const px=P+s.x*CW, py=P+s.y*CH
-        return s.made
-          ? <circle key={i} cx={px} cy={py} r={5} fill="rgba(22,163,74,0.9)" stroke="#14532d" strokeWidth={1.2}/>
-          : <g key={i}><circle cx={px} cy={py} r={5} fill="rgba(220,38,38,0.85)" stroke="#991b1b" strokeWidth={1.2}/><line x1={px-3} y1={py-3} x2={px+3} y2={py+3} stroke="#fff" strokeWidth={1.2}/><line x1={px+3} y1={py-3} x2={px-3} y2={py+3} stroke="#fff" strokeWidth={1.2}/></g>
+        const fill = s.made ? 'rgba(22,163,74,0.9)' : 'rgba(220,38,38,0.85)'
+        const stroke = s.made ? '#14532d' : '#991b1b'
+        const isTrans = s.context === 'transicion'
+        return (
+          <g key={i}>
+            {isTrans
+              ? <polygon points={trianglePoints(px,py,6)} fill={fill} stroke={stroke} strokeWidth={1.2}/>
+              : <circle cx={px} cy={py} r={5} fill={fill} stroke={stroke} strokeWidth={1.2}/>}
+            {!s.made && <><line x1={px-3} y1={py-3} x2={px+3} y2={py+3} stroke="#fff" strokeWidth={1.2}/><line x1={px+3} y1={py-3} x2={px-3} y2={py+3} stroke="#fff" strokeWidth={1.2}/></>}
+          </g>
+        )
       })}
     </svg>
   )
@@ -943,6 +1004,7 @@ export default function LivePage() {
       rival_jersey: (!isOur && playerRef !== null && playerRef !== undefined) ? playerRef : null,
       quarter, points: pts,
       shot_x: extra.x ?? null, shot_y: extra.y ?? null, linked_event_id: extra.linked ?? null,
+      shot_context: extra.context ?? null,
     }
     const { data:ev, error } = await supabase.from('game_events').insert(payload).select().single()
     if (error) {
@@ -1056,7 +1118,7 @@ export default function LivePage() {
     const m = modal
     setModal(null); setArmed(null)
     const type = m.action==='2pt' ? (made?'2pt_made':'2pt_miss') : (made?'3pt_made':'3pt_miss')
-    const ev = await saveEv(type, m.team, m.ref, { x, y })
+    const ev = await saveEv(type, m.team, m.ref, { x, y, context: m.context })
     if (!ev) return
     if (made) setModal({ type:'ask_assist', shooterTeam:m.team, linked:ev.id, scorerRef:m.ref })
     else      setModal({ type:'ask_rebound', shooterTeam:m.team, linked:ev.id })
@@ -1341,8 +1403,8 @@ export default function LivePage() {
   const rivalTOs     = events.filter(e => e.team==='rival'&&e.event_type==='timeout').length
 
   const SHOT_TYPES   = ['2pt_made','2pt_miss','3pt_made','3pt_miss']
-  const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
-  const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made') }))
+  const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made'), context:e.shot_context }))
+  const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made'), context:e.shot_context }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
   const plusMinusUs = computePlusMinusUs(events, gps)
   const rivalInitialFive = (game.rival_roster || []).slice(0,5)
@@ -1844,11 +1906,13 @@ export default function LivePage() {
             <div style={{ fontSize:11, fontWeight:700, color:'#22c55e', marginBottom:6 }}>🟢 {ourName}</div>
             <CourtSVG shots={ourShots}/>
             <ShotInfo shots={ourShots}/>
+            <ShotLegend/>
           </div>
           <div>
             <div style={{ fontSize:11, fontWeight:700, color:'#3b82f6', marginBottom:6 }}>🔵 {rivalName}</div>
             <CourtSVG shots={rivalShots}/>
             <ShotInfo shots={rivalShots}/>
+            <ShotLegend/>
           </div>
         </div>
       )}
@@ -1861,7 +1925,15 @@ export default function LivePage() {
           <div style={{ color:'#fff', fontSize:14, fontWeight:800, marginBottom:14, textAlign:'center' }}>
             {modal.action==='2pt'?'Tiro de 2':'Tiro de 3'}
           </div>
-          {modal.made===undefined ? (
+          {modal.context===undefined ? (
+            <>
+              <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:10 }}>¿Transición o estático?</div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={() => setModal({...modal,context:'transicion'})} style={btnStyle('#f59e0b')}>⚡ Transición</button>
+                <button onClick={() => setModal({...modal,context:'estatico'})}   style={btnStyle('#0ea5e9')}>🧍 Estático</button>
+              </div>
+            </>
+          ) : modal.made===undefined ? (
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setModal({...modal,made:true})}  style={btnStyle('#16a34a')}>✓ Anotado</button>
               <button onClick={() => setModal({...modal,made:false})} style={btnStyle('#dc2626')}>✗ Fallado</button>
@@ -2786,7 +2858,7 @@ export default function LivePage() {
                 .filter(e => e.team==='us' && e.player_id===pid
                   && ['2pt_made','2pt_miss','3pt_made','3pt_miss'].includes(e.event_type)
                   && e.shot_x != null)
-                .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y }))
+                .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y, context:e.shot_context }))
               return (
                 <PrintPlayerCard
                   key={pid}
@@ -2819,7 +2891,7 @@ export default function LivePage() {
                   .filter(e => e.team==='rival' && e.rival_jersey===n
                     && ['2pt_made','2pt_miss','3pt_made','3pt_miss'].includes(e.event_type)
                     && e.shot_x!=null)
-                  .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y }))
+                  .map(e => ({ made:e.event_type.includes('made'), x:e.shot_x, y:e.shot_y, context:e.shot_context }))
                 return (
                   <PrintPlayerCard
                     key={n}

@@ -69,10 +69,35 @@ function computeTS(s) {
 // +/- de nuestro equipo: reconstruye quien esta en pista en cada momento y suma/resta
 // la diferencia de puntos anotados mientras cada jugador estaba en la cancha.
 // Solo es fiable para "us": el rival no genera evento de sustitucion al cambiar.
-function computePlusMinusUs(evs, gamePlayers) {
+//
+// El quinteto con el que se EMPEZÓ el partido no se guarda en ningún sitio
+// (game_players.starter nunca se marca), así que no se puede asumir sin más
+// que son "los 5 primeros" de gamePlayers — ese orden no está garantizado
+// y se rompe, por ejemplo, en cuanto se convoca a alguien a media parte con
+// "Gestionar convocatoria". Si esa suposición falla, el jugador de salida de
+// una sustitución no se encuentra en pista y el código lo AÑADE sin quitar
+// a nadie, dejando más de 5 jugadores "en pista" a la vez y descuadrando el
+// +/- (un jugador puede acabar contado el doble). Se reconstruye en su
+// lugar el quinteto inicial deshaciendo, en orden inverso, cada sustitución
+// registrada a partir del quinteto ACTUAL (currentCourt) — ese sí es
+// siempre exacto, se mantiene al día en cada cambio.
+function computePlusMinusUs(evs, gamePlayers, currentCourt) {
   const pm = {}
   gamePlayers.forEach(p => { pm[p.player_id] = 0 })
-  let court = gamePlayers.slice(0,5).map(p => p.player_id)
+  const fallback = gamePlayers.slice(0,5).map(p => p.player_id)
+  let court = [...(currentCourt && currentCourt.length ? currentCourt : fallback)]
+  const subs = evs.filter(ev => ev.team === 'us' && ev.event_type === 'substitution')
+  for (let i = subs.length - 1; i >= 0; i--) {
+    const ev = subs[i]
+    if (ev.player_id && ev.linked_event_id) {
+      const idx = court.indexOf(ev.player_id)
+      if (idx !== -1) court[idx] = ev.linked_event_id
+    } else if (ev.player_id && !ev.linked_event_id) {
+      court = court.filter(p => p !== ev.player_id)
+    } else if (!ev.player_id && ev.linked_event_id && !court.includes(ev.linked_event_id)) {
+      court.push(ev.linked_event_id)
+    }
+  }
   evs.forEach(ev => {
     const delta = ev.event_type==='2pt_made'?2 : ev.event_type==='3pt_made'?3 : ev.event_type==='ft_made'?1 : 0
     if (delta > 0) {
@@ -1406,7 +1431,7 @@ export default function LivePage() {
   const ourShots     = events.filter(e => e.team==='us'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made'), context:e.shot_context }))
   const rivalShots   = events.filter(e => e.team==='rival'&&e.shot_x!=null&&SHOT_TYPES.includes(e.event_type)).map(e => ({ x:e.shot_x, y:e.shot_y, made:e.event_type.endsWith('_made'), context:e.shot_context }))
   const { our:ourBS, riv:rivBS } = computeBoxScore(events, gps, rivals)
-  const plusMinusUs = computePlusMinusUs(events, gps)
+  const plusMinusUs = computePlusMinusUs(events, gps, onCourt)
   const rivalInitialFive = (game.rival_roster || []).slice(0,5)
   const plusMinusRival = computePlusMinusRival(events, rivalInitialFive)
   const quarterScores = computeQuarterScores(events)

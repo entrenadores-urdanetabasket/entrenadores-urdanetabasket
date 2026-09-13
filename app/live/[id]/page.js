@@ -294,7 +294,7 @@ function CourtSVG({ onShot, shots = [], only3pt = false }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%"
-      style={{ display:'block', borderRadius:12, cursor:onShot?'crosshair':'default', touchAction:onShot?'none':'pan-y', userSelect:'none' }}
+      style={{ display:'block', aspectRatio:`${W} / ${H}`, borderRadius:12, cursor:onShot?'crosshair':'default', touchAction:onShot?'none':'pan-y', userSelect:'none' }}
       onClick={handleClick}>
       <defs>
         <linearGradient id="wood2" x1="0" y1="0" x2="1" y2="0">
@@ -1963,10 +1963,23 @@ export default function LivePage() {
               <button onClick={() => setModal({...modal,made:true})}  style={btnStyle('#16a34a')}>✓ Anotado</button>
               <button onClick={() => setModal({...modal,made:false})} style={btnStyle('#dc2626')}>✗ Fallado</button>
             </div>
+          ) : modal.pos ? (
+            // Confirmación visual: se muestra el punto EXACTO donde ha
+            // quedado marcado, con el mismo color/forma que tendrá en el
+            // mapa de tiro, antes de guardarlo — para comprobar que coincide
+            // con donde se ha tocado y poder repetirlo si no es así.
+            <>
+              <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:10 }}>¿Es aquí?</div>
+              <CourtSVG shots={[{ x:modal.pos.x, y:modal.pos.y, made:modal.made, context:modal.context }]}/>
+              <div style={{ display:'flex', gap:10, marginTop:10 }}>
+                <button onClick={() => setModal({...modal, pos:null})} style={btnStyle('#374151',12)}>↺ Repetir</button>
+                <button onClick={() => confirmShot(modal.made, modal.pos.x, modal.pos.y)} style={btnStyle('#16a34a',12)}>✓ Confirmar</button>
+              </div>
+            </>
           ) : (
             <>
               <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:10 }}>Toca la posición del tiro (o salta)</div>
-              <CourtSVG onShot={(x,y) => confirmShot(modal.made, x, y)} only3pt={modal.action==='3pt'}/>
+              <CourtSVG onShot={(x,y) => setModal({...modal, pos:{x,y}})} only3pt={modal.action==='3pt'}/>
               {/* "Sin posición" para un triple no puede caer en el centro de
                   la pista (0.5,0.5): eso queda dentro de la zona y en el
                   mapa de tiro parece un 2 — se usa un punto estándar de tiro

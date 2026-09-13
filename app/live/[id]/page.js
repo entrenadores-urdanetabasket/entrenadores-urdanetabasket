@@ -1967,7 +1967,11 @@ export default function LivePage() {
             <>
               <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:10 }}>Toca la posición del tiro (o salta)</div>
               <CourtSVG onShot={(x,y) => confirmShot(modal.made, x, y)} only3pt={modal.action==='3pt'}/>
-              <button onClick={() => confirmShot(modal.made, 0.5, 0.5)} style={{ marginTop:10, ...btnStyle('#374151',12) }}>
+              {/* "Sin posición" para un triple no puede caer en el centro de
+                  la pista (0.5,0.5): eso queda dentro de la zona y en el
+                  mapa de tiro parece un 2 — se usa un punto estándar de tiro
+                  exterior de frente al aro, claramente fuera del arco. */}
+              <button onClick={() => confirmShot(modal.made, 0.5, modal.action==='3pt' ? 0.62 : 0.5)} style={{ marginTop:10, ...btnStyle('#374151',12) }}>
                 Registrar sin posición
               </button>
             </>

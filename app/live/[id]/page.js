@@ -18,7 +18,7 @@ function computeScores(evs) {
 }
 
 function computeBoxScore(evs, gamePlayers, rivalJerseys) {
-  const init = () => ({ pts:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, reb:0, ast:0, stl:0, blk:0, tov:0, fouls:0,
+  const init = () => ({ pts:0, fg2m:0, fg2a:0, fg3m:0, fg3a:0, ftm:0, fta:0, reb:0, rebO:0, rebD:0, ast:0, stl:0, blk:0, tov:0, fouls:0,
     transM:0, transA:0, statM:0, statA:0 })
   const our = {}; gamePlayers.forEach(p => { our[p.player_id] = init() })
   const riv = {}; rivalJerseys.forEach(n => { riv[n] = init() })
@@ -39,7 +39,8 @@ function computeBoxScore(evs, gamePlayers, rivalJerseys) {
       case '3pt_miss':       s.fg3a++; addContext(s, ev, false); break
       case 'ft_made':        s.pts+=1; s.ftm++; s.fta++; break
       case 'ft_miss':        s.fta++; break
-      case 'rebound_off': case 'rebound_def': s.reb++; break
+      case 'rebound_off': s.reb++; s.rebO++; break
+      case 'rebound_def': s.reb++; s.rebD++; break
       case 'assist':         s.ast++; break
       case 'steal':          s.stl++; break
       case 'block':          s.blk++; break
@@ -531,10 +532,10 @@ function BSSection({ title, color, rows, showPM }) {
     const s = r.s||{}
     return { pts:a.pts+(s.pts||0), fg2m:a.fg2m+(s.fg2m||0), fg2a:a.fg2a+(s.fg2a||0),
       fg3m:a.fg3m+(s.fg3m||0), fg3a:a.fg3a+(s.fg3a||0), ftm:a.ftm+(s.ftm||0), fta:a.fta+(s.fta||0),
-      reb:a.reb+(s.reb||0), ast:a.ast+(s.ast||0), stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0),
+      reb:a.reb+(s.reb||0), rebO:a.rebO+(s.rebO||0), rebD:a.rebD+(s.rebD||0), ast:a.ast+(s.ast||0), stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0),
       pir:a.pir+(s.pir||0),
       transM:a.transM+(s.transM||0), transA:a.transA+(s.transA||0), statM:a.statM+(s.statM||0), statA:a.statA+(s.statA||0) }
-  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,ast:0,stl:0,blk:0,tov:0,fouls:0,pir:0,transM:0,transA:0,statM:0,statA:0 })
+  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,rebO:0,rebD:0,ast:0,stl:0,blk:0,tov:0,fouls:0,pir:0,transM:0,transA:0,statM:0,statA:0 })
   const totTS = computeTS(tot)
   return (
     <div>
@@ -571,7 +572,10 @@ function BSSection({ title, color, rows, showPM }) {
                   <td style={{ ...td, color:(s.transA||0)>0?'#fbbf24':td.color }}>{s.transM||0}/{s.transA||0}</td>
                   <td style={{ ...td, color:(s.statA||0)>0?'#38bdf8':td.color }}>{s.statM||0}/{s.statA||0}</td>
                   <td style={td}>{s.ftm||0}/{s.fta||0}</td>
-                  <td style={td}>{s.reb||0}</td>
+                  <td style={{ ...td, fontWeight:700 }}>
+                    {s.reb||0}
+                    <div style={{ fontSize:8.5, color:'#6b7280', fontWeight:400 }}>O{s.rebO||0}·D{s.rebD||0}</div>
+                  </td>
                   <td style={td}>{s.ast||0}</td>
                   <td style={td}>{s.stl||0}</td>
                   <td style={td}>{s.blk||0}</td>
@@ -605,7 +609,10 @@ function BSSection({ title, color, rows, showPM }) {
                 <td style={{ ...td, fontWeight:700, color:'#fbbf24' }}>{tot.transM}/{tot.transA}</td>
                 <td style={{ ...td, fontWeight:700, color:'#38bdf8' }}>{tot.statM}/{tot.statA}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ftm}/{tot.fta}</td>
-                <td style={{ ...td, fontWeight:700 }}>{tot.reb}</td>
+                <td style={{ ...td, fontWeight:700 }}>
+                  {tot.reb}
+                  <div style={{ fontSize:8.5, color:'#9ca3af', fontWeight:400 }}>O{tot.rebO}·D{tot.rebD}</div>
+                </td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.ast}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.stl}</td>
                 <td style={{ ...td, fontWeight:700 }}>{tot.blk}</td>
@@ -643,7 +650,7 @@ function PrintBS({ rows }) {
             <tr key={i}>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{r.num}</td>
               <td style={{ padding:'3px 5px', border:'1px solid #e5e7eb' }}>{r.name}</td>
-              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${fgm}/${fga}${fgPct!==null?` (${fgPct}%)`:''}`,`${s.transM||0}/${s.transA||0}`,`${s.statM||0}/${s.statA||0}`,`${s.ftm||0}/${s.fta||0}`,s.reb||0,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
+              {[s.pts||0,`${s.fg2m||0}/${s.fg2a||0}`,`${s.fg3m||0}/${s.fg3a||0}`,`${fgm}/${fga}${fgPct!==null?` (${fgPct}%)`:''}`,`${s.transM||0}/${s.transA||0}`,`${s.statM||0}/${s.statA||0}`,`${s.ftm||0}/${s.fta||0}`,`${s.reb||0} (O${s.rebO||0}/D${s.rebD||0})`,s.ast||0,s.stl||0,s.blk||0,s.tov||0,s.fouls||0,computePIR(s),(computeTS(s)!==null?`${computeTS(s)}%`:'—')].map((v,j) => (
                 <td key={j} style={{ padding:'3px 5px', border:'1px solid #e5e7eb', textAlign:'center' }}>{v}</td>
               ))}
             </tr>
@@ -806,6 +813,7 @@ export default function LivePage() {
   const [quarter, setQuarter]   = useState(1)
   const [secs, setSecs]         = useState(600)
   const [running, setRunning]   = useState(false)
+  const loadReqRef              = useRef(0)
   const intervalRef             = useRef(null)
   const timerExpiredRef         = useRef(false)
   const eventsRef               = useRef([])
@@ -905,8 +913,19 @@ export default function LivePage() {
   }, [id])
 
   // ── Load ─────────────────────────────────────────────────────────────────────
+  // Se puede disparar más de una vez seguida — sobre todo al volver la app a
+  // primer plano tras estar un rato en segundo plano, donde el cliente de
+  // Supabase suele refrescar la sesión y esta página relanza load(). Si una
+  // llamada antigua tarda más que una más reciente (típico justo al
+  // recuperar la conexión), su respuesta llega TARDE y puede pisar con
+  // datos obsoletos el periodo/reloj ya correctos que la llamada nueva
+  // acababa de guardar — esto es lo que causaba que el periodo pareciera
+  // "reiniciarse" a 1 al volver a entrar. Se descarta cualquier respuesta
+  // que no sea de la llamada más reciente.
   async function load() {
+    const reqId = ++loadReqRef.current
     const { data: g } = await supabase.from('games').select('*').eq('id', id).single()
+    if (reqId !== loadReqRef.current) return
     if (!g) { router.replace('/dashboard/estadisticas'); return }
     setGame(g)
     if (g.quarter) setQuarter(Number(g.quarter) || 1)
@@ -940,7 +959,9 @@ export default function LivePage() {
       setOurTeamLogo('/logo.png')
     }
 
+    if (reqId !== loadReqRef.current) return
     const { data: rows } = await supabase.from('game_players').select('*, players(full_name, number)').eq('game_id', id)
+    if (reqId !== loadReqRef.current) return
     // El dorsal de ESTE partido (jersey_number, editable al montar la
     // convocatoria) manda sobre el dorsal habitual del jugador — cubre
     // convocar a alguien de un equipo vinculado cuyo número coincide con
@@ -964,6 +985,7 @@ export default function LivePage() {
     else if (g.rival_roster?.length) setRivalOnCourt(g.rival_roster.slice(0,5))
 
     const { data: evs } = await supabase.from('game_events').select('*').eq('game_id', id).order('created_at', { ascending:true })
+    if (reqId !== loadReqRef.current) return
     setEvents(evs || [])
     setLoading(false)
   }
@@ -1651,7 +1673,9 @@ export default function LivePage() {
 
               {/* Period + Clock */}
               <div style={{ textAlign:'center', flexShrink:0 }}>
-                <div style={{ fontSize:9, fontWeight:800, color:'#f59e0b', letterSpacing:1.5, marginBottom:2 }}>
+                <div onClick={() => setModal({ type:'edit_quarter' })} title="Tocar para cambiar de periodo" style={{
+                  fontSize:9, fontWeight:800, color:'#f59e0b', letterSpacing:1.5, marginBottom:2, cursor:'pointer',
+                  textDecoration:'underline', textDecorationStyle:'dotted', textDecorationColor:'#f59e0b88' }}>
                   {Q_LABEL(quarter)}
                 </div>
                 {editingClock ? (
@@ -2174,7 +2198,10 @@ export default function LivePage() {
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
               {courtGps.map(gp => (
                 <button key={gp.player_id} onClick={async () => {
-                  const isOff = modal.shooterTeam==='rival'; setModal(null)
+                  // Ofensivo si el mismo equipo que tiró es el que rebotea
+                  // (recupera su propio tiro fallado); defensivo si rebota
+                  // el otro equipo.
+                  const isOff = modal.shooterTeam==='us'; setModal(null)
                   await saveEv(isOff?'rebound_off':'rebound_def','us',gp.player_id,{linked:modal.linked})
                 }} style={{ padding:'7px 9px', borderRadius:8, border:'none', cursor:'pointer', backgroundColor:'#16a34a', color:'#fff', fontSize:11, fontWeight:800 }}>
                   #{gp.players?.number} <span style={{ fontWeight:500, fontSize:10 }}>{gp.players?.full_name?.split(' ')[0]}</span>
@@ -2187,7 +2214,7 @@ export default function LivePage() {
             <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
               {rivalVisible.map(n => (
                 <button key={n} onClick={async () => {
-                  const isOff = modal.shooterTeam==='us'; setModal(null)
+                  const isOff = modal.shooterTeam==='rival'; setModal(null)
                   await saveEv(isOff?'rebound_off':'rebound_def','rival',n,{linked:modal.linked})
                 }} style={{ padding:'7px 11px', borderRadius:8, border:'none', cursor:'pointer', backgroundColor:'#d97706', color:'#fff', fontSize:12, fontWeight:900 }}>
                   #{n}
@@ -2595,6 +2622,36 @@ export default function LivePage() {
             </button>
           </div>
           <button onClick={() => saveRivalJerseys(modal.edits, modal.newRivals)} style={{ ...btnStyle('#2563eb'), marginBottom:8 }}>✓ Guardar</button>
+          <button onClick={() => setModal(null)} style={btnStyle('#1f2937',12)}>Cancelar</button>
+        </Overlay>
+      )}
+
+      {/* ── Cambiar periodo a mano — por si el periodo no se ha guardado bien
+          y hace falta corregirlo sin perder nada de lo ya registrado ── */}
+      {modal?.type==='edit_quarter' && (
+        <Overlay onClose={() => setModal(null)}>
+          <div style={{ color:'#f59e0b', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🕐 Cambiar periodo</div>
+          <div style={{ color:'#6b7280', fontSize:11, textAlign:'center', marginBottom:14 }}>Periodo actual: {Q_LABEL(quarter)} — no afecta a las jugadas ya guardadas</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:8 }}>
+            {[1,2,3,4].map(q => (
+              <button key={q} onClick={() => { setQuarter(q); supabase.from('games').update({ quarter:q }).eq('id', id); setModal(null) }}
+                style={{ padding:'12px 0', borderRadius:9, cursor:'pointer', fontWeight:900, fontSize:13,
+                  border:`2px solid ${quarter===q?'#f59e0b':'#1a2030'}`,
+                  backgroundColor:quarter===q?'#78350f':'#111520', color:quarter===q?'#fde68a':'#9ca3af' }}>
+                {Q_LABEL(q)}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14 }}>
+            {[5,6,7].map(q => (
+              <button key={q} onClick={() => { setQuarter(q); supabase.from('games').update({ quarter:q }).eq('id', id); setModal(null) }}
+                style={{ padding:'12px 0', borderRadius:9, cursor:'pointer', fontWeight:900, fontSize:13,
+                  border:`2px solid ${quarter===q?'#f59e0b':'#1a2030'}`,
+                  backgroundColor:quarter===q?'#78350f':'#111520', color:quarter===q?'#fde68a':'#9ca3af' }}>
+                {Q_LABEL(q)}
+              </button>
+            ))}
+          </div>
           <button onClick={() => setModal(null)} style={btnStyle('#1f2937',12)}>Cancelar</button>
         </Overlay>
       )}

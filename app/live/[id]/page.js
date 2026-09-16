@@ -632,6 +632,17 @@ function BSSection({ title, color, rows, showPM }) {
 }
 
 function PrintBS({ rows }) {
+  const tot = rows.reduce((a,r) => {
+    const s = r.s||{}
+    return { pts:a.pts+(s.pts||0), fg2m:a.fg2m+(s.fg2m||0), fg2a:a.fg2a+(s.fg2a||0),
+      fg3m:a.fg3m+(s.fg3m||0), fg3a:a.fg3a+(s.fg3a||0), ftm:a.ftm+(s.ftm||0), fta:a.fta+(s.fta||0),
+      reb:a.reb+(s.reb||0), rebO:a.rebO+(s.rebO||0), rebD:a.rebD+(s.rebD||0), ast:a.ast+(s.ast||0),
+      stl:a.stl+(s.stl||0), blk:a.blk+(s.blk||0), tov:a.tov+(s.tov||0), fouls:a.fouls+(s.fouls||0),
+      transM:a.transM+(s.transM||0), transA:a.transA+(s.transA||0), statM:a.statM+(s.statM||0), statA:a.statA+(s.statA||0) }
+  }, { pts:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,rebO:0,rebD:0,ast:0,stl:0,blk:0,tov:0,fouls:0,transM:0,transA:0,statM:0,statA:0 })
+  const totFgm = tot.fg2m+tot.fg3m, totFga = tot.fg2a+tot.fg3a
+  const totFgPct = totFga>0 ? Math.round(totFgm/totFga*100) : null
+  const totTS = computeTS(tot)
   return (
     <table style={{ width:'100%', borderCollapse:'collapse', fontSize:10 }}>
       <thead>
@@ -656,6 +667,15 @@ function PrintBS({ rows }) {
             </tr>
           )
         })}
+        {rows.length > 0 && (
+          <tr style={{ backgroundColor:'#e5e7eb', fontWeight:700 }}>
+            <td style={{ padding:'3px 5px', border:'1px solid #d1d5db' }}></td>
+            <td style={{ padding:'3px 5px', border:'1px solid #d1d5db' }}>TOTAL EQUIPO</td>
+            {[tot.pts,`${tot.fg2m}/${tot.fg2a}`,`${tot.fg3m}/${tot.fg3a}`,`${totFgm}/${totFga}${totFgPct!==null?` (${totFgPct}%)`:''}`,`${tot.transM}/${tot.transA}`,`${tot.statM}/${tot.statA}`,`${tot.ftm}/${tot.fta}`,`${tot.reb} (O${tot.rebO}/D${tot.rebD})`,tot.ast,tot.stl,tot.blk,tot.tov,tot.fouls,computePIR(tot),(totTS!==null?`${totTS}%`:'—')].map((v,j) => (
+              <td key={j} style={{ padding:'3px 5px', border:'1px solid #d1d5db', textAlign:'center' }}>{v}</td>
+            ))}
+          </tr>
+        )}
       </tbody>
     </table>
   )

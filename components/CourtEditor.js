@@ -652,8 +652,9 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 
     let ideal
     if (el.type === 'xdefense') {
-      const ballMoved = primaryCarrierId && !!targets[primaryCarrierId]
-      if (!ballMoved && !hasBallTransfer) continue
+      // Zona: se recalcula en todos los pasos, no solo cuando el balón se
+      // mueve justo en este paso concreto (así el bloque no se "congela"
+      // tras varias acciones sin pase/bote).
       const ballEndPos = primaryCarrierId ? finalTargetPos(primaryCarrierId) : null
       const useBottom = courtType === 'full' && ballEndPos && ballEndPos.y > H / 2
       ideal = computeZoneDefPos(el.num, zoneShape, ballEndPos, courtType, H, useBottom)
@@ -974,6 +975,22 @@ const ZONE_SLOTS = {
 }
 const ZONE_SHAPES = Object.keys(ZONE_SLOTS)
 
+// Límites de "carril" horizontal de cada posición de zona, para que el
+// cierre sobre el balón nunca empuje a un defensor más allá de su vecino
+// (evita que dos defensores intercambien de lado y se vean cruzar). Se
+// calcula una vez a partir de las posiciones de casa: el límite entre dos
+// vecinos es el punto medio entre ambos.
+function zoneXBoundsM(zoneShape, num) {
+  const slots = ZONE_SLOTS[zoneShape] || ZONE_SLOTS['2-3']
+  const nums = Object.keys(slots).map(Number).sort((a, b) => slots[a].mx - slots[b].mx)
+  const idx = nums.indexOf(Number(num))
+  if (idx === -1) return { lo: -Infinity, hi: Infinity }
+  const mx = slots[num].mx
+  const lo = idx > 0 ? (mx + slots[nums[idx - 1]].mx) / 2 : -Infinity
+  const hi = idx < nums.length - 1 ? (mx + slots[nums[idx + 1]].mx) / 2 : Infinity
+  return { lo, hi }
+}
+
 /*
  * computeZoneDefPos — posición de un defensor de ZONA (num = posición fija
  * de la zona, no un atacante concreto):
@@ -983,11 +1000,13 @@ const ZONE_SHAPES = Object.keys(ZONE_SLOTS)
  *     sobre él (ajuste defensivo visible).
  *   • Si el balón penetra cerca del aro, el bloque entero se cierra hacia
  *     dentro (ayuda), sin necesidad de dibujar una flecha a mano.
+ *   • Nunca cruza el carril de un compañero (ver zoneXBoundsM).
  */
 function computeZoneDefPos(num, zoneShape, ballPos, courtType, courtH, useBottom) {
   const slots = ZONE_SLOTS[zoneShape] || ZONE_SLOTS['2-3']
   const slot = slots[num]
   if (!slot) return null
+  const { lo: loM, hi: hiM } = zoneXBoundsM(zoneShape, num)
 
   const mg    = 22
   const halfH = courtType === 'full' ? Math.round(courtH / 2) : courtH
@@ -1025,6 +1044,10 @@ function computeZoneDefPos(num, zoneShape, ballPos, courtType, courtH, useBottom
     x += (basketX - x) * sink * 0.4
     y += (rimY - y) * sink * 0.4
   }
+
+  // 4) Nunca cruzar el carril del vecino
+  if (isFinite(loM)) x = Math.max(x, mg + loM * sx)
+  if (isFinite(hiM)) x = Math.min(x, mg + hiM * sx)
 
   return { x, y, mode: closeout > 0.5 ? 'tight' : 'help' }
 }
@@ -1274,9 +1297,10 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
       if (hasManual || !playerPos[el.id]) continue
 
       if (el.type === 'xdefense') {
-        // Zona: no sigue a ningún atacante concreto — se reposiciona si el
-        // balón se ha movido/pasado este paso.
-        if (!ballMoved && !ballPassed) continue
+        // Zona: no sigue a ningún atacante concreto — se recalcula en TODOS
+        // los pasos según dónde esté el balón en ese momento (no solo si el
+        // balón se ha movido justo en este paso), para que el bloque esté
+        // siempre bien ajustado aunque lleven varios pasos sin pase/bote.
         const useBottom = courtType === 'full' && ballPos && ballPos.y > courtH / 2
         const ideal = computeZoneDefPos(el.num, zoneShape, ballPos, courtType, courtH, useBottom)
         if (!ideal) continue

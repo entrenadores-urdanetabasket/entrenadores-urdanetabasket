@@ -2174,11 +2174,11 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('offense',n,n))}
               </div>
-              <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>○ Defensa (hueco)</div>
+              <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>○ Defensa (individual)</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('defense',n,n))}
               </div>
-              <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>✕ Defensa X</div>
+              <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>✕ Defensa (zona)</div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('xdefense',n,n))}
               </div>

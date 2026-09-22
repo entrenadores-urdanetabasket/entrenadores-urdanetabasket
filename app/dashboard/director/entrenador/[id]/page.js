@@ -420,6 +420,7 @@ export default function CoachActivityPage() {
               description: detailTactic.description || '',
               steps: detailTactic.play_data?.steps || [],
               courtType: detailTactic.play_data?.courtType,
+              zoneShape: detailTactic.play_data?.zoneShape,
             }}
             onClose={() => setDetailTactic(null)}
           />

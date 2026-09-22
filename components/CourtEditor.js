@@ -471,13 +471,13 @@ function drawEl(ctx, el, selected, showVisionCone) {
      Base positions come from accumulateSteps(elems, animStepIdx)
 ══════════════════════════════════════════════════ */
 function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
-                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false) {
+                          isEditing = false, selId = null, activeDrawStep = 0, showVisionCone = false, zoneShape = '2-3') {
   ctx.clearRect(0, 0, W, H)
   drawCourt(ctx, W, H, courtType)
 
   /* ─────────── EDIT MODE ─────────── */
   if (isEditing) {
-    const { playerPos, carrierIds: baseCarrierIds, playerFace } = accumulateSteps(elems, activeDrawStep, H, courtType)
+    const { playerPos, carrierIds: baseCarrierIds, playerFace } = accumulateSteps(elems, activeDrawStep, H, courtType, zoneShape)
 
     // Draw arrows — current step at full opacity, others dimmed
     for (const el of elems) {
@@ -546,7 +546,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   }
 
   /* ─────────── ANIMATION MODE ─────────── */
-  const { playerPos: basePos, carrierIds: baseCarrierIds } = accumulateSteps(elems, animStepIdx, H, courtType)
+  const { playerPos: basePos, carrierIds: baseCarrierIds } = accumulateSteps(elems, animStepIdx, H, courtType, zoneShape)
   // Balón "principal" cuya trayectoria se anima con detalle (arco, curva...)
   // esta acción; si hay varios balones a la vez (multiBall), el resto de
   // transferencias se resuelven igualmente bien pero sin esa animación fina
@@ -554,7 +554,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   // Estado de los balones al FINAL de esta acción, para que un balón
   // secundario (multiBall) aparezca en su nuevo dueño en cuanto arranca el
   // movimiento, aunque no tenga animación de vuelo propia
-  const afterCarrierIds = accumulateSteps(elems, animStepIdx + 1, H, courtType).carrierIds
+  const afterCarrierIds = accumulateSteps(elems, animStepIdx + 1, H, courtType, zoneShape).carrierIds
 
   // Targets for this step (only MOVE_ARROW_TYPES). Un mismo jugador puede
   // tener VARIAS flechas encadenadas en la misma acción (p.ej. el receptor
@@ -649,13 +649,24 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
   for (const el of elems) {
     if (!['defense','xdefense'].includes(el.type) || !el.num || targets[el.id]) continue
     const base = basePos[el.id]; if (!base) continue
-    const att  = elems.find(e => e.type === 'offense' && e.num === el.num)
-    if (!att || !basePos[att.id]) continue
-    const attMoved = !!targets[att.id]
-    if (!attMoved && !hasBallTransfer) continue   // nothing relevant happened
-    const attEndPos  = finalTargetPos(att.id)
-    const ballEndPos = primaryCarrierId ? finalTargetPos(primaryCarrierId) : null
-    const ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
+
+    let ideal
+    if (el.type === 'xdefense') {
+      const ballMoved = primaryCarrierId && !!targets[primaryCarrierId]
+      if (!ballMoved && !hasBallTransfer) continue
+      const ballEndPos = primaryCarrierId ? finalTargetPos(primaryCarrierId) : null
+      const useBottom = courtType === 'full' && ballEndPos && ballEndPos.y > H / 2
+      ideal = computeZoneDefPos(el.num, zoneShape, ballEndPos, courtType, H, useBottom)
+      if (!ideal) continue
+    } else {
+      const att  = elems.find(e => e.type === 'offense' && e.num === el.num)
+      if (!att || !basePos[att.id]) continue
+      const attMoved = !!targets[att.id]
+      if (!attMoved && !hasBallTransfer) continue   // nothing relevant happened
+      const attEndPos  = finalTargetPos(att.id)
+      const ballEndPos = primaryCarrierId ? finalTargetPos(primaryCarrierId) : null
+      ideal = computeSmartDefPos(attEndPos, ballEndPos, courtType, H)
+    }
     const tx = clampX(ideal.x), ty = clampY(ideal.y)
 
     // No atravesar a otros jugadores en el camino (bloqueos, cortes, manos a
@@ -882,7 +893,7 @@ function renderPhaseFrame(ctx, W, H, courtType, elems, animStepIdx, stepT,
 /* ══════════════════════════════════════════════════
    PHASE THUMBNAIL
 ══════════════════════════════════════════════════ */
-function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }) {
+function PhaseThumb({ elements, active, index, onClick, courtType, visionCones, zoneShape }) {
   const ref = useRef(null)
   const CH = getCanvasH(courtType)
   const TW = 132, TH = Math.round(132 * CH / CW)
@@ -893,9 +904,9 @@ function PhaseThumb({ elements, active, index, onClick, courtType, visionCones }
     const s = TW / CW
     ctx.clearRect(0,0,TW,TH)
     ctx.save(); ctx.scale(s,s)
-    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones)
+    renderPhaseFrame(ctx, CW, CH, courtType, elements, 0, 0, true, null, 0, visionCones, zoneShape)
     ctx.restore()
-  }, [elements, TW, TH, courtType, CH, visionCones])
+  }, [elements, TW, TH, courtType, CH, visionCones, zoneShape])
 
   return (
     <div onClick={onClick} style={{ cursor:'pointer', borderRadius:8, overflow:'hidden', border:`2px solid ${active?'#3b82f6':'#374151'}`, position:'relative', flexShrink:0, transition:'border-color 0.15s' }}>
@@ -931,6 +942,91 @@ function getNumSteps(elems) {
     }
   }
   return Math.max(1, max + 1)
+}
+
+/*
+ * ZONE_SLOTS — posición "de casa" de cada defensor en X (num 1-5) según la
+ * forma de zona elegida, en metros de cancha (0-15 ancho, 0-14 fondo desde
+ * el aro) — mismo sistema de medidas que el resto del dibujo de la pista.
+ */
+const ZONE_SLOTS = {
+  '2-3': {
+    1: { mx: 5.2,  my: 5.4 },  // base izq
+    2: { mx: 9.8,  my: 5.4 },  // base dcha
+    3: { mx: 7.5,  my: 2.2 },  // interior/fondo centro
+    4: { mx: 2.8,  my: 2.9 },  // ala-esquina izq
+    5: { mx: 12.2, my: 2.9 },  // ala-esquina dcha
+  },
+  '3-2': {
+    1: { mx: 3.5,  my: 5.8 },  // base izq
+    2: { mx: 7.5,  my: 6.2 },  // base centro (punta, presión arriba)
+    3: { mx: 11.5, my: 5.8 },  // base dcha
+    4: { mx: 4.0,  my: 2.3 },  // fondo izq
+    5: { mx: 11.0, my: 2.3 },  // fondo dcha
+  },
+  '1-3-1': {
+    1: { mx: 7.5,  my: 6.3 },  // punta arriba
+    2: { mx: 3.2,  my: 4.0 },  // ala izq (línea media)
+    3: { mx: 7.5,  my: 4.2 },  // centro (línea media, sube/baja según el balón)
+    4: { mx: 11.8, my: 4.0 },  // ala dcha (línea media)
+    5: { mx: 7.5,  my: 1.8 },  // base/fondo, protege el aro
+  },
+}
+const ZONE_SHAPES = Object.keys(ZONE_SLOTS)
+
+/*
+ * computeZoneDefPos — posición de un defensor de ZONA (num = posición fija
+ * de la zona, no un atacante concreto):
+ *   • Todo el bloque se desplaza hacia el lado fuerte según por dónde va
+ *     el balón, sin perder la forma de la zona.
+ *   • El defensor de la posición más cercana al balón cierra más fuerte
+ *     sobre él (ajuste defensivo visible).
+ *   • Si el balón penetra cerca del aro, el bloque entero se cierra hacia
+ *     dentro (ayuda), sin necesidad de dibujar una flecha a mano.
+ */
+function computeZoneDefPos(num, zoneShape, ballPos, courtType, courtH, useBottom) {
+  const slots = ZONE_SLOTS[zoneShape] || ZONE_SLOTS['2-3']
+  const slot = slots[num]
+  if (!slot) return null
+
+  const mg    = 22
+  const halfH = courtType === 'full' ? Math.round(courtH / 2) : courtH
+  const sx    = (CW - 2 * mg) / 15
+  const sy    = (halfH - 2 * mg) / 14
+  const homeX = mg + slot.mx * sx
+  const homeYRaw = mg + slot.my * sy
+  const homeY = useBottom ? courtH - homeYRaw : homeYRaw
+
+  if (!ballPos) return { x: homeX, y: homeY }
+
+  const basketX = CW / 2
+  const rimYRaw = mg + 1.575 * sy
+  const rimY = useBottom ? courtH - rimYRaw : rimYRaw
+
+  // 1) Desplazamiento de todo el bloque hacia el lado fuerte
+  const ballOffsetM = (ballPos.x - basketX) / sx
+  const shiftX = Math.max(-1.6, Math.min(1.6, ballOffsetM * 0.42)) * sx
+  let x = homeX + shiftX
+  let y = homeY
+
+  // 2) Cierre extra sobre el balón, más fuerte cuanto más cerca de "casa"
+  const distHome = Math.hypot(ballPos.x - homeX, ballPos.y - homeY)
+  const closeout = Math.max(0, 1 - distHome / 260)
+  const dxBall = ballPos.x - x, dyBall = ballPos.y - y
+  const distBall = Math.hypot(dxBall, dyBall) || 1
+  const pull = 55 * closeout
+  x += (dxBall / distBall) * pull
+  y += (dyBall / distBall) * pull
+
+  // 3) Penetración cerca del aro → el bloque se cierra hacia dentro (ayuda)
+  const distRim = Math.hypot(ballPos.x - basketX, ballPos.y - rimY)
+  if (distRim < 130) {
+    const sink = (130 - distRim) / 130 * 0.35
+    x += (basketX - x) * sink * 0.4
+    y += (rimY - y) * sink * 0.4
+  }
+
+  return { x, y, mode: closeout > 0.5 ? 'tight' : 'help' }
 }
 
 /*
@@ -1071,7 +1167,7 @@ function smartFacing(defPos, attPos, ballPos) {
  * carrierIds es un Set — normalmente tiene un único id (un balón), pero en
  * modo multiBall puede tener varios jugadores llevando balón a la vez.
  */
-function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half') {
+function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half', zoneShape = '2-3') {
   const clampX = v => Math.max(PR + 4, Math.min(CW - PR - 4, v))
   const clampY = v => Math.max(PR + 4, Math.min(courtH - PR - 4, v))
 
@@ -1168,18 +1264,30 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
     // cuando hay varios balones a la vez)
     const primaryId = primaryCarrierId()
     const ballPos = primaryId ? playerPos[primaryId] : null
+    const ballMoved = primaryId && !!stepMoves[primaryId]
+    const ballPassed = elems.some(e => e.type === 'pass' && (e.step ?? 0) === s)
     for (const el of elems) {
       if (!['defense','xdefense'].includes(el.type) || !el.num) continue
       const hasManual = elems.some(e =>
         (MOVE_ARROW_TYPES.includes(e.type) || e.type === 'handoff') && (e.step ?? 0) === s && e.fromId === el.id
       )
       if (hasManual || !playerPos[el.id]) continue
+
+      if (el.type === 'xdefense') {
+        // Zona: no sigue a ningún atacante concreto — se reposiciona si el
+        // balón se ha movido/pasado este paso.
+        if (!ballMoved && !ballPassed) continue
+        const useBottom = courtType === 'full' && ballPos && ballPos.y > courtH / 2
+        const ideal = computeZoneDefPos(el.num, zoneShape, ballPos, courtType, courtH, useBottom)
+        if (!ideal) continue
+        playerPos[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
+        continue
+      }
+
       const att = elems.find(e => e.type === 'offense' && e.num === el.num)
       if (!att || !playerPos[att.id]) continue
       // Only reposition if something moved this step (attacker or ball)
       const attMoved = !!stepMoves[att.id]
-      const ballMoved = primaryId && !!stepMoves[primaryId]
-      const ballPassed = elems.some(e => e.type === 'pass' && (e.step ?? 0) === s)
       if (!attMoved && !ballMoved && !ballPassed) continue
       const ideal = computeSmartDefPos(playerPos[att.id], ballPos, courtType, courtH)
       playerPos[el.id] = { x: clampX(ideal.x), y: clampY(ideal.y) }
@@ -1194,10 +1302,16 @@ function accumulateSteps(elems, throughStep, courtH = FULL_H, courtType = 'half'
   const facingBallId = primaryCarrierId()
   for (const el of elems) {
     if ((el.type !== 'defense' && el.type !== 'xdefense') || el.face !== undefined) continue
-    const att = elems.find(e => e.type === 'offense' && e.num === el.num)
     const defPos = playerPos[el.id]
-    if (!att || !playerPos[att.id] || !defPos) continue
+    if (!defPos) continue
     const ballPos = facingBallId ? playerPos[facingBallId] : null
+    if (el.type === 'xdefense') {
+      // Zona: sin hombre asignado — mira al balón (o hacia el aro si aún no hay balón)
+      if (ballPos) playerFace[el.id] = Math.atan2(ballPos.y - defPos.y, ballPos.x - defPos.x)
+      continue
+    }
+    const att = elems.find(e => e.type === 'offense' && e.num === el.num)
+    if (!att || !playerPos[att.id]) continue
     playerFace[el.id] = smartFacing(defPos, playerPos[att.id], ballPos)
   }
 
@@ -1217,6 +1331,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const pausedElapsedRef = useRef(0)  // punto (ms) desde el que reanudar al pulsar play
   const phasesRef      = useRef(null)
   const courtTypeRef   = useRef('half')
+  const zoneShapeRef   = useRef('2-3')
   const selIdRef       = useRef(null)
 
   const mkPhase = () => ({ id: Math.random().toString(36).slice(2), elements: [] })
@@ -1245,6 +1360,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   const [textModal,  setTextModal]   = useState(null)
   const [textVal,    setTextVal]     = useState('')
   const [courtType,  setCourtType]   = useState(initialData?.courtType||'half')
+  const [zoneShape,  setZoneShape]   = useState(initialData?.zoneShape||'2-3') // forma de la defensa en zona (2-3 / 3-2 / 1-3-1)
   const [draggingCP, setDraggingCP]  = useState(null)  // { id, ox, oy }
   const [hoverCP,    setHoverCP]     = useState(false)
   const [draggingEP, setDraggingEP]  = useState(null)  // { id, which:'start'|'end' }
@@ -1282,14 +1398,14 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const t = setTimeout(() => {
       try {
         localStorage.setItem(draftStorageKey, JSON.stringify({
-          title, description: notes, courtType,
+          title, description: notes, courtType, zoneShape,
           steps: phases.map(p => ({ elements: p.elements })),
           savedAt: Date.now(),
         }))
       } catch {}
     }, 1200)
     return () => clearTimeout(t)
-  }, [title, notes, courtType, phases, draftStorageKey, readOnly])
+  }, [title, notes, courtType, zoneShape, phases, draftStorageKey, readOnly])
 
   function clearDraft() {
     if (draftStorageKey) { try { localStorage.removeItem(draftStorageKey) } catch {} }
@@ -1300,6 +1416,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     setTitle(draftFound.title || '')
     setNotes(draftFound.description || '')
     setCourtType(draftFound.courtType || 'half')
+    setZoneShape(draftFound.zoneShape || '2-3')
     setPhases(draftFound.steps?.length
       ? draftFound.steps.map(s => ({ id: Math.random().toString(36).slice(2), elements: s.elements || [] }))
       : [mkPhase()])
@@ -1318,6 +1435,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   // Keep refs in sync with state
   useEffect(() => { phasesRef.current    = phases     }, [phases])
   useEffect(() => { courtTypeRef.current = courtType  }, [courtType])
+  useEffect(() => { zoneShapeRef.current = zoneShape  }, [zoneShape])
   useEffect(() => { selIdRef.current     = selId      }, [selId])
   useEffect(() => { drawStepRef.current  = drawStep   }, [drawStep])
   // Reset to step 0 when user switches to a different phase
@@ -1329,7 +1447,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d')
     const elems = phasesRef.current?.[cur]?.elements || []
-    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
+    renderPhaseFrame(ctx, CW, CH, courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, zoneShapeRef.current)
     // Arrow preview
     if (aSt && aCur && isArrowTool) {
       ctx.save(); ctx.globalAlpha=0.55
@@ -1384,7 +1502,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     setPhases(p => p.map((ph,i) => i!==cur ? ph : { ...ph, elements: ph.elements.filter(e => e.id!==id) }))
   }
   function hitTest(x, y) {
-    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType).playerPos
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType, zoneShape).playerPos
     const r = [...(phases[cur]?.elements||[])].reverse()
     for (const el of r) {
       if (ARROW_TYPES.includes(el.type)) continue
@@ -1437,7 +1555,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
     setSelId(null)
   }
   function nearestPlayer(x, y) {
-    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType).playerPos
+    const accPos = accumulateSteps(phases[cur]?.elements || [], drawStepRef.current, CH, courtType, zoneShape).playerPos
     for (const el of [...(phases[cur]?.elements||[])].reverse()) {
       if (!PLAYER_TYPES.includes(el.type)) continue
       const p = accPos[el.id] || el
@@ -1578,7 +1696,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
   function advancePhase() {
     const currentElems = phases[cur].elements
     const numSteps = getNumSteps(currentElems)
-    const { playerPos, carrierIds: newCarrierIds } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType), courtType)
+    const { playerPos, carrierIds: newCarrierIds } = accumulateSteps(currentElems, numSteps, getCanvasH(courtType), courtType, zoneShape)
 
     const newElems = currentElems
       .filter(el => !ARROW_TYPES.includes(el.type))
@@ -1618,7 +1736,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const canvas = canvasRef.current; if (!canvas) return
       const ctx = canvas.getContext('2d')
       const elems = phasesRef.current?.[cur]?.elements || []
-      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones)
+      renderPhaseFrame(ctx, CW, getCanvasH(courtTypeRef.current), courtTypeRef.current, elems, 0, 0, true, selIdRef.current, drawStepRef.current, showCones, zoneShapeRef.current)
     }, 0)
   }
 
@@ -1666,7 +1784,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           const W = CW, H = getCanvasH(courtTypeRef.current)
           const lastPh   = phasesRef.current[nPhases - 1]
           const lastStep = phaseMeta[nPhases - 1].numSteps - 1
-          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones)
+          renderPhaseFrame(ctx, W, H, courtTypeRef.current, lastPh.elements, lastStep, 1, false, null, 0, showCones, zoneShapeRef.current)
         }
         animLoopRef.current = setTimeout(() => stopAnimate(), 800)
         return
@@ -1690,7 +1808,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
       const ctx = canvas.getContext('2d')
       const W = CW, H = getCanvasH(courtTypeRef.current)
       const elems = phasesRef.current[phaseIdx]?.elements || []
-      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
+      renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, zoneShapeRef.current)
 
       animLoopRef.current = requestAnimationFrame(frame)
     }
@@ -1746,7 +1864,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
         const ctx = canvas.getContext('2d')
         const W = CW, H = getCanvasH(courtTypeRef.current)
         const elems = phasesRef.current[phaseIdx]?.elements || []
-        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones)
+        renderPhaseFrame(ctx, W, H, courtTypeRef.current, elems, stepIdx, stepT, false, null, 0, showCones, zoneShapeRef.current)
         requestAnimationFrame(frame)
       }
       requestAnimationFrame(frame)
@@ -1756,7 +1874,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
 
   /* ── Save ─────────────────────────────────────────── */
   async function handleSave() {
-    const result = await onSave?.({ title, description:notes, courtType, steps: phases.map(p=>({elements:p.elements})) })
+    const result = await onSave?.({ title, description:notes, courtType, zoneShape, steps: phases.map(p=>({elements:p.elements})) })
     // Solo se borra el borrador si el guardado real ha ido bien —
     // si el handler ha devuelto false (fallo), se conserva por si acaso
     if (result !== false) clearDraft()
@@ -1940,7 +2058,7 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
           <div style={{color:'#6b7280',fontSize:10,fontWeight:700,letterSpacing:1.2,textTransform:'uppercase',paddingLeft:2}}>Fases</div>
 
           {phases.map((ph,i) => (
-            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones}
+            <PhaseThumb key={ph.id} index={i} elements={ph.elements} active={i===cur} courtType={courtType} visionCones={showCones} zoneShape={zoneShape}
               onClick={()=>{ if(!animating){setCur(i);setSelId(null)} }} />
           ))}
 
@@ -2179,6 +2297,16 @@ export default function CourtEditor({ initialData, onSave, onClose, readOnly = f
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('defense',n,n))}
               </div>
               <div style={{fontSize:10,color:'#4b5563',fontWeight:600,marginBottom:5}}>✕ Defensa (zona)</div>
+              <div style={{display:'flex',gap:4,marginBottom:6}}>
+                {ZONE_SHAPES.map(shape => (
+                  <button key={shape} onClick={()=>setZoneShape(shape)} title={`Forma de zona: ${shape}`} style={{
+                    flex:1, padding:'4px 0', borderRadius:6, cursor:'pointer', fontSize:10, fontWeight:700,
+                    border:`1.5px solid ${zoneShape===shape?'#3b82f6':'#374151'}`,
+                    background:zoneShape===shape?'#1e3a8a':'#111827',
+                    color:zoneShape===shape?'#93c5fd':'#9ca3af',
+                  }}>{shape}</button>
+                ))}
+              </div>
               <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:8}}>
                 {[...Array.from({length:maxPlayers},(_,i)=>i+1),'?'].map(n=>playerBtn('xdefense',n,n))}
               </div>

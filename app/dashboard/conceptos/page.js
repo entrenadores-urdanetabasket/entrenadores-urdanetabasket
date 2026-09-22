@@ -105,12 +105,12 @@ function ConceptosInner() {
     setLoading(false)
   }
 
-  async function handleSave({ title, description, steps, courtType }) {
+  async function handleSave({ title, description, steps, courtType, zoneShape }) {
     const payload = {
       category: editingConcept ? editingConcept.category : tab,
       title: title || 'Concepto sin nombre',
       description,
-      play_data: { steps, courtType },
+      play_data: { steps, courtType, zoneShape },
       created_by: user.id,
     }
     const { error } = editingConcept?.id
@@ -143,7 +143,7 @@ function ConceptosInner() {
   // Editor a pantalla completa: crear/editar concepto propio
   if (openEditor) {
     const initData = editingConcept
-      ? { title: editingConcept.title, description: editingConcept.description || '', steps: editingConcept.play_data?.steps || [], courtType: editingConcept.play_data?.courtType }
+      ? { title: editingConcept.title, description: editingConcept.description || '', steps: editingConcept.play_data?.steps || [], courtType: editingConcept.play_data?.courtType, zoneShape: editingConcept.play_data?.zoneShape }
       : null
     return (
       <ModalPortal>
@@ -174,6 +174,7 @@ function ConceptosInner() {
               description: viewingConcept.description || '',
               steps: viewingConcept.play_data?.steps || [],
               courtType: viewingConcept.play_data?.courtType,
+              zoneShape: viewingConcept.play_data?.zoneShape,
             }}
             onClose={() => safeBack({ view: null })}
             readOnlyLabel={`${vc.emoji} ${vc.label.replace(/s$/, '')}`}

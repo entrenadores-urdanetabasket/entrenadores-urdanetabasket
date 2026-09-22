@@ -792,9 +792,9 @@ function EntrenamientosInner() {
     await loadLibrary()
   }
 
-  async function handleSaveLibItemPlay({ title, description, steps, courtType }) {
+  async function handleSaveLibItemPlay({ title, description, steps, courtType, zoneShape }) {
     if (!editorLibItem) return false
-    const { error } = await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType } }).eq('id', editorLibItem.id)
+    const { error } = await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType, zoneShape } }).eq('id', editorLibItem.id)
     if (error) {
       console.error('Error guardando la pizarra (biblioteca):', error)
       alert(`No se pudo guardar el diseño: ${error.message}`)
@@ -875,9 +875,9 @@ function EntrenamientosInner() {
     if (targetTeam) await loadSessions(targetTeam)
   }
 
-  async function handleSaveExercisePlay({ title, description, steps, courtType }) {
+  async function handleSaveExercisePlay({ title, description, steps, courtType, zoneShape }) {
     if (!editorExercise) return false
-    const { error } = await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType } }).eq('id', editorExercise.id)
+    const { error } = await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType, zoneShape } }).eq('id', editorExercise.id)
     if (error) {
       console.error('Error guardando la pizarra:', error)
       alert(`No se pudo guardar el diseño: ${error.message}`)
@@ -916,7 +916,7 @@ function EntrenamientosInner() {
   // Full-screen court editor para ejercicio de una sesión
   if (editorExercise) {
     const initData = editorExercise.play_data
-      ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [], courtType: editorExercise.play_data.courtType }
+      ? { title: editorExercise.play_data.title || editorExercise.title, description: editorExercise.play_data.description || '', steps: editorExercise.play_data.steps || [], courtType: editorExercise.play_data.courtType, zoneShape: editorExercise.play_data.zoneShape }
       : { title: editorExercise.title, description: '', steps: [] }
     return (
       <ModalPortal>
@@ -939,7 +939,7 @@ function EntrenamientosInner() {
   if (editorLibItem) {
     const canEditLib = editorLibItem.created_by === user.id || isDirector
     const initData = editorLibItem.play_data
-      ? { title: editorLibItem.play_data.title || editorLibItem.title, description: editorLibItem.play_data.description || '', steps: editorLibItem.play_data.steps || [], courtType: editorLibItem.play_data.courtType }
+      ? { title: editorLibItem.play_data.title || editorLibItem.title, description: editorLibItem.play_data.description || '', steps: editorLibItem.play_data.steps || [], courtType: editorLibItem.play_data.courtType, zoneShape: editorLibItem.play_data.zoneShape }
       : { title: editorLibItem.title, description: '', steps: [] }
     return (
       <ModalPortal>
@@ -1040,6 +1040,7 @@ function EntrenamientosInner() {
                 description: liveEx.play_data.description || '',
                 steps: liveEx.play_data.steps || [],
                 courtType: liveEx.play_data.courtType,
+                zoneShape: liveEx.play_data.zoneShape,
               }}
               onClose={() => safeBack({ diagram: null })}
               visionCones

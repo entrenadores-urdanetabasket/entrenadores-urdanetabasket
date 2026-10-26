@@ -218,7 +218,7 @@ const EV_LABEL = {
 const TYPE_LABEL = { liga:'Liga', copa:'Copa', amistoso:'Amistoso', torneo:'Torneo', otro:'Otro' }
 
 const ACTION_LABEL = {
-  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL',
+  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL','rebound':'REBOTE','assist':'ASISTENCIA',
   'unsporting':'ANTIDEPORTIVA','technical_player':'TÉCNICA','disq_player':'DESCALIFICANTE',
   'steal':'ROBO','block':'TAPÓN','turnover':'PÉRDIDA',
 }
@@ -1166,6 +1166,30 @@ export default function LivePage() {
     if (a === 'sub' && team === 'rival') {
       setModal({ type:'sub', outPlayer:ref, team:'rival' }); setArmed(null); return
     }
+    // REBOTE como botón propio: ofensivo/defensivo se deduce solo — si el
+    // último tiro registrado es un fallo del MISMO equipo que ahora rebotea,
+    // es ofensivo; si es del otro equipo, defensivo.
+    if (a === 'rebound') {
+      setArmed(null)
+      const SHOTS = ['2pt_made','2pt_miss','3pt_made','3pt_miss','ft_made','ft_miss']
+      const lastShot = [...events].reverse().find(e => SHOTS.includes(e.event_type))
+      const lastMiss = lastShot && lastShot.event_type.endsWith('_miss') ? lastShot : null
+      const isOff = !!lastMiss && lastMiss.team === team
+      const linked = lastMiss && typeof lastMiss.id === 'string' && lastMiss.id.length > 20 ? lastMiss.id : null
+      await saveEv(isOff ? 'rebound_off' : 'rebound_def', team, ref, { linked })
+      return
+    }
+    // ASISTENCIA como botón propio: se enlaza con la última canasta de campo
+    // del mismo equipo (no se puede asistir a uno mismo).
+    if (a === 'assist') {
+      const lastMade = [...events].reverse().find(e => e.team === team && ['2pt_made','3pt_made'].includes(e.event_type))
+      const scorer = lastMade ? (team === 'us' ? lastMade.player_id : lastMade.rival_jersey) : null
+      if (scorer != null && scorer === ref) return
+      setArmed(null)
+      const linked = lastMade && typeof lastMade.id === 'string' && lastMade.id.length > 20 ? lastMade.id : null
+      await saveEv('assist', team, ref, { linked })
+      return
+    }
     if (a === 'steal') {
       setArmed(null); await saveEv('steal', team, ref)
       setModal({ type:'ask_steal_chain', stealerTeam:team, otherTeam:team==='us'?'rival':'us' }); return
@@ -1187,6 +1211,9 @@ export default function LivePage() {
     const type = m.action==='2pt' ? (made?'2pt_made':'2pt_miss') : (made?'3pt_made':'3pt_miss')
     const ev = await saveEv(type, m.team, m.ref, { x, y, context: m.context })
     if (!ev) return
+    // Del rival no se pregunta asistencia ni rebote (más rápido); si hace
+    // falta, se apuntan con los botones REBOTE / ASISTENCIA.
+    if (m.team === 'rival') return
     if (made) setModal({ type:'ask_assist', shooterTeam:m.team, linked:ev.id, scorerRef:m.ref })
     else      setModal({ type:'ask_rebound', shooterTeam:m.team, linked:ev.id })
   }
@@ -1198,7 +1225,7 @@ export default function LivePage() {
     if (done < m.total) setModal({ ...m, done })
     // Igual que con un 2/3 fallado: si el ÚLTIMO tiro libre de la serie
     // falla, hay rebote que asignar — antes se cerraba el modal sin preguntar
-    else if (!made) setModal({ type:'ask_rebound', shooterTeam:m.team, linked: ev?.id||null })
+    else if (!made && m.team !== 'rival') setModal({ type:'ask_rebound', shooterTeam:m.team, linked: ev?.id||null })
     else setModal(null)
   }
 
@@ -1828,38 +1855,44 @@ export default function LivePage() {
                 aKey), así que cada acción sigue ligada a su mismo botón. */}
             <div style={{ gridColumn:4, gridRow:'1 / 3', overflow:'hidden', borderLeft:'1px solid #1a2540', display:'grid',
               gridTemplateColumns:'1fr 1fr', gridAutoRows:'minmax(0,1fr)', gap:4, padding:'5px 7px', minWidth:0 }}>
+              {/* Izquierda (siempre visible): TL, 2P, 3P, rebote, asistencia,
+                  robo, deshacer, finalizar. Derecha: el resto. */}
               {/* Fila 1 */}
-              <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout"         armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>
-              {/* Fila 2 */}
               <ActionBtn label="TIROS LIBRES" color="#4ade80" bg="#14532d" aKey="ft"              armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="ANTIDEP."     color="#fdba74" bg="#4a2508" aKey="unsporting"      armed={armed} armAction={armAction} fontSize={9.5}/>
-              {/* Fila 3 */}
+              <ActionBtn label="T. MUERTO"    color="#7dd3fc" bg="#0c4a6e" aKey="timeout"         armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 2 */}
               <ActionBtn label="2 PUNTOS"     color="#60a5fa" bg="#1e3a5f" aKey="2pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="TÉCNICA"      color="#fca5a5" bg="#5c1a1a" aKey="technical"       armed={armed} armAction={armAction} fontSize={9.5}/>
-              {/* Fila 4 */}
-              <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="DESCAL."      color="#fca5a5" bg="#450a0a" aKey="disqualifying"   armed={armed} armAction={armAction} fontSize={9.5}/>
-              {/* Fila 5 */}
               <ActionBtn label="FALTA"        color="#fca5a5" bg="#4c1414" aKey="foul"            armed={armed} armAction={armAction} fontSize={9.5}/>
-              <ActionBtn label="ROBO"         color="#5eead4" bg="#0f2e26" aKey="steal"           armed={armed} armAction={armAction} fontSize={9.5}/>
-              {/* Fila 6 */}
+              {/* Fila 3 */}
+              <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 4 */}
+              <ActionBtn label="REBOTE"       color="#fbbf24" bg="#3a2a06" aKey="rebound"         armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="TAPÓN"        color="#7dd3fc" bg="#0c2d48" aKey="block"           armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 5 */}
+              <ActionBtn label="ASISTENCIA"   color="#86efac" bg="#0f3320" aKey="assist"          armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="SUSTITUCIÓN"  color="#6ee7b7" bg="#064e3b" aKey="sub"             armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 6 */}
+              <ActionBtn label="ROBO"         color="#5eead4" bg="#0f2e26" aKey="steal"           armed={armed} armAction={armAction} fontSize={9.5}/>
+              <ActionBtn label="ANTIDEP."     color="#fdba74" bg="#4a2508" aKey="unsporting"      armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 7 */}
               <button onClick={handleUndo}
                 style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
                   padding:'2px 4px', backgroundColor:'transparent', borderRadius:8,
                   border:'1px solid #2a3548', color:'#94a3b8', fontSize:9.5, fontWeight:700, cursor:'pointer' }}>
                 ↩ Deshacer
               </button>
-              {!isFinished && (
+              <ActionBtn label="TÉCNICA"      color="#fca5a5" bg="#5c1a1a" aKey="technical"       armed={armed} armAction={armAction} fontSize={9.5}/>
+              {/* Fila 8 (hueco si el partido ya acabó, para no descolocar DESCAL.) */}
+              {!isFinished ? (
                 <button onClick={handleFinish}
                   style={{ minHeight:0, height:'100%', width:'100%', display:'flex', alignItems:'center', justifyContent:'center',
                     padding:'2px 4px', backgroundColor:'#2a0a0a', borderRadius:8,
                     border:'none', color:'#fca5a5', fontSize:9.5, fontWeight:800, cursor:'pointer' }}>
                   🏁 Finalizar
                 </button>
-              )}
+              ) : <div/>}
+              <ActionBtn label="DESCAL."      color="#fca5a5" bg="#450a0a" aKey="disqualifying"   armed={armed} armAction={armAction} fontSize={9.5}/>
             </div>
           </div>
 
@@ -2711,7 +2744,7 @@ export default function LivePage() {
             </>
           )}
           <button onClick={async () => {
-            if (modal.shotType) { const ev = await saveEv(modal.shotType==='2pt'?'2pt_miss':'3pt_miss', modal.otherTeam, null); setModal({ type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null }) }
+            if (modal.shotType) { const ev = await saveEv(modal.shotType==='2pt'?'2pt_miss':'3pt_miss', modal.otherTeam, null); setModal(modal.otherTeam==='rival' ? null : { type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null }) }
             else setModal(null)
           }} style={{ width:'100%', padding:'9px', backgroundColor:'#1a2030', color:'#6b7280', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>
             {modal.shotType ? '→ Pedir rebote sin jugador' : 'Saltar'}

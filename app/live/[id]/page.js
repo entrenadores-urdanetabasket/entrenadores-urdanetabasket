@@ -218,7 +218,7 @@ const EV_LABEL = {
 const TYPE_LABEL = { liga:'Liga', copa:'Copa', amistoso:'Amistoso', torneo:'Torneo', otro:'Otro' }
 
 const ACTION_LABEL = {
-  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL','rebound_off':'REBOTE OFENSIVO','rebound_def':'REBOTE DEFENSIVO','assist':'ASISTENCIA',
+  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL','rebound':'REBOTE','assist':'ASISTENCIA',
   'unsporting':'ANTIDEPORTIVA','technical_player':'TÉCNICA','disq_player':'DESCALIFICANTE',
   'steal':'ROBO','block':'TAPÓN','turnover':'PÉRDIDA',
 }
@@ -1159,15 +1159,10 @@ export default function LivePage() {
     if (a === 'sub' && team === 'rival') {
       setModal({ type:'sub', outPlayer:ref, team:'rival' }); setArmed(null); return
     }
-    // REB. OF. / REB. DEF.: el tipo lo elige quien apunta; solo se enlaza con
-    // el último tiro fallado si lo hay.
-    if (a === 'rebound_off' || a === 'rebound_def') {
+    // REBOTE: al elegir jugador se abre un selector Ofensivo / Defensivo.
+    if (a === 'rebound') {
       setArmed(null)
-      const SHOTS = ['2pt_made','2pt_miss','3pt_made','3pt_miss','ft_made','ft_miss']
-      const lastShot = [...events].reverse().find(e => SHOTS.includes(e.event_type))
-      const lastMiss = lastShot && lastShot.event_type.endsWith('_miss') ? lastShot : null
-      const linked = lastMiss && typeof lastMiss.id === 'string' && lastMiss.id.length > 20 ? lastMiss.id : null
-      await saveEv(a, team, ref, { linked })
+      setModal({ type:'rebound_type', team, ref })
       return
     }
     // ASISTENCIA como botón propio: se enlaza con la última canasta de campo
@@ -1845,10 +1840,7 @@ export default function LivePage() {
               <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
               {/* Fila 4 */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3, minHeight:0, minWidth:0 }}>
-                <ActionBtn label="REB. OF."   color="#fbbf24" bg="#3a2a06" aKey="rebound_off"     armed={armed} armAction={armAction} fontSize={8.5} small/>
-                <ActionBtn label="REB. DEF."  color="#fdba74" bg="#3a1d06" aKey="rebound_def"     armed={armed} armAction={armAction} fontSize={8.5} small/>
-              </div>
+              <ActionBtn label="REBOTE"       color="#fbbf24" bg="#3a2a06" aKey="rebound"         armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="TAPÓN"        color="#7dd3fc" bg="#0c2d48" aKey="block"           armed={armed} armAction={armAction} fontSize={9.5}/>
               {/* Fila 5 */}
               <ActionBtn label="ASISTENCIA"   color="#86efac" bg="#0f3320" aKey="assist"          armed={armed} armAction={armAction} fontSize={9.5}/>
@@ -2217,6 +2209,29 @@ export default function LivePage() {
               </div>
             </>
           )}
+        </Overlay>
+      )}
+
+      {/* Rebote: elegir ofensivo / defensivo */}
+      {modal?.type==='rebound_type' && (
+        <Overlay onClose={() => setModal(null)}>
+          <div style={{ color:'#fbbf24', fontSize:15, fontWeight:900, marginBottom:4, textAlign:'center' }}>🏀 Rebote</div>
+          <div style={{ color:modal.team==='us'?'#22c55e':'#3b82f6', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:14 }}>
+            {modal.team==='us'
+              ? `🟢 #${gps.find(g=>g.player_id===modal.ref)?.players?.number ?? '?'} ${gps.find(g=>g.player_id===modal.ref)?.players?.full_name?.split(' ')[0] || ''}`
+              : `🔵 #${modal.ref}`}
+          </div>
+          {[{ type:'rebound_off', label:'Ofensivo', bg:'#d97706' }, { type:'rebound_def', label:'Defensivo', bg:'#2563eb' }].map(o => (
+            <button key={o.type} onClick={async () => {
+              const m = modal; setModal(null)
+              const SHOTS = ['2pt_made','2pt_miss','3pt_made','3pt_miss','ft_made','ft_miss']
+              const lastShot = [...events].reverse().find(e => SHOTS.includes(e.event_type))
+              const lastMiss = lastShot && lastShot.event_type.endsWith('_miss') ? lastShot : null
+              const linked = lastMiss && typeof lastMiss.id === 'string' && lastMiss.id.length > 20 ? lastMiss.id : null
+              await saveEv(o.type, m.team, m.ref, { linked })
+            }} style={{ ...btnStyle(o.bg), marginBottom:8 }}>{o.label}</button>
+          ))}
+          <button onClick={() => setModal(null)} style={btnStyle('#1f2937',12)}>Cancelar</button>
         </Overlay>
       )}
 

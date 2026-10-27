@@ -218,7 +218,7 @@ const EV_LABEL = {
 const TYPE_LABEL = { liga:'Liga', copa:'Copa', amistoso:'Amistoso', torneo:'Torneo', otro:'Otro' }
 
 const ACTION_LABEL = {
-  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL','rebound':'REBOTE','assist':'ASISTENCIA',
+  '2pt':'2 PUNTOS','3pt':'3 PUNTOS','ft':'TIRO LIBRE','foul':'FALTA PERSONAL','rebound_off':'REBOTE OFENSIVO','rebound_def':'REBOTE DEFENSIVO','assist':'ASISTENCIA',
   'unsporting':'ANTIDEPORTIVA','technical_player':'TÉCNICA','disq_player':'DESCALIFICANTE',
   'steal':'ROBO','block':'TAPÓN','turnover':'PÉRDIDA',
 }
@@ -352,7 +352,10 @@ function CourtSVG({ onShot, shots = [], only3pt = false }) {
       <line x1={bx} y1={bbY+2} x2={bx} y2={by-7} stroke="rgba(255,255,255,0.6)" strokeWidth={1.2}/>
       <circle cx={bx} cy={by} r={7} fill="none" stroke="#ff5722" strokeWidth={3}/>
       {shots.map((s, i) => {
-        const px = P + s.x * CW, py = P + s.y * CH
+        // Se capturan como fracción del SVG completo (ver handleClick), así
+        // que se dibujan igual — antes se medían sobre la zona interior y
+        // el punto salía desplazado respecto a donde se tocó
+        const px = s.x * W, py = s.y * H
         const fill = s.made ? 'rgba(34,197,94,0.88)' : 'rgba(239,68,68,0.85)'
         const stroke = s.made ? '#15803d' : '#b91c1c'
         const isTrans = s.context === 'transicion'
@@ -683,7 +686,11 @@ function PrintBS({ rows }) {
 
 // ── Mapa de pista para PDF (SVG estático, sin interacción) ────────────────────
 function PrintCourtSVG({ shots = [] }) {
-  const W=280, H=196, P=8
+  // Misma proporción exacta que la pista interactiva (CourtSVG 320x300,
+  // margen 12, escalada a 280): con una pista más "aplastada" el arco de 3
+  // (un círculo) quedaba desproporcionado en vertical y los tiros exteriores
+  // se veían dentro de la línea.
+  const W=280, H=262.5, P=10.5
   const CW=W-P*2, CH=H-P*2
   const sx=CW/15, sy=CH/14
   const fx=m=>P+m*sx, fy=m=>P+m*sy
@@ -712,7 +719,9 @@ function PrintCourtSVG({ shots = [] }) {
       <line x1={bx} y1={bbY+2} x2={bx} y2={by-5} stroke="rgba(255,255,255,0.5)" strokeWidth={1}/>
       <circle cx={bx} cy={by} r={5} fill="none" stroke="#ff5722" strokeWidth={2.5}/>
       {shots.map((s,i)=>{
-        const px=P+s.x*CW, py=P+s.y*CH
+        // s.x / s.y son fracciones del SVG completo (así se capturan al tocar
+        // en CourtSVG), no de la zona interior de la pista
+        const px=s.x*W, py=s.y*H
         const fill = s.made ? 'rgba(22,163,74,0.9)' : 'rgba(220,38,38,0.85)'
         const stroke = s.made ? '#14532d' : '#991b1b'
         const isTrans = s.context === 'transicion'
@@ -1150,17 +1159,15 @@ export default function LivePage() {
     if (a === 'sub' && team === 'rival') {
       setModal({ type:'sub', outPlayer:ref, team:'rival' }); setArmed(null); return
     }
-    // REBOTE como botón propio: ofensivo/defensivo se deduce solo — si el
-    // último tiro registrado es un fallo del MISMO equipo que ahora rebotea,
-    // es ofensivo; si es del otro equipo, defensivo.
-    if (a === 'rebound') {
+    // REB. OF. / REB. DEF.: el tipo lo elige quien apunta; solo se enlaza con
+    // el último tiro fallado si lo hay.
+    if (a === 'rebound_off' || a === 'rebound_def') {
       setArmed(null)
       const SHOTS = ['2pt_made','2pt_miss','3pt_made','3pt_miss','ft_made','ft_miss']
       const lastShot = [...events].reverse().find(e => SHOTS.includes(e.event_type))
       const lastMiss = lastShot && lastShot.event_type.endsWith('_miss') ? lastShot : null
-      const isOff = !!lastMiss && lastMiss.team === team
       const linked = lastMiss && typeof lastMiss.id === 'string' && lastMiss.id.length > 20 ? lastMiss.id : null
-      await saveEv(isOff ? 'rebound_off' : 'rebound_def', team, ref, { linked })
+      await saveEv(a, team, ref, { linked })
       return
     }
     // ASISTENCIA como botón propio: se enlaza con la última canasta de campo
@@ -1838,7 +1845,10 @@ export default function LivePage() {
               <ActionBtn label="3 PUNTOS"     color="#c4b5fd" bg="#3b1f6b" aKey="3pt"             armed={armed} armAction={armAction} fontSize={9.5}/>
               <ActionBtn label="PÉRDIDA"      color="#fcd34d" bg="#402c07" aKey="turnover"        armed={armed} armAction={armAction} fontSize={9.5}/>
               {/* Fila 4 */}
-              <ActionBtn label="REBOTE"       color="#fbbf24" bg="#3a2a06" aKey="rebound"         armed={armed} armAction={armAction} fontSize={9.5}/>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:3, minHeight:0, minWidth:0 }}>
+                <ActionBtn label="REB. OF."   color="#fbbf24" bg="#3a2a06" aKey="rebound_off"     armed={armed} armAction={armAction} fontSize={8.5} small/>
+                <ActionBtn label="REB. DEF."  color="#fdba74" bg="#3a1d06" aKey="rebound_def"     armed={armed} armAction={armAction} fontSize={8.5} small/>
+              </div>
               <ActionBtn label="TAPÓN"        color="#7dd3fc" bg="#0c2d48" aKey="block"           armed={armed} armAction={armAction} fontSize={9.5}/>
               {/* Fila 5 */}
               <ActionBtn label="ASISTENCIA"   color="#86efac" bg="#0f3320" aKey="assist"          armed={armed} armAction={armAction} fontSize={9.5}/>

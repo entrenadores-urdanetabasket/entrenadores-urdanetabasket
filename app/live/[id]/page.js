@@ -1198,7 +1198,7 @@ export default function LivePage() {
     const m = modal
     const ev = await saveEv(made?'ft_made':'ft_miss', m.team, m.ref)
     const done = (m.done||0)+1
-    if (done < m.total) setModal({ ...m, done })
+    if (done < m.total) setModal({ ...m, done, results:[...(m.results||[]), made] })
     else setModal(null)
   }
 
@@ -1501,6 +1501,7 @@ export default function LivePage() {
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        @keyframes ftPop{from{transform:scale(0.9);opacity:0.3}to{transform:scale(1);opacity:1}}
         .tb:active{transform:scale(0.88);filter:brightness(1.4)}
         @media print{
           .np{display:none!important}
@@ -2062,14 +2063,47 @@ export default function LivePage() {
       {/* TL: secuencia */}
       {modal?.type==='ft_seq' && (
         <Overlay>
-          <div style={{ color:'#fff', fontSize:14, fontWeight:800, marginBottom:4, textAlign:'center' }}>Tiros libres</div>
-          <div style={{ color:'#6b7280', fontSize:12, textAlign:'center', marginBottom:16 }}>
-            Tiro {(modal.done||0)+1} de {modal.total}
-          </div>
-          <div style={{ display:'flex', gap:10 }}>
-            <button onClick={() => confirmFtSeq(true)}  style={{ flex:1, ...btnStyle('#16a34a',22) }}>✓</button>
-            <button onClick={() => confirmFtSeq(false)} style={{ flex:1, ...btnStyle('#dc2626',22) }}>✗</button>
-          </div>
+          {(() => {
+            const cur = modal.done || 0
+            const results = modal.results || []
+            const shooter = modal.team==='us'
+              ? (() => { const g = gps.find(x => x.player_id===modal.ref); return g ? `#${g.players?.number ?? '?'} ${g.players?.full_name?.split(' ')[0] || ''}` : ourName })()
+              : (modal.ref != null ? `#${modal.ref}` : rivalName)
+            return (
+              <>
+                <div style={{ color:modal.team==='us'?'#22c55e':'#3b82f6', fontSize:12, fontWeight:800, textAlign:'center', marginBottom:2 }}>
+                  {modal.team==='us' ? '🟢' : '🔵'} {shooter}
+                </div>
+                <div style={{ color:'#6b7280', fontSize:11, fontWeight:700, letterSpacing:1, textAlign:'center', marginBottom:10 }}>TIROS LIBRES</div>
+                {/* Progreso: un cuadro por tiro (hecho ✓/✗, actual resaltado, pendiente) */}
+                <div style={{ display:'flex', gap:8, justifyContent:'center', marginBottom:14 }}>
+                  {Array.from({ length: modal.total }, (_, i) => {
+                    const r = results[i]
+                    const isCur = i === cur
+                    const bg = r === true ? '#16a34a' : r === false ? '#dc2626' : isCur ? '#78350f' : '#1a2030'
+                    const border = isCur ? '#fbbf24' : 'transparent'
+                    return (
+                      <div key={i} style={{ width:52, height:52, borderRadius:12, backgroundColor:bg, border:`3px solid ${border}`,
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, fontWeight:900,
+                        color: r === undefined ? (isCur ? '#fde68a' : '#4b5563') : '#fff', opacity: r === undefined && !isCur ? 0.7 : 1 }}>
+                        {r === true ? '✓' : r === false ? '✗' : i + 1}
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Se vuelve a montar en cada tiro (key) para que se note el cambio */}
+                <div key={cur} style={{ animation:'ftPop 0.25s ease-out' }}>
+                  <div style={{ color:'#fbbf24', fontSize:24, fontWeight:900, textAlign:'center', marginBottom:14, letterSpacing:0.5 }}>
+                    TIRO {cur + 1} DE {modal.total}
+                  </div>
+                  <div style={{ display:'flex', gap:10 }}>
+                    <button onClick={() => confirmFtSeq(true)}  style={{ flex:1, ...btnStyle('#16a34a',16) }}>✓ METIDO</button>
+                    <button onClick={() => confirmFtSeq(false)} style={{ flex:1, ...btnStyle('#dc2626',16) }}>✗ FALLADO</button>
+                  </div>
+                </div>
+              </>
+            )
+          })()}
         </Overlay>
       )}
 

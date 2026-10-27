@@ -1108,59 +1108,43 @@ export default function LivePage() {
 
     if (a === 'foul') {
       setArmed(null)
-      const qBefore = events.filter(e => e.team===team && e.event_type.startsWith('foul')
-        && (team==='us'?e.player_id!=null:e.rival_jersey!=null) && Number(e.quarter)===quarter).length
-      const newCount = qBefore + 1
-      const isBonus    = newCount >= 5  // 2 TL automáticos a partir de la 5ª falta
-      const firstBonus = newCount === 4 // aviso banner en la 4ª falta
+      // Acciones individuales: la falta SOLO apunta la falta. Los tiros libres
+      // que genere se apuntan aparte con el botón TIROS LIBRES.
       await saveEv('foul_personal', team, ref)
-      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us',
-        defaultTL:isBonus?2:null, isBonus, bonusAlert:firstBonus, foulType:'foul_personal', foulTeam:team }
-      // Si estamos en bonus, preguntar si es falta en ataque (sin TL) o defensa (2 TL)
-      const nextModal = isBonus
-        ? { type:'ask_foul_type', ftModal }
-        : ftModal
       if (team === 'us') {
         const c = getPlayerFoulCounts(events, ref); c.personal++
         const st = calcPlayerStatus(c)
-        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal }); return }
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated' }); return }
       }
-      setModal(nextModal)
       return
     }
     if (a === 'unsporting') {
       setArmed(null)
       await saveEv('foul_unsporting', team, ref)
-      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_unsporting', foulTeam:team }
       if (team === 'us') {
         const c = getPlayerFoulCounts(events, ref); c.unsporting++
         const st = calcPlayerStatus(c)
-        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated' }); return }
       }
-      setModal(ftModal)
       return
     }
     if (a === 'technical_player') {
       setArmed(null)
       await saveEv('foul_technical', team, ref)
-      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:1, foulType:'foul_technical', foulTeam:team }
       if (team === 'us') {
         const c = getPlayerFoulCounts(events, ref); c.technical++
         const st = calcPlayerStatus(c)
-        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated', nextModal:ftModal }); return }
+        if (st.out) { const gp = gps.find(g=>g.player_id===ref); setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:st.disqualified?'disqualified':'eliminated' }); return }
       }
-      setModal(ftModal)
       return
     }
     if (a === 'disq_player') {
       setArmed(null)
       await saveEv('foul_disqualifying', team, ref)
-      const ftModal = { type:'ask_fouled_player', ftTeam:team==='us'?'rival':'us', defaultTL:2, foulType:'foul_disqualifying', foulTeam:team }
       if (team === 'us') {
         const gp = gps.find(g=>g.player_id===ref)
-        setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:'disqualified', nextModal:ftModal }); return
+        setModal({ type:'player_out', pid:ref, playerNum:gp?.players?.number, playerName:gp?.players?.full_name, status:'disqualified' }); return
       }
-      setModal(ftModal)
       return
     }
     if (a === 'sub' && team === 'rival') {
@@ -1190,18 +1174,11 @@ export default function LivePage() {
       await saveEv('assist', team, ref, { linked })
       return
     }
-    if (a === 'steal') {
-      setArmed(null); await saveEv('steal', team, ref)
-      setModal({ type:'ask_steal_chain', stealerTeam:team, otherTeam:team==='us'?'rival':'us' }); return
-    }
-    if (a === 'block') {
-      setArmed(null); await saveEv('block', team, ref)
-      setModal({ type:'ask_block_chain', blockerTeam:team, otherTeam:team==='us'?'rival':'us' }); return
-    }
-    if (a === 'turnover') {
-      setArmed(null); await saveEv('turnover', team, ref)
-      setModal({ type:'ask_turnover_chain', turnoverTeam:team, otherTeam:team==='us'?'rival':'us' }); return
-    }
+    // Robo, tapón y pérdida: solo apuntan esa acción (sin preguntar la
+    // jugada encadenada) — la otra parte se apunta con su propio botón.
+    if (a === 'steal')    { setArmed(null); await saveEv('steal', team, ref);    return }
+    if (a === 'block')    { setArmed(null); await saveEv('block', team, ref);    return }
+    if (a === 'turnover') { setArmed(null); await saveEv('turnover', team, ref); return }
   }
 
   // ── Confirm shot ─────────────────────────────────────────────────────────────
@@ -1211,11 +1188,8 @@ export default function LivePage() {
     const type = m.action==='2pt' ? (made?'2pt_made':'2pt_miss') : (made?'3pt_made':'3pt_miss')
     const ev = await saveEv(type, m.team, m.ref, { x, y, context: m.context })
     if (!ev) return
-    // Del rival no se pregunta asistencia ni rebote (más rápido); si hace
-    // falta, se apuntan con los botones REBOTE / ASISTENCIA.
-    if (m.team === 'rival') return
-    if (made) setModal({ type:'ask_assist', shooterTeam:m.team, linked:ev.id, scorerRef:m.ref })
-    else      setModal({ type:'ask_rebound', shooterTeam:m.team, linked:ev.id })
+    // Sin preguntas encadenadas: el tiro solo apunta el tiro. Rebote y
+    // asistencia se apuntan con sus propios botones REBOTE / ASISTENCIA.
   }
 
   async function confirmFtSeq(made) {
@@ -1223,9 +1197,6 @@ export default function LivePage() {
     const ev = await saveEv(made?'ft_made':'ft_miss', m.team, m.ref)
     const done = (m.done||0)+1
     if (done < m.total) setModal({ ...m, done })
-    // Igual que con un 2/3 fallado: si el ÚLTIMO tiro libre de la serie
-    // falla, hay rebote que asignar — antes se cerraba el modal sin preguntar
-    else if (!made && m.team !== 'rival') setModal({ type:'ask_rebound', shooterTeam:m.team, linked: ev?.id||null })
     else setModal(null)
   }
 
@@ -2744,7 +2715,7 @@ export default function LivePage() {
             </>
           )}
           <button onClick={async () => {
-            if (modal.shotType) { const ev = await saveEv(modal.shotType==='2pt'?'2pt_miss':'3pt_miss', modal.otherTeam, null); setModal(modal.otherTeam==='rival' ? null : { type:'ask_rebound', shooterTeam:modal.otherTeam, linked:ev?.id||null }) }
+            if (modal.shotType) { const ev = await saveEv(modal.shotType==='2pt'?'2pt_miss':'3pt_miss', modal.otherTeam, null); setModal(null) }
             else setModal(null)
           }} style={{ width:'100%', padding:'9px', backgroundColor:'#1a2030', color:'#6b7280', border:'none', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer' }}>
             {modal.shotType ? '→ Pedir rebote sin jugador' : 'Saltar'}

@@ -218,7 +218,11 @@ export default function AsistenciaPage() {
   async function loadMarkedDays(team, year, month) {
     const t = team || selectedTeam
     const start = `${year}-${String(month).padStart(2,'0')}-01`
-    const end   = `${year}-${String(month).padStart(2,'0')}-31`
+    // Último día REAL del mes: con "-31" fijo, en meses de 30 días (o febrero)
+    // Postgres rechaza la fecha inválida y la consulta falla en silencio, así
+    // que ese mes se quedaba sin colores.
+    const lastDay = new Date(year, month, 0).getDate()
+    const end   = `${year}-${String(month).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
     const { data } = await supabase.from('attendance').select('date, type')
       .eq('team_id', t.id).gte('date', start).lte('date', end)
     const map = {}

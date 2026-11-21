@@ -1688,7 +1688,7 @@ export default function LivePage() {
               </div>
 
               {/* Score A */}
-              <div style={{ fontSize:34, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center' }}>
+              <div style={{ fontSize:34, fontWeight:900, color:'#22c55e', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center', textShadow:'0 0 18px rgba(34,197,94,0.5)' }}>
                 {scores.us}
               </div>
 
@@ -1726,7 +1726,7 @@ export default function LivePage() {
               </div>
 
               {/* Score B */}
-              <div style={{ fontSize:34, fontWeight:900, color:'#3b82f6', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center' }}>
+              <div style={{ fontSize:34, fontWeight:900, color:'#3b82f6', fontFamily:'monospace', lineHeight:1, minWidth:44, textAlign:'center', textShadow:'0 0 18px rgba(59,130,246,0.5)' }}>
                 {scores.rival}
               </div>
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -169,7 +170,7 @@ function DocumentosInner() {
     setDownloadingId(doc.id)
     const { data, error } = await supabase.storage.from('documents').download(doc.file_path)
     setDownloadingId(null)
-    if (error || !data) { alert('No se pudo descargar el archivo.'); return }
+    if (error || !data) { toastError('No se pudo descargar el archivo.'); return }
     const url = URL.createObjectURL(data)
     const a = document.createElement('a')
     a.href = url; a.download = doc.file_name || doc.title

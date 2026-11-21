@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
+import CommandPalette from '@/components/CommandPalette'
+import Toaster from '@/components/Toaster'
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useAuth()
@@ -39,6 +41,8 @@ export default function DashboardLayout({ children }) {
           {children}
         </div>
       </main>
+      <CommandPalette />
+      <Toaster />
       <style>{`
         @media (min-width: 1024px) { main { margin-left: 256px; } }
         .dash-content { padding-top: calc(74px + env(safe-area-inset-top)) !important; }

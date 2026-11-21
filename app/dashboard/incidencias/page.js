@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -73,7 +74,7 @@ export default function IncidenciasPage() {
       resolved: false
     })
     setSaving(false)
-    if (error) { alert('Error: ' + error.message + ' (' + error.code + ')'); return }
+    if (error) { toastError('Error: ' + error.message + ' (' + error.code + ')'); return }
     setShowForm(false)
     setForm({ type: 'lesion', player_id: '', date: new Date().toISOString().split('T')[0], description: '' })
     await loadTeamData(selectedTeam)

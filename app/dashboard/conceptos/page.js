@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
@@ -118,7 +119,7 @@ function ConceptosInner() {
       : await supabase.from('concepts').insert(payload)
     if (error) {
       console.error('Error guardando el concepto:', error)
-      alert(`No se pudo guardar: ${error.message}`)
+      toastError(`No se pudo guardar: ${error.message}`)
       return false
     }
     await loadConcepts(tab)

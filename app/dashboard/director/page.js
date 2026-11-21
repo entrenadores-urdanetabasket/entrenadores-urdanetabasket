@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -329,11 +330,11 @@ export default function DirectorPage() {
         body: JSON.stringify({ coachId: coach.id })
       })
       const json = await res.json()
-      if (!res.ok) { alert(json.error || 'Error al eliminar'); return }
+      if (!res.ok) { toastError(json.error || 'Error al eliminar'); return }
       loadCoachProfiles()
       loadOverview()
     } catch (err) {
-      alert('Error de conexión')
+      toastError('Error de conexión')
     } finally {
       setDeletingCoach(null)
     }
@@ -449,7 +450,7 @@ export default function DirectorPage() {
     const { data, error } = await supabase.from('team_borrow_links')
       .insert({ from_team_id: editing, to_team_id: addingBorrowTeam })
       .select('id, to_team_id, teams:to_team_id(name, category)').single()
-    if (error) { alert(`No se pudo vincular: ${error.message}`); return }
+    if (error) { toastError(`No se pudo vincular: ${error.message}`); return }
     setBorrowLinks(prev => [...prev, data])
     setAddingBorrowTeam('')
   }
@@ -471,11 +472,11 @@ export default function DirectorPage() {
         body: JSON.stringify({ teamId: id }),
       })
       const json = await res.json()
-      if (!res.ok) { alert(json.error || 'No se pudo eliminar el equipo'); return }
+      if (!res.ok) { toastError(json.error || 'No se pudo eliminar el equipo'); return }
       if (expandedTeam === id) setExpandedTeam(null)
       loadTeams(); loadOverview()
     } catch (err) {
-      alert('Error de conexión')
+      toastError('Error de conexión')
     } finally {
       setDeleting(null)
     }

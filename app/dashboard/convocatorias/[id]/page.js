@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter, useParams } from 'next/navigation'
@@ -79,7 +80,7 @@ export default function ConvocatoriaDetailPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     } catch {
-      alert('No se pudo copiar al portapapeles')
+      toastError('No se pudo copiar al portapapeles')
     }
   }
 

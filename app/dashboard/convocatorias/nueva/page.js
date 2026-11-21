@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -123,7 +124,7 @@ export default function NuevaConvocatoriaPage() {
 
   async function handleSave() {
     if (!form.rival.trim() || !form.date) {
-      alert('Rellena el rival y la fecha')
+      toastError('Rellena el rival y la fecha')
       return
     }
     setSaving(true)
@@ -155,7 +156,7 @@ export default function NuevaConvocatoriaPage() {
       router.push(`/dashboard/convocatorias/${conv.id}`)
     } catch (err) {
       console.error(err)
-      alert('Error al guardar la convocatoria')
+      toastError('Error al guardar la convocatoria')
       setSaving(false)
     }
   }

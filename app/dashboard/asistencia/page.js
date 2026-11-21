@@ -1,5 +1,6 @@
 'use client'
 
+import { toast, toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
@@ -314,9 +315,10 @@ export default function AsistenciaPage() {
     }))
     const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'player_id,date,type,team_id' })
     setSaving(false)
-    if (error) { alert('Error: ' + error.message); return }
+    if (error) { toastError('Error: ' + error.message); return }
     setMarkedDays(prev => ({ ...prev, [date]: sessionType }))
     setSaved(true)
+    toast('Asistencia guardada')
     setTimeout(() => setSaved(false), 2500)
   }
 

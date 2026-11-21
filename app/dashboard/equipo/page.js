@@ -5,6 +5,7 @@ import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
 import Link from 'next/link'
 import TeamGroupPicker from '@/components/TeamGroupPicker'
+import { toast, toastError } from '@/lib/toast'
 
 const POSITIONS = ['Base', 'Escolta', 'Alero', 'Ala-Pívot', 'Pívot']
 
@@ -99,9 +100,12 @@ export default function EquipoPage() {
 
       team_id: selectedTeam.id
     }
-    if (editing) await supabase.from('players').update(payload).eq('id', editing)
-    else await supabase.from('players').insert(payload)
+    const { error: saveErr } = editing
+      ? await supabase.from('players').update(payload).eq('id', editing)
+      : await supabase.from('players').insert(payload)
     setSaving(false)
+    if (saveErr) { toastError('No se pudo guardar: ' + saveErr.message); return }
+    toast(editing ? 'Jugador actualizado' : 'Jugador añadido')
     setShowForm(false)
     loadPlayers(selectedTeam.id, teams)
   }
@@ -109,8 +113,9 @@ export default function EquipoPage() {
   async function handleDelete(id) {
     if (!confirm('¿Dar de baja a este jugador?')) return
     setDeleting(id)
-    await supabase.from('players').update({ active: false }).eq('id', id)
+    const { error: delErr } = await supabase.from('players').update({ active: false }).eq('id', id)
     setDeleting(null)
+    if (delErr) toastError('No se pudo dar de baja: ' + delErr.message); else toast('Jugador dado de baja')
     loadPlayers(selectedTeam.id, teams)
   }
 

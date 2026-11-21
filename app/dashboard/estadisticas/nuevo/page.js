@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -111,15 +112,15 @@ export default function NuevoPartidoPage() {
   }
 
   function goToStep2() {
-    if (!rivalName.trim()) { alert('Indica el nombre del rival'); return }
-    if (!date) { alert('Indica la fecha del partido'); return }
+    if (!rivalName.trim()) { toastError('Indica el nombre del rival'); return }
+    if (!date) { toastError('Indica la fecha del partido'); return }
     setStep(2)
   }
 
   async function handleCreate() {
-    if (selected.size === 0) { alert('Selecciona al menos un jugador'); return }
+    if (selected.size === 0) { toastError('Selecciona al menos un jugador'); return }
     if (duplicateJerseys.size > 0) {
-      alert(`Hay dorsales repetidos en la convocatoria: ${[...duplicateJerseys].join(', ')}. Cambia el dorsal de alguno de esos jugadores antes de iniciar el partido.`)
+      toastError(`Hay dorsales repetidos en la convocatoria: ${[...duplicateJerseys].join(', ')}. Cambia el dorsal de alguno de esos jugadores antes de iniciar el partido.`)
       return
     }
     setSaving(true)
@@ -162,7 +163,7 @@ export default function NuevoPartidoPage() {
       router.replace(`/live/${game.id}`)
     } catch (e) {
       console.error(e)
-      alert('Error al crear el partido: ' + e.message)
+      toastError('Error al crear el partido: ' + e.message)
       setSaving(false)
     }
   }

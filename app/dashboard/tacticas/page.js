@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
@@ -171,7 +172,7 @@ function TacticasInner() {
     setSaving(false)
     if (error) {
       console.error('Error guardando la táctica:', error)
-      alert(`No se pudo guardar: ${error.message}`)
+      toastError(`No se pudo guardar: ${error.message}`)
       return false
     }
     await loadTactics(selectedTeam)

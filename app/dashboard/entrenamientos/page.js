@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -633,7 +634,7 @@ function EntrenamientosInner() {
     }, { onConflict: 'session_id' })
     if (error) {
       console.error('Error guardando la valoración:', error)
-      alert(`No se pudo guardar la valoración: ${error.message}`)
+      toastError(`No se pudo guardar la valoración: ${error.message}`)
       setSavingRating(false)
       return
     }
@@ -692,7 +693,7 @@ function EntrenamientosInner() {
     setSavingEx(false)
     if (error) {
       console.error('Error guardando ejercicio:', error)
-      alert(`No se pudo guardar el ejercicio: ${error.message}`)
+      toastError(`No se pudo guardar el ejercicio: ${error.message}`)
       return
     }
     setShowExForm(false)
@@ -783,11 +784,11 @@ function EntrenamientosInner() {
     const { error, count } = await supabase.from('exercise_library').delete({ count: 'exact' }).eq('id', id)
     if (error) {
       console.error('Error eliminando de la biblioteca:', error)
-      alert(`No se pudo eliminar: ${error.message}`)
+      toastError(`No se pudo eliminar: ${error.message}`)
       return
     }
     if (!count) {
-      alert('No se ha eliminado ningún ejercicio — puede que no tengas permiso sobre este (solo el autor o el director pueden borrarlo).')
+      toastError('No se ha eliminado ningún ejercicio — puede que no tengas permiso sobre este (solo el autor o el director pueden borrarlo).')
     }
     await loadLibrary()
   }
@@ -797,7 +798,7 @@ function EntrenamientosInner() {
     const { error } = await supabase.from('exercise_library').update({ play_data: { title, description, steps, courtType, zoneShape } }).eq('id', editorLibItem.id)
     if (error) {
       console.error('Error guardando la pizarra (biblioteca):', error)
-      alert(`No se pudo guardar el diseño: ${error.message}`)
+      toastError(`No se pudo guardar el diseño: ${error.message}`)
       return false
     }
     await loadLibrary()
@@ -880,7 +881,7 @@ function EntrenamientosInner() {
     const { error } = await supabase.from('training_exercises').update({ play_data: { title, description, steps, courtType, zoneShape } }).eq('id', editorExercise.id)
     if (error) {
       console.error('Error guardando la pizarra:', error)
-      alert(`No se pudo guardar el diseño: ${error.message}`)
+      toastError(`No se pudo guardar el diseño: ${error.message}`)
       return false
     }
     await loadExercises(detailSession.id)

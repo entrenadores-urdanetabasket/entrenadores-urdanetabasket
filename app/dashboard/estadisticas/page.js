@@ -1,5 +1,6 @@
 'use client'
 
+import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -254,7 +255,7 @@ export default function EstadisticasPage() {
       setCopiedResumen(true)
       setTimeout(() => setCopiedResumen(false), 2500)
     } catch {
-      alert('No se pudo copiar al portapapeles')
+      toastError('No se pudo copiar al portapapeles')
     }
   }
 

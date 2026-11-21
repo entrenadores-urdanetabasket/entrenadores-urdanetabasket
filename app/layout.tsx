@@ -30,9 +30,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`h-full ${inter.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`h-full ${inter.variable}`}>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('urdaneta-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}" }} />
       </head>
       <body className="h-full" style={{ fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif" }}>
         <AuthProvider>

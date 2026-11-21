@@ -124,3 +124,35 @@ export function GlassStat({ label, value, sub, children }) {
 export function EmptyNote({ children }) {
   return <div style={{ padding: '22px 8px', textAlign: 'center', color: '#94a3b8', fontSize: 13, fontWeight: 500 }}>{children}</div>
 }
+
+// Gráfico de radar: `axes` = [{ label, a, b }] con valores 0-100.
+// a = serie principal (jugador), b = serie de referencia opcional (media del equipo)
+export function Radar({ axes = [], size = 260, colorA = '#16a34a', colorB = '#94a3b8' }) {
+  const n = axes.length
+  if (n < 3) return null
+  const c = size / 2, r = size / 2 - 34
+  const pt = (i, v) => {
+    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n
+    const rr = (Math.max(0, Math.min(100, v)) / 100) * r
+    return [c + Math.cos(ang) * rr, c + Math.sin(ang) * rr]
+  }
+  const poly = key => axes.map((ax, i) => pt(i, ax[key] ?? 0).join(',')).join(' ')
+  const hasB = axes.some(ax => ax.b != null)
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', maxWidth: size, display: 'block', margin: '0 auto' }}>
+      {[25, 50, 75, 100].map(l => (
+        <polygon key={l} points={axes.map((_, i) => pt(i, l).join(',')).join(' ')} fill={l === 100 ? 'rgba(148,163,184,0.06)' : 'none'} stroke="#e2e8f0" strokeWidth="1" />
+      ))}
+      {axes.map((_, i) => { const [x, y] = pt(i, 100); return <line key={i} x1={c} y1={c} x2={x} y2={y} stroke="#e2e8f0" strokeWidth="1" /> })}
+      {hasB && <polygon points={poly('b')} fill={`${colorB}33`} stroke={colorB} strokeWidth="1.5" strokeDasharray="4 3" />}
+      <polygon points={poly('a')} fill={`${colorA}40`} stroke={colorA} strokeWidth="2.2" strokeLinejoin="round" />
+      {axes.map((ax, i) => { const [x, y] = pt(i, ax.a ?? 0); return <circle key={i} cx={x} cy={y} r="3.2" fill={colorA} stroke="#fff" strokeWidth="1.2" /> })}
+      {axes.map((ax, i) => {
+        const [x, y] = pt(i, 100)
+        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n
+        const lx = x + Math.cos(ang) * 16, ly = y + Math.sin(ang) * 14
+        return <text key={i} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: 10.5, fontWeight: 700, fill: '#64748b' }}>{ax.label}</text>
+      })}
+    </svg>
+  )
+}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Radar } from '@/components/ui'
 
 const TYPES = {
   lesion:    { label: 'Lesión',    emoji: '🤕', color: '#ef4444', bg: '#fef2f2' },
@@ -40,6 +41,35 @@ function addEventToLine(line, ev) {
     case 'foul_personal': case 'foul_technical': case 'foul_unsporting': case 'foul_disqualifying': line.pf++; break
   }
 }
+
+// Lee todas las filas de una consulta paginada (PostgREST limita a 1000 por petición)
+async function fetchAll(makeQuery) {
+  const out = []
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await makeQuery(from)
+    if (error) throw error
+    out.push(...(data || []))
+    if (!data || data.length < 1000) break
+  }
+  return out
+}
+
+function perGame(line, games) {
+  const g = games || 1
+  return {
+    pts: line.pts / g, reb: line.reb / g, ast: line.ast / g, stl: line.stl / g, blk: line.blk / g,
+    fg: line.fga > 0 ? (line.fgm / line.fga) * 100 : 0,
+  }
+}
+
+const RADAR_STATS = [
+  { key: 'pts', label: 'Puntos', short: 'PTS' },
+  { key: 'reb', label: 'Rebotes', short: 'REB' },
+  { key: 'ast', label: 'Asistencias', short: 'AST' },
+  { key: 'stl', label: 'Robos', short: 'ROB' },
+  { key: 'blk', label: 'Tapones', short: 'TAP' },
+  { key: 'fg', label: '% Tiro', short: '%TC' },
+]
 
 function shootPct(made, att) { return att > 0 ? Math.round((made / att) * 100) : null }
 function avg(total, games) { return games > 0 ? (total / games).toFixed(1) : '—' }
@@ -202,6 +232,7 @@ export default function JugadorPage() {
   const [playerRatings, setPlayerRatings] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('resumen')
+  const [teamRef, setTeamRef] = useState(null)
 
   useEffect(() => { if (user) loadData() }, [user])
 
@@ -252,6 +283,23 @@ export default function JugadorPage() {
       const otherTotals = emptyLine()
       otherLines.forEach(g => { Object.keys(otherTotals).forEach(k => { otherTotals[k] += g.line[k] }) })
       setOtherSeason({ ...otherTotals, gamesPlayed: otherLines.length, games: otherLines })
+
+      // Referencia del equipo: media por partido de cada compañero, para comparar
+      try {
+        const { data: tg } = await supabase.from('games').select('id').eq('team_id', p.team_id).eq('status', 'finished')
+        const tgIds = (tg || []).map(g => g.id)
+        if (tgIds.length > 0) {
+          const [gpAll, evAll] = await Promise.all([
+            fetchAll(from => supabase.from('game_players').select('player_id, game_id').in('game_id', tgIds).range(from, from + 999)),
+            fetchAll(from => supabase.from('game_events').select('player_id, game_id, event_type').in('game_id', tgIds).not('player_id', 'is', null).range(from, from + 999)),
+          ])
+          const per = {}
+          gpAll.forEach(r => { (per[r.player_id] ||= { line: emptyLine(), games: new Set() }).games.add(r.game_id) })
+          evAll.forEach(ev => { if (per[ev.player_id]) addEventToLine(per[ev.player_id].line, ev) })
+          const rows = Object.entries(per).filter(([, v]) => v.games.size > 0).map(([pid, v]) => ({ pid, ...perGame(v.line, v.games.size) }))
+          setTeamRef(rows.length >= 2 ? rows : null)
+        }
+      } catch (e) { console.error('Referencia de equipo:', e); setTeamRef(null) }
     } catch (err) {
       console.error('Error cargando estadísticas de partidos:', err)
       setGameLines([])
@@ -349,6 +397,55 @@ export default function JugadorPage() {
 
   const insights = buildInsights({ records: ownRecords, playerRatings: ownRatings, gameLines, activeIncidents })
 
+  // Radar + comparación con la media del equipo (normalizado: 100 = el mejor del equipo)
+  const performanceCard = (() => {
+    if (!season || season.gamesPlayed === 0 || !teamRef) return null
+    const mine = perGame(season, season.gamesPlayed)
+    const maxOf = k => Math.max(...teamRef.map(r => r[k]), mine[k], 0.0001)
+    const meanOf = k => teamRef.reduce((a, r) => a + r[k], 0) / teamRef.length
+    const axes = RADAR_STATS.map(s => ({ label: s.short, a: (mine[s.key] / maxOf(s.key)) * 100, b: (meanOf(s.key) / maxOf(s.key)) * 100 }))
+    const fmt = (k, v) => k === 'fg' ? `${Math.round(v)}%` : v.toFixed(1)
+    return (
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <span>Perfil de rendimiento vs. media del equipo</span>
+          <span style={{ display: 'inline-flex', gap: 12, fontSize: 11, fontWeight: 700, color: '#64748b' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: '#16a34a' }} />{player.full_name.split(' ')[0]}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: '#94a3b8' }} />Media equipo</span>
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, alignItems: 'center' }}>
+          <Radar axes={axes} size={280} />
+          <div style={{ display: 'grid', gap: 11 }}>
+            {RADAR_STATS.map(s => {
+              const mx = maxOf(s.key)
+              const diff = mine[s.key] - meanOf(s.key)
+              const up = diff >= 0
+              return (
+                <div key={s.key}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>{s.label}</span>
+                    <span className="num" style={{ fontSize: 12, color: '#64748b' }}>
+                      <b style={{ color: '#0f172a', fontSize: 13 }}>{fmt(s.key, mine[s.key])}</b> · eq. {fmt(s.key, meanOf(s.key))}
+                      <span style={{ marginLeft: 6, fontWeight: 800, color: up ? '#16a34a' : '#dc2626' }}>{up ? '▲' : '▼'}</span>
+                    </span>
+                  </div>
+                  <div style={{ position: 'relative', height: 7, background: '#eef2f7', borderRadius: 99 }}>
+                    <div style={{ width: `${(mine[s.key] / mx) * 100}%`, height: '100%', borderRadius: 99, background: 'linear-gradient(90deg,#16a34a,#52B043)' }} />
+                    <div title="Media del equipo" style={{ position: 'absolute', top: -3, bottom: -3, left: `${(meanOf(s.key) / mx) * 100}%`, width: 2.5, borderRadius: 2, background: '#64748b' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 12 }}>
+          Escala relativa: 100 % = el mejor registro del equipo en cada estadística (por partido, partidos del equipo finalizados). La marca gris es la media del equipo.
+        </div>
+      </div>
+    )
+  })()
+
   const cardStyle = { backgroundColor: '#fff', borderRadius: 16, border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)', padding: '16px 18px', marginBottom: 16 }
   const cardTitleStyle = { fontSize: 13, fontWeight: 800, color: '#0f172a', marginBottom: 12 }
 
@@ -381,19 +478,13 @@ export default function JugadorPage() {
       </div>
 
       {/* Pestañas */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+      <div className="seg-tabs" style={{ marginBottom: 20, maxWidth: '100%', overflowX: 'auto' }}>
         {TABS.map(t => {
           const active = tab === t.key
           const badge = t.key === 'incidencias' && activeIncidents > 0 ? activeIncidents : null
           return (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
-              padding: '9px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700, border: 'none',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: active ? 'linear-gradient(135deg,#1C5C2A,#52B043)' : '#f3f4f6',
-              color: active ? '#fff' : '#374151',
-              boxShadow: active ? '0 2px 8px rgba(28,92,42,0.30)' : 'none',
-            }}>
-              {t.emoji} {t.label}
+            <button key={t.key} onClick={() => setTab(t.key)} className={`seg-tab${active ? ' active' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {t.label}
               {badge && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '1px 6px', borderRadius: 6 }}>{badge}</span>
               )}
@@ -424,7 +515,7 @@ export default function JugadorPage() {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Asistencia', value: pct !== null ? `${pct}%` : '—', color: pct !== null ? (pct >= 75 ? '#16a34a' : pct >= 50 ? '#d97706' : '#ef4444') : '#94a3b8' },
               { label: 'Puntos/partido', value: season && season.gamesPlayed > 0 ? avg(season.pts, season.gamesPlayed) : '—', color: '#2563eb' },
@@ -437,6 +528,8 @@ export default function JugadorPage() {
               </div>
             ))}
           </div>
+
+          {performanceCard}
 
           <div style={cardStyle}>
             <div style={cardTitleStyle}>📅 Progresión de asistencia (% mensual)</div>
@@ -640,6 +733,8 @@ export default function JugadorPage() {
                   })}
                 </div>
               </div>
+
+              {performanceCard}
 
               <div style={cardStyle}>
                 <div style={cardTitleStyle}>Puntos en los últimos partidos</div>

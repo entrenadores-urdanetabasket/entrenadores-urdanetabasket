@@ -26,19 +26,21 @@ export async function POST(request) {
     if (!coachId) return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 })
     if (coachId === user.id) return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta' }, { status: 400 })
 
-    await supabaseAdmin.from('team_coaches').delete().eq('coach_id', coachId)
+    // Lo que creó el entrenador (tácticas, entrenamientos, ejercicios,
+    // partidos, incidencias...) pasa al director; sus vínculos con equipos y
+    // su actividad se borran. Sin esto, la clave foránea impedía borrarlo.
+    const { error: reassignErr } = await supabaseAdmin.rpc('reassign_coach_records', { p_coach: coachId, p_to: user.id })
+    if (reassignErr) {
+      console.error('reassign_coach_records error:', reassignErr)
+      return NextResponse.json({
+        error: `No se pudieron traspasar los registros del entrenador: ${reassignErr.message}. ¿Has ejecutado la migración 2026112101 en Supabase?`
+      }, { status: 500 })
+    }
 
     // Borrar el usuario de Auth arrastra el perfil (ON DELETE CASCADE).
-    // Si el entrenador tiene incidencias u otros registros que lo referencian,
-    // esto puede fallar por restricción de clave foránea.
     const { error } = await supabaseAdmin.auth.admin.deleteUser(coachId)
     if (error) {
-      const isForeignKey = /foreign key|violat/i.test(error.message || '')
-      return NextResponse.json({
-        error: isForeignKey
-          ? 'No se puede eliminar: este entrenador tiene incidencias u otros registros asociados en el sistema.'
-          : error.message
-      }, { status: 500 })
+      return NextResponse.json({ error: `No se pudo eliminar: ${error.message}` }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

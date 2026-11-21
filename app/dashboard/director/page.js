@@ -461,12 +461,24 @@ export default function DirectorPage() {
 
   async function handleDelete(id, e) {
     e.stopPropagation()
-    if (!confirm('¿Eliminar este equipo?')) return
+    if (!confirm('¿Eliminar este equipo?\n\nSe borrarán también sus jugadores, partidos y estadísticas, entrenamientos, asistencia, convocatorias, tácticas e incidencias. Esta acción no se puede deshacer.\n\nSi solo quieres que deje de aparecer, es mejor cerrar la temporada (queda archivado en Históricos).')) return
     setDeleting(id)
-    await supabase.from('teams').delete().eq('id', id)
-    setDeleting(null)
-    if (expandedTeam === id) setExpandedTeam(null)
-    loadTeams(); loadOverview()
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/delete-team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ teamId: id }),
+      })
+      const json = await res.json()
+      if (!res.ok) { alert(json.error || 'No se pudo eliminar el equipo'); return }
+      if (expandedTeam === id) setExpandedTeam(null)
+      loadTeams(); loadOverview()
+    } catch (err) {
+      alert('Error de conexión')
+    } finally {
+      setDeleting(null)
+    }
   }
 
   const assignedCoachIds = new Set(teamCoaches.map(tc => tc.coach_id))

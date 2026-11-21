@@ -1507,30 +1507,12 @@ function EntrenamientosInner() {
           )}
 
           {/* Pestañas */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-            <button onClick={() => setTab('proximos')} style={tabStyle('proximos')}>📅 Próximos</button>
-            <button onClick={() => setTab('pasados')} style={tabStyle('pasados')}>✅ Pasados</button>
-            <button onClick={() => { setTab('compartidos'); loadSharedSessions() }} style={{
-              ...tabStyle('compartidos'),
-              background: tab === 'compartidos' ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#f3f4f6',
-              color: tab === 'compartidos' ? '#fff' : '#374151',
-            }}>
-              📤 Compartidos
-            </button>
-            <button onClick={() => setTab('biblioteca')} style={{
-              ...tabStyle('biblioteca'),
-              background: tab === 'biblioteca' ? 'linear-gradient(135deg,#2563eb,#1d4ed8)' : '#f3f4f6',
-              color: tab === 'biblioteca' ? '#fff' : '#374151',
-            }}>
-              📚 Biblioteca
-            </button>
-            <button onClick={() => { setTab('historial'); if (selectedTeam) loadRatingsHistory(selectedTeam) }} style={{
-              ...tabStyle('historial'),
-              background: tab === 'historial' ? 'linear-gradient(135deg,#f59e0b,#d97706)' : '#f3f4f6',
-              color: tab === 'historial' ? '#fff' : '#374151',
-            }}>
-              ⭐ Historial
-            </button>
+          <div className="seg-tabs" style={{ marginBottom: 20, maxWidth: '100%', overflowX: 'auto' }}>
+            <button onClick={() => setTab('proximos')} className={`seg-tab${tab === 'proximos' ? ' active' : ''}`}>Próximos</button>
+            <button onClick={() => setTab('pasados')} className={`seg-tab${tab === 'pasados' ? ' active' : ''}`}>Pasados</button>
+            <button onClick={() => { setTab('compartidos'); loadSharedSessions() }} className={`seg-tab${tab === 'compartidos' ? ' active' : ''}`}>Compartidos</button>
+            <button onClick={() => setTab('biblioteca')} className={`seg-tab${tab === 'biblioteca' ? ' active' : ''}`}>Biblioteca</button>
+            <button onClick={() => { setTab('historial'); if (selectedTeam) loadRatingsHistory(selectedTeam) }} className={`seg-tab${tab === 'historial' ? ' active' : ''}`}>Historial</button>
           </div>
 
           {/* PESTAÑA BIBLIOTECA */}

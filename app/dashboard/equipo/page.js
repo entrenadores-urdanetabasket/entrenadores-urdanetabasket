@@ -179,76 +179,64 @@ export default function EquipoPage() {
       )}
 
       {/* Info equipo seleccionado */}
-      {selectedTeam && (
-        <div style={{
-          borderRadius: 16, marginBottom: 20, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
-          boxShadow: '0 4px 20px rgba(28,92,42,0.25)', padding: '18px 22px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-        }}>
-          <div>
-            <div style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 5 }}>
+      {selectedTeam && isDirector && (
+        <div className="panel" style={{ marginBottom: 18, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
               {selectedTeam.category} · {selectedTeam.gender === 'femenino' ? 'Femenino' : 'Masculino'} · {selectedTeam.season}
             </div>
-            <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, letterSpacing: -0.3 }}>{selectedTeam.name}</div>
-            {isDirector && selectedTeam.coaches?.length > 0 && (
-              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 5, fontWeight: 500 }}>
-                👤 {selectedTeam.coaches.map(c => c.profiles?.full_name).filter(Boolean).join(', ')}
-              </div>
-            )}
+            <div style={{ color: '#0f172a', fontSize: 19, fontWeight: 800, letterSpacing: -0.4 }}>{selectedTeam.name}</div>
+            <div style={{ color: '#64748b', fontSize: 12.5, marginTop: 4, fontWeight: 500 }}>
+              {selectedTeam.coaches?.length > 0 ? selectedTeam.coaches.map(c => c.profiles?.full_name).filter(Boolean).join(', ') : 'Sin entrenador asignado'}
+            </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#fff', fontSize: 44, fontWeight: 900, lineHeight: 1, letterSpacing: -2 }}>{players.length}</div>
-            <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 600, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Jugadores</div>
+          <div style={{ textAlign: 'center', flexShrink: 0 }}>
+            <div className="num" style={{ color: '#1C5C2A', fontSize: 38, fontWeight: 800, lineHeight: 1, letterSpacing: -1.5 }}>{players.length}</div>
+            <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>Jugadores</div>
           </div>
         </div>
       )}
 
       {/* Lista jugadores */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
         {selectedTeam && players.length === 0 && (
-          <div className="empty-state">
+          <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
             <div className="empty-state-icon">👤</div>
             <div className="empty-state-title">No hay jugadores en este equipo</div>
             <div className="empty-state-text">Añade tu primer jugador con el botón “+ Jugador”</div>
           </div>
         )}
         {players.map(player => (
-          <div key={player.id} style={{
-            backgroundColor: '#fff', borderRadius: 16, padding: '14px 16px',
-            border: '1px solid #e8edf3', boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-            transition: 'all 0.2s'
-          }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+          <div key={player.id} className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12, transition: 'all 0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 10px 28px rgba(15,23,42,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = 'translateY(0)' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-              <div style={{
-                width: 46, height: 46, borderRadius: 12, flexShrink: 0,
-                background: 'linear-gradient(135deg,#52B043,#1C5C2A)',
+            <Link href={`/dashboard/equipo/jugador/${player.id}`} style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, textDecoration: 'none' }}>
+              <div className="num" style={{
+                width: 50, height: 50, borderRadius: 14, flexShrink: 0,
+                background: 'linear-gradient(145deg,#2f8a3d,#143d1d)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontSize: 17, fontWeight: 900,
-                boxShadow: '0 2px 8px rgba(28,92,42,0.25)'
+                color: '#fff', fontSize: 20, fontWeight: 800,
+                boxShadow: '0 4px 12px rgba(28,92,42,0.28), inset 0 1px 0 rgba(255,255,255,0.2)'
               }}>{player.number ?? '—'}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a', letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.full_name}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3, fontWeight: 600 }}>
-                  {player.position || '—'}
-                </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 14.5, color: '#0f172a', letterSpacing: -0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.full_name}</div>
+                <span style={{ display: 'inline-block', marginTop: 5, fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 99, color: '#1C5C2A', background: '#e8f5e9' }}>
+                  {player.position || 'Sin posición'}
+                </span>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 7, flexShrink: 0 }}>
+            </Link>
+            <div style={{ display: 'flex', gap: 7 }}>
               <Link href={`/dashboard/equipo/jugador/${player.id}`} style={{
-                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0',
-                backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, textDecoration: 'none'
-              }}>Ver</Link>
+                flex: 1, textAlign: 'center', padding: '8px 12px', borderRadius: 10, border: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc', color: '#334155', fontSize: 12, fontWeight: 700, textDecoration: 'none'
+              }}>Ver ficha</Link>
               <button onClick={() => openEdit(player)} style={{
-                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #e2e8f0',
-                backgroundColor: '#fff', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                flex: 1, padding: '8px 12px', borderRadius: 10, border: '1px solid #e2e8f0',
+                backgroundColor: '#f8fafc', color: '#334155', fontSize: 12, fontWeight: 700, cursor: 'pointer'
               }}>Editar</button>
               <button onClick={() => handleDelete(player.id)} disabled={deleting === player.id} style={{
-                padding: '7px 13px', borderRadius: 9, border: '1.5px solid #fecaca',
+                padding: '8px 14px', borderRadius: 10, border: '1px solid #fecaca',
                 backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 700,
                 cursor: deleting === player.id ? 'not-allowed' : 'pointer'
               }}>Baja</button>

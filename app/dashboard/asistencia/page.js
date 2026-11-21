@@ -385,10 +385,10 @@ export default function AsistenciaPage() {
         <TeamGroupPicker teams={teams} selectedTeamId={selectedTeam?.id} onSelect={t => { setLoading(true); loadTeamData(t, tab) }} />
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {!isDirector && <button onClick={() => handleTabChange('lista')}        style={tabStyle('lista')}>📋 Pasar lista</button>}
-        <button onClick={() => handleTabChange('historial')}    style={tabStyle('historial')}>📅 Historial</button>
-        <button onClick={() => handleTabChange('estadisticas')} style={tabStyle('estadisticas')}>📊 Estadísticas</button>
+      <div className="seg-tabs" style={{ marginBottom: 20 }}>
+        {!isDirector && <button onClick={() => handleTabChange('lista')}        className={`seg-tab${tab === 'lista' ? ' active' : ''}`}>Pasar lista</button>}
+        <button onClick={() => handleTabChange('historial')}    className={`seg-tab${tab === 'historial' ? ' active' : ''}`}>Historial</button>
+        <button onClick={() => handleTabChange('estadisticas')} className={`seg-tab${tab === 'estadisticas' ? ' active' : ''}`}>Estadísticas</button>
       </div>
 
       {/* ── PASAR LISTA — solo entrenadores ──────────────── */}

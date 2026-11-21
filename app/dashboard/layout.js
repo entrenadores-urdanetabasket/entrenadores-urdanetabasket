@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Sidebar from '@/components/Sidebar'
+import Topbar from '@/components/Topbar'
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useAuth()
@@ -32,8 +33,9 @@ export default function DashboardLayout({ children }) {
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f5f7fa' }}>
       <Sidebar />
       <main style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ padding: '28px 24px', maxWidth: 900, margin: '0 auto' }}
+        <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}
           className="fade-in-safe dash-content">
+          <Topbar />
           {children}
         </div>
       </main>

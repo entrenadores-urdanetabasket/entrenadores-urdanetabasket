@@ -351,3 +351,59 @@ input, select, textarea, button { font-family: inherit; }
 }
 .seg-tab:hover { color: #0f172a; background: #f1f5f9; }
 .seg-tab.active { color: #fff; background: linear-gradient(135deg, #14401f, #1f6b30); box-shadow: 0 4px 12px rgba(20,64,31,0.35); }
+
+/* ── Sistema de diseño avanzado ── */
+::selection { background: rgba(82,176,67,0.25); }
+.num { font-variant-numeric: tabular-nums; }
+
+.panel {
+  background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 20px;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.05);
+}
+
+.dash-grid { display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.span-12 { grid-column: span 12; }
+.span-8  { grid-column: span 12; }
+.span-6  { grid-column: span 12; }
+.span-4  { grid-column: span 12; }
+@media (min-width: 900px) {
+  .span-8 { grid-column: span 8; }
+  .span-6 { grid-column: span 6; }
+  .span-4 { grid-column: span 4; }
+}
+
+.hero {
+  position: relative; overflow: hidden; border-radius: 24px; color: #fff;
+  background: var(--banner-bg); box-shadow: var(--banner-shadow);
+  padding: 26px 28px 22px;
+}
+.hero::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 38%);
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; background: rgba(255,255,255,0.12); color: #e8fbe4;
+  border: 1px solid rgba(255,255,255,0.16);
+}
+
+.row-item {
+  display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 14px;
+  background: #f8fafc; border: 1px solid #eef2f7; transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+a.row-item:hover { background: #f1f5f9; border-color: #dbe3ec; transform: translateX(2px); }
+
+.skeleton {
+  border-radius: 12px; background: linear-gradient(90deg, #eef1f6 25%, #f7f9fc 37%, #eef1f6 63%);
+  background-size: 400% 100%; animation: shimmer 1.3s ease infinite;
+}
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+.topbar {
+  display: none; position: sticky; top: 0; z-index: 30; margin: 0 -24px 22px; padding: 14px 24px;
+  align-items: center; gap: 14px;
+  background: rgba(243,245,249,0.82); backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(226,232,240,0.8);
+}
+@media (min-width: 1024px) { .topbar { display: flex; margin-top: -32px; } }

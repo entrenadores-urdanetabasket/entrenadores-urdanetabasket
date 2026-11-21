@@ -507,7 +507,7 @@ export default function DirectorPage() {
     <div className="fade-in">
       {/* Cabecera — banner verde */}
       <div style={{
-        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 28,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
@@ -529,20 +529,12 @@ export default function DirectorPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[{ key: 'resumen', label: '📊 Resumen' }, { key: 'equipos', label: '👥 Equipos' }, { key: 'entrenadores', label: '👤 Entrenadores' }, { key: 'seguimiento', label: '✅ Seguimiento' }].map(t => {
-          const active = tab === t.key
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
-              padding: '9px 18px', borderRadius: 20, cursor: 'pointer',
-              fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
-              background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
-              color: active ? '#fff' : '#475569',
-              border: active ? 'none' : '1.5px solid #e2e8f0',
-              boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
-            }}>{t.label}</button>
-          )
-        })}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 22, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="seg-tabs">
+        {[{ key: 'resumen', label: 'Resumen' }, { key: 'equipos', label: 'Equipos' }, { key: 'entrenadores', label: 'Entrenadores' }, { key: 'seguimiento', label: 'Seguimiento' }].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={`seg-tab${tab === t.key ? ' active' : ''}`}>{t.label}</button>
+        ))}
+        </div>
         {tab === 'equipos' && (
           <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', backgroundColor: '#f1f5f9', borderRadius: 20, padding: 3 }}>
             {[{ key: 'active', label: 'Activos' }, { key: 'archived', label: '🗂 Históricos' }].map(v => {

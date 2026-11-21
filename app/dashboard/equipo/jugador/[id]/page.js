@@ -361,7 +361,7 @@ export default function JugadorPage() {
       {/* Cabecera jugador */}
       <div style={{
         borderRadius: 20, marginBottom: 20, overflow: 'hidden',
-        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        background: 'var(--banner-bg)',
         boxShadow: '0 8px 32px rgba(10,31,14,0.35)',
         padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18
       }}>

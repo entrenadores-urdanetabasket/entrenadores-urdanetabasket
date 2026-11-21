@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
+import Icon from '@/components/Icons'
 
 export default function DashboardPage() {
   const { user, profile, supabase, activeTeam } = useAuth()
@@ -52,21 +53,21 @@ export default function DashboardPage() {
   const today     = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const coachModules = [
-    { label: 'Mi Equipo',      desc: 'Jugadores y plantilla',  href: '/dashboard/equipo',         emoji: '👥', color: '#3b82f6' },
-    { label: 'Asistencia',     desc: 'Control de presencia',   href: '/dashboard/asistencia',     emoji: '✅', color: '#52B043' },
-    { label: 'Estadísticas',   desc: 'Análisis de partidos',   href: '/dashboard/estadisticas',   emoji: '📊', color: '#8b5cf6' },
-    { label: 'Tácticas',       desc: 'Editor de jugadas',      href: '/dashboard/tacticas',       emoji: '🏀', color: '#f59e0b' },
-    { label: 'Convocatorias',  desc: 'Lista de citados',       href: '/dashboard/convocatorias',  emoji: '📋', color: '#0ea5e9' },
-    { label: 'Entrenamientos', desc: 'Planificar sesiones',    href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
-    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    emoji: '⚠️', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
+    { label: 'Mi Equipo',      desc: 'Jugadores y plantilla',  href: '/dashboard/equipo',         icon: 'users', color: '#3b82f6' },
+    { label: 'Asistencia',     desc: 'Control de presencia',   href: '/dashboard/asistencia',     icon: 'check', color: '#52B043' },
+    { label: 'Estadísticas',   desc: 'Análisis de partidos',   href: '/dashboard/estadisticas',   icon: 'chart', color: '#8b5cf6' },
+    { label: 'Tácticas',       desc: 'Editor de jugadas',      href: '/dashboard/tacticas',       icon: 'ball', color: '#f59e0b' },
+    { label: 'Convocatorias',  desc: 'Lista de citados',       href: '/dashboard/convocatorias',  icon: 'clipboard', color: '#0ea5e9' },
+    { label: 'Entrenamientos', desc: 'Planificar sesiones',    href: '/dashboard/entrenamientos', icon: 'file', color: '#ec4899' },
+    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    icon: 'alert', color: stats.incidents > 0 ? '#ef4444' : '#6b7280' },
   ]
 
   const directorModules = [
-    { label: 'Equipos',        desc: 'Ver plantillas del club', href: '/dashboard/equipo',         emoji: '👥', color: '#3b82f6' },
-    { label: 'Asistencia',     desc: 'Control de todos los equipos', href: '/dashboard/asistencia', emoji: '✅', color: '#52B043' },
-    { label: 'Entrenamientos', desc: 'Sesiones publicadas',    href: '/dashboard/entrenamientos', emoji: '📝', color: '#ec4899' },
-    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    emoji: '⚠️', color: dirStats.incidents > 0 ? '#ef4444' : '#6b7280' },
-    { label: 'Panel Director', desc: 'Gestión del club',       href: '/dashboard/director',       emoji: '🛡️', color: '#1C5C2A' },
+    { label: 'Equipos',        desc: 'Ver plantillas del club', href: '/dashboard/equipo',         icon: 'users', color: '#3b82f6' },
+    { label: 'Asistencia',     desc: 'Control de todos los equipos', href: '/dashboard/asistencia', icon: 'check', color: '#52B043' },
+    { label: 'Entrenamientos', desc: 'Sesiones publicadas',    href: '/dashboard/entrenamientos', icon: 'file', color: '#ec4899' },
+    { label: 'Incidencias',    desc: 'Registro de eventos',    href: '/dashboard/incidencias',    icon: 'alert', color: dirStats.incidents > 0 ? '#ef4444' : '#6b7280' },
+    { label: 'Panel Director', desc: 'Gestión del club',       href: '/dashboard/director',       icon: 'shield', color: '#1C5C2A' },
   ]
 
   const modules = isDirector ? directorModules : coachModules
@@ -104,8 +105,8 @@ export default function DashboardPage() {
       {isDirector && (
         <div style={{
           borderRadius: 18, marginBottom: 28, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
-          boxShadow: '0 4px 24px rgba(28,92,42,0.30)'
+          background: 'var(--banner-bg)',
+          boxShadow: 'var(--banner-shadow)'
         }}>
           <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
@@ -121,7 +122,7 @@ export default function DashboardPage() {
             </div>
             <img src="/logo.png" alt="Escudo C.D. Urdaneta" style={{ width: 72, height: 72, objectFit: 'contain', opacity: 0.9 }}/>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(6px)' }}>
             {[
               { label: 'Equipos',      value: dirStats.teams },
               { label: 'Entrenadores', value: dirStats.coaches },
@@ -141,8 +142,8 @@ export default function DashboardPage() {
       {!isDirector && (
         <div style={{
           borderRadius: 18, marginBottom: 28, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #1C5C2A 0%, #2d7a3a 50%, #52B043 100%)',
-          boxShadow: '0 4px 24px rgba(28,92,42,0.30)'
+          background: 'var(--banner-bg)',
+          boxShadow: 'var(--banner-shadow)'
         }}>
           <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
@@ -162,7 +163,7 @@ export default function DashboardPage() {
           </div>
 
           {team && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', borderTop: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(6px)' }}>
               {[
                 { label: 'Jugadores',   value: stats.players },
                 { label: 'Incidencias', value: stats.incidents },
@@ -181,23 +182,15 @@ export default function DashboardPage() {
       <div style={{ marginBottom: 8 }}>
         <h3 style={{ color: '#0f172a', fontSize: 16, fontWeight: 800, marginBottom: 16, letterSpacing: -0.2 }}>¿Qué quieres hacer hoy?</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
-          {modules.map(({ label, desc, href, emoji, color }) => (
-            <Link key={label} href={href} style={{
-              display: 'block', padding: '18px 18px', borderRadius: 16,
-              backgroundColor: '#fff', border: '1px solid #e8edf3',
-              textDecoration: 'none', transition: 'all 0.2s',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
-              position: 'relative', overflow: 'hidden'
-            }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
-            >
+          {modules.map(({ label, desc, href, icon, color }) => (
+            <Link key={label} href={href} className="module-card" style={{ '--accent': color }}>
               <div style={{
-                width: 54, height: 54, borderRadius: 15, marginBottom: 14,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-                background: `${color}1a`, border: `1px solid ${color}33`
-              }}>{emoji}</div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#0f172a', marginBottom: 4, letterSpacing: -0.3 }}>{label}</div>
+                width: 48, height: 48, borderRadius: 14, marginBottom: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color, background: `linear-gradient(135deg, ${color}26, ${color}0d)`, border: `1px solid ${color}33`
+              }}><Icon name={icon} size={22} /></div>
+              <span className="module-arrow"><Icon name="arrow" size={17} /></span>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 4, letterSpacing: -0.3 }}>{label}</div>
               <div style={{ fontSize: 12.5, color: '#94a3b8', fontWeight: 500 }}>{desc}</div>
             </Link>
           ))}

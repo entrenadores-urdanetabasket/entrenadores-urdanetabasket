@@ -287,7 +287,7 @@ export default function EstadisticasPage() {
     <div className="fade-in">
       {/* Cabecera — banner verde */}
       <div style={{
-        background: 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+        background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 28,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         boxShadow: '0 8px 32px rgba(10,31,14,0.35)',

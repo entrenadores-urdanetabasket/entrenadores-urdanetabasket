@@ -1474,7 +1474,7 @@ function EntrenamientosInner() {
         /* Vista lista sesiones / biblioteca */
         <div>
           <div style={{
-            background: tab === 'biblioteca' ? 'linear-gradient(135deg, #0a1f2e 0%, #1C3C5C 50%, #2563eb 100%)' : 'linear-gradient(135deg, #0a1f0e 0%, #1C5C2A 50%, #2d7a3a 100%)',
+            background: tab === 'biblioteca' ? 'linear-gradient(135deg, #0a1f2e 0%, #1C3C5C 50%, #2563eb 100%)' : 'var(--banner-bg)',
             borderRadius: 20, padding: '24px 28px', marginBottom: 28,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             boxShadow: '0 8px 32px rgba(10,31,14,0.35)',

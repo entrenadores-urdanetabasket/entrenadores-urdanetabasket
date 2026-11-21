@@ -359,7 +359,7 @@ export default function JugadorPage() {
       </Link>
 
       {/* Cabecera jugador */}
-      <div style={{
+      <div className="hero page-hero" style={{
         borderRadius: 20, marginBottom: 20, overflow: 'hidden',
         background: 'var(--banner-bg)',
         boxShadow: '0 8px 32px rgba(10,31,14,0.35)',

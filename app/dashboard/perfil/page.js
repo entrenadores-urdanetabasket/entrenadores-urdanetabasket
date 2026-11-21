@@ -73,7 +73,7 @@ export default function PerfilPage() {
   return (
     <div className="fade-in">
       {/* Cabecera — banner verde */}
-      <div style={{
+      <div className="hero page-hero" style={{
         background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 28,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

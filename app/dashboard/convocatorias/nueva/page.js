@@ -183,7 +183,7 @@ export default function NuevaConvocatoriaPage() {
         background: 'none', border: 'none', cursor: 'pointer',
         color: '#64748b', fontSize: 13, fontWeight: 700, padding: 0, marginBottom: 12
       }}>← Volver</button>
-      <div style={{
+      <div className="hero page-hero" style={{
         background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 24,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

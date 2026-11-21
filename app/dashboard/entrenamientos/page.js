@@ -1473,7 +1473,7 @@ function EntrenamientosInner() {
       ) : (
         /* Vista lista sesiones / biblioteca */
         <div>
-          <div style={{
+          <div className="hero page-hero" style={{
             background: tab === 'biblioteca' ? 'linear-gradient(135deg, #0a1f2e 0%, #1C3C5C 50%, #2563eb 100%)' : 'var(--banner-bg)',
             borderRadius: 20, padding: '24px 28px', marginBottom: 28,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',

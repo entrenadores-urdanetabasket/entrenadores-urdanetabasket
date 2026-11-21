@@ -286,7 +286,7 @@ export default function EstadisticasPage() {
   return (
     <div className="fade-in">
       {/* Cabecera — banner verde */}
-      <div style={{
+      <div className="hero page-hero" style={{
         background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 28,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -314,18 +314,10 @@ export default function EstadisticasPage() {
       )}
 
       {/* Partidos / Resumen de temporada */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {[{ key: 'partidos', label: '📋 Partidos' }, { key: 'resumen', label: '📊 Resumen' }].map(v => {
-          const active = view === v.key
-          return (
-            <button key={v.key} onClick={() => setView(v.key)} style={{
-              padding: '9px 16px', borderRadius: 20, cursor: 'pointer', fontSize: 13, fontWeight: 700, border: 'none',
-              background: active ? 'linear-gradient(135deg,#1C5C2A,#52B043)' : '#f3f4f6',
-              color: active ? '#fff' : '#374151',
-              boxShadow: active ? '0 2px 8px rgba(28,92,42,0.30)' : 'none',
-            }}>{v.label}</button>
-          )
-        })}
+      <div className="seg-tabs" style={{ marginBottom: 18 }}>
+        {[{ key: 'partidos', label: 'Partidos' }, { key: 'resumen', label: 'Resumen de temporada' }].map(v => (
+          <button key={v.key} onClick={() => setView(v.key)} className={`seg-tab${view === v.key ? ' active' : ''}`}>{v.label}</button>
+        ))}
       </div>
 
       {/* ══════════════════════ RESUMEN DE TEMPORADA ══════════════════════ */}
@@ -449,12 +441,12 @@ export default function EstadisticasPage() {
           return (
             <button key={t.key} onClick={() => setFilter(t.key)} style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 15px', borderRadius: 20, cursor: 'pointer',
+              padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
               fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.15s',
-              background: active ? 'linear-gradient(135deg,#52B043,#3a8a2e)' : '#fff',
+              background: active ? '#14401f' : '#fff',
               color: active ? '#fff' : '#475569',
-              border: active ? 'none' : '1.5px solid #e2e8f0',
-              boxShadow: active ? '0 2px 8px rgba(82,176,67,0.30)' : 'none',
+              border: active ? '1px solid #14401f' : '1px solid #e4e8ef',
+              boxShadow: active ? '0 4px 12px rgba(20,64,31,0.28)' : 'none',
             }}>
               {t.label}
               {t.count > 0 && (
@@ -497,10 +489,15 @@ export default function EstadisticasPage() {
               ? new Date(game.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
               : '—'
             const isLive = game.status === 'live'
+            const fin = game.status === 'finished'
+            const our = game.our_score ?? 0, riv = game.rival_score ?? 0
+            const res = fin ? (our > riv ? 'W' : our < riv ? 'L' : 'D') : null
+            const accent = res === 'W' ? '#16a34a' : res === 'L' ? '#dc2626' : res === 'D' ? '#94a3b8' : isLive ? '#ef4444' : '#e2e8f0'
+            const initials = (game.rival_name || '?').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
             return (
               <Link key={game.id} href={`/live/${game.id}`} style={{ textDecoration: 'none' }}>
                 <div style={{
-                  backgroundColor: '#fff', borderRadius: 16, border: `1px solid ${isLive ? '#fca5a5' : '#e8edf3'}`,
+                  backgroundColor: '#fff', borderRadius: 18, border: `1px solid ${isLive ? '#fca5a5' : '#e4e8ef'}`, borderLeft: `5px solid ${accent}`,
                   padding: '14px 18px', boxShadow: isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
                   transition: 'all 0.2s', position: 'relative',
                 }}
@@ -508,6 +505,8 @@ export default function EstadisticasPage() {
                   onMouseLeave={e => { e.currentTarget.style.boxShadow = isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
+                    <div style={{ width: 46, height: 46, borderRadius: 14, marginRight: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: accent === '#e2e8f0' ? '#64748b' : accent, background: `${accent}14`, border: `1px solid ${accent}30` }}>{initials}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                         <span style={{
@@ -526,6 +525,7 @@ export default function EstadisticasPage() {
                       <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, textTransform: 'capitalize' }}>
                         {dateStr}{game.location ? ` · ${game.location}` : ''}
                       </div>
+                    </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
                       {game.status !== 'pending' && (

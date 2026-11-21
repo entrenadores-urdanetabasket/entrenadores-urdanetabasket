@@ -109,7 +109,7 @@ export default function CoachActivityPage() {
       <Link href="/dashboard/director" style={{ fontSize: 13, color: '#52B043', fontWeight: 700, textDecoration: 'none', display: 'inline-block', marginBottom: 16 }}>← Volver al panel</Link>
 
       {/* Cabecera */}
-      <div style={{
+      <div className="hero page-hero" style={{
         background: 'var(--banner-bg)',
         borderRadius: 20, padding: '24px 28px', marginBottom: 20,
         display: 'flex', alignItems: 'center', gap: 18,

@@ -13,6 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Entrenadores Urdaneta",
+  icons: { icon: [{ url: "/icon-192.png", sizes: "192x192" }, { url: "/icon-512.png", sizes: "512x512" }], apple: "/apple-touch-icon.png" },
   description: "Portal de entrenadores del Club Deportivo Urdaneta",
   appleWebApp: {
     capable: true,
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0a0c10",
+  themeColor: "#0d2414",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

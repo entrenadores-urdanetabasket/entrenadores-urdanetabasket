@@ -22,7 +22,7 @@ export default function BottomNav() {
         { href: '/dashboard', label: 'Inicio', icon: 'home' },
         { href: '/dashboard/equipo', label: 'Equipo', icon: 'users' },
         { href: '/dashboard/asistencia', label: 'Asistencia', icon: 'check' },
-        { href: '/dashboard/estadisticas', label: 'Partidos', icon: 'chart' },
+        { href: '/dashboard/incidencias', label: 'Incidencias', icon: 'alert' },
       ]
 
   const isActive = href => href === '/dashboard' ? pathname === '/dashboard' : pathname === href || pathname.startsWith(href + '/')

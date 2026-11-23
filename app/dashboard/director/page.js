@@ -1,5 +1,6 @@
 'use client'
 
+import ComplianceAdmin from '@/components/compliance/ComplianceAdmin'
 import { toastError } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
@@ -876,6 +877,7 @@ export default function DirectorPage() {
       {/* ── SEGUIMIENTO ── */}
       {tab === 'seguimiento' && (
         <div>
+          <ComplianceAdmin />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
               Últimos 21 días · se comprueba si hay una sesión de entrenamiento creada y asistencia registrada cada día que le toca entrenar a cada equipo.

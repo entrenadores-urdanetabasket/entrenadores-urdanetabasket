@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import CommandPalette from '@/components/CommandPalette'
 import Toaster from '@/components/Toaster'
 import FX from '@/components/FX'
+import { ComplianceGate } from '@/components/compliance/Compliance'
 import BottomNav from '@/components/BottomNav'
 import { usePathname } from 'next/navigation'
 
@@ -40,7 +41,7 @@ export default function DashboardLayout({ children }) {
       <main style={{ flex: 1, minWidth: 0 }}>
         <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}
           className="fade-in-safe dash-content">
-          <div key={pathname} className="page-enter">{children}</div>
+          <ComplianceGate><div key={pathname} className="page-enter">{children}</div></ComplianceGate>
         </div>
       </main>
       <CommandPalette />

@@ -6,6 +6,7 @@ import Icon from '@/components/Icons'
 import CoachHome from '@/components/home/CoachHome'
 import DirectorHome from '@/components/home/DirectorHome'
 import ResultsTicker from '@/components/home/ResultsTicker'
+import { PendingGuide } from '@/components/compliance/Compliance'
 
 const coachModules = [
   { label: 'Mi Equipo',      desc: 'Jugadores y plantilla',  href: '/dashboard/equipo',         icon: 'users',     color: '#3b82f6' },
@@ -67,6 +68,9 @@ export default function DashboardPage() {
           <Icon name="arrow" size={18} style={{ color: '#d97706' }} />
         </Link>
       )}
+
+      {/* Guía de seguimiento (solo entrenadores) */}
+      {!isDirector && <PendingGuide />}
 
       {/* Resumen */}
       {isDirector ? <DirectorHome /> : activeTeam ? <CoachHome team={activeTeam} /> : (

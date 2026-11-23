@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import ActivityTracker from "@/components/ActivityTracker";
@@ -8,6 +8,13 @@ const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800", "900"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+const display = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -31,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" suppressHydrationWarning className={`h-full ${inter.variable}`}>
+    <html lang="es" suppressHydrationWarning className={`h-full ${inter.variable} ${display.variable}`}>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('urdaneta-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}" }} />

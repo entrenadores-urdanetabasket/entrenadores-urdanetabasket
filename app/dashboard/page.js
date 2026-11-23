@@ -37,7 +37,7 @@ export default function DashboardPage() {
     <div className="fade-in">
       {/* Saludo */}
       <div style={{ marginBottom: 22 }}>
-        <h1 style={{ color: '#0f172a', fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.8 }}>
+        <h1 className="display" style={{ color: '#0f172a', fontSize: 38, fontWeight: 800, margin: 0, lineHeight: 1 }}>
           {greeting}, {firstName}
         </h1>
         <p style={{ color: '#94a3b8', fontSize: 14, margin: '4px 0 0', fontWeight: 500 }}>

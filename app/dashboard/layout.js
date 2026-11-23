@@ -32,7 +32,7 @@ export default function DashboardLayout({ children }) {
   if (!user) return null
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f5f7fa' }}>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar />
       <main style={{ flex: 1, minWidth: 0 }}>
         <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}

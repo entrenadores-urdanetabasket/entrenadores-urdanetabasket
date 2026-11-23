@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/Icons'
 
@@ -13,7 +14,7 @@ export function Ring({ value = 0, size = 64, stroke = 7, color = '#7bd96a', trac
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
+          strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} style={{ '--ring-full': c, animation: 'ringDraw 1.2s cubic-bezier(.2,.7,.2,1) both', transition: 'stroke-dashoffset 0.8s ease' }} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{children}</div>
     </div>
@@ -61,7 +62,7 @@ export function Bars({ data = [], height = 120, color = '#52B043' }) {
         return (
           <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 4, minWidth: 0 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b' }} className="num">{v == null ? '—' : `${v}%`}</div>
-            <div style={{ width: '100%', maxWidth: 34, height: h, borderRadius: '8px 8px 4px 4px', background: v == null ? c : `linear-gradient(180deg, ${c}, ${c}bb)`, transition: 'height 0.6s ease' }} />
+            <div style={{ width: '100%', maxWidth: 34, height: h, borderRadius: '8px 8px 4px 4px', background: v == null ? c : `linear-gradient(180deg, ${c}, ${c}bb)`, transition: 'height 0.6s ease', transformOrigin: 'bottom', animation: 'growY .8s cubic-bezier(.2,.7,.2,1) both', animationDelay: `${i * 70}ms` }} />
             <div style={{ fontSize: 9.5, color: '#94a3b8', fontWeight: 600 }}>{d.label}</div>
           </div>
         )
@@ -93,7 +94,7 @@ export function CardHead({ icon, title, href, linkLabel = 'Ver todo', color = '#
       <div style={{ width: 32, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color, background: `${color}14`, border: `1px solid ${color}22` }}>
         <Icon name={icon} size={16} />
       </div>
-      <div style={{ flex: 1, fontSize: 14.5, fontWeight: 800, color: '#0f172a', letterSpacing: -0.2 }}>{title}</div>
+      <div className="panel-title" style={{ flex: 1, color: '#0f172a' }}>{title}</div>
       {href && (
         <Link href={href} style={{ fontSize: 12, fontWeight: 700, color: '#52B043', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           {linkLabel} <Icon name="arrow" size={13} />
@@ -112,7 +113,7 @@ export function GlassStat({ label, value, sub, children }) {
       backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', gap: 12,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="num" style={{ color: '#fff', fontSize: 30, fontWeight: 800, lineHeight: 1, letterSpacing: -1 }}>{value}</div>
+        <div className="num" style={{ color: '#fff', fontFamily: 'var(--font-scoreboard)', fontSize: 40, fontWeight: 700, lineHeight: 0.95, letterSpacing: 0.5 }}><CountUp value={value} /></div>
         <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10.5, fontWeight: 700, marginTop: 7, textTransform: 'uppercase', letterSpacing: 0.8 }}>{label}</div>
         {sub && <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 2 }}>{sub}</div>}
       </div>
@@ -155,4 +156,25 @@ export function Radar({ axes = [], size = 260, colorA = '#16a34a', colorB = '#94
       })}
     </svg>
   )
+}
+
+// Cuenta animada de 0 hasta el valor (solo para números enteros, con % opcional)
+export function CountUp({ value, duration = 1000 }) {
+  const m = /^(\d+)(%?)$/.exec(String(value))
+  const target = m ? parseInt(m[1], 10) : null
+  const [n, setN] = useState(0)
+  const raf = useRef(0)
+  useEffect(() => {
+    if (target == null) return
+    const t0 = performance.now()
+    const tick = now => {
+      const p = Math.min(1, (now - t0) / duration)
+      setN(Math.round(target * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf.current = requestAnimationFrame(tick)
+    }
+    raf.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf.current)
+  }, [target, duration])
+  if (target == null) return <>{value}</>
+  return <>{n}{m[2]}</>
 }

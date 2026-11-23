@@ -1,6 +1,6 @@
 'use client'
 
-import { toastError } from '@/lib/toast'
+import { toast, toastError } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -726,8 +726,15 @@ function EntrenamientosInner() {
     if (!savingLibFor) return
     const teamId = selectedTeam?.id || detailSession?.team_id || null
     const fields = libDestinationToFields(quickLibDestination, teamId)
-    await supabase.from('exercise_library').insert({ ...pickExFields(savingLibFor), play_data: savingLibFor.play_data, created_by: user.id, ...fields })
+    const { error } = await supabase.from('exercise_library').insert({ ...pickExFields(savingLibFor), play_data: savingLibFor.play_data ?? null, created_by: user.id, ...fields })
+    if (error) {
+      console.error('Error guardando en la biblioteca:', error)
+      toastError(`No se pudo guardar en la biblioteca: ${error.message}`)
+      return // el modal se queda abierto para poder reintentar
+    }
     setSavingLibFor(null)
+    toast(quickLibDestination === 'club' ? 'Guardado en la biblioteca del club' : quickLibDestination === 'equipo' ? 'Guardado en la biblioteca de tu equipo' : 'Guardado en la biblioteca del equipo y del club')
+    await loadLibrary()
   }
 
   async function addExerciseFromLibrary(item) {
@@ -765,9 +772,15 @@ function EntrenamientosInner() {
     setSavingLib(true)
     const payload = pickExFields(libForm)
     const fields = libDestinationToFields(libFormDestination, selectedTeam?.id || null)
-    if (editingLibItem) await supabase.from('exercise_library').update({ ...payload, ...fields }).eq('id', editingLibItem.id)
-    else await supabase.from('exercise_library').insert({ ...payload, ...fields, created_by: user.id })
+    const { error } = editingLibItem
+      ? await supabase.from('exercise_library').update({ ...payload, ...fields }).eq('id', editingLibItem.id)
+      : await supabase.from('exercise_library').insert({ ...payload, ...fields, created_by: user.id })
     setSavingLib(false)
+    if (error) {
+      console.error('Error guardando ejercicio de biblioteca:', error)
+      toastError(`No se pudo guardar el ejercicio: ${error.message}`)
+      return // el formulario se queda abierto para no perder lo escrito
+    }
     setShowLibForm(false)
     setEditingLibItem(null)
     setLibForm(emptyExForm)

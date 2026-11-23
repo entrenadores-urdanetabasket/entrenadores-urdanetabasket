@@ -724,3 +724,18 @@ html[data-theme="dark"]:has(.dash-content) body { background: none; }
 html[data-theme="dark"]:has(.dash-content) [style*="background-color: rgb(255, 255, 255)"],
 html[data-theme="dark"]:has(.dash-content) [style*="background: rgb(255, 255, 255)"],
 html[data-theme="dark"]:has(.dash-content) .seg-tabs { background-color: rgb(176, 226, 190) !important; }
+
+/* ══════════════════════════════════════════════════════════════
+   ESCENARIO: fondo verde de pabellón + tarjetas blancas nítidas
+   ══════════════════════════════════════════════════════════════ */
+.fx-scene { display: block !important;
+  background:
+    radial-gradient(900px 520px at 16% 4%, rgba(150,235,130,0.40), transparent 65%),
+    radial-gradient(700px 480px at 94% 30%, rgba(255,122,26,0.16), transparent 65%),
+    linear-gradient(180deg, #0f4423 0%, #15592c 52%, #0a3317 100%) !important; }
+.fxs-court { background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 56px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.14) 0 1px, transparent 1px 160px),
+    linear-gradient(180deg, #1b6a33, #1f7438 60%, #175a2b) !important; }
+.hero { border: 1px solid rgba(255,255,255,0.14); }
+.empty-state { background: rgba(255,255,255,0.97); border-radius: 20px; box-shadow: 0 10px 28px rgba(0,0,0,0.18); }

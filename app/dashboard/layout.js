@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Sidebar from '@/components/Sidebar'
-import Topbar from '@/components/Topbar'
 import CommandPalette from '@/components/CommandPalette'
 import Toaster from '@/components/Toaster'
 import FX from '@/components/FX'
@@ -41,7 +40,6 @@ export default function DashboardLayout({ children }) {
       <main style={{ flex: 1, minWidth: 0 }}>
         <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}
           className="fade-in-safe dash-content">
-          <Topbar />
           <div key={pathname} className="page-enter">{children}</div>
         </div>
       </main>

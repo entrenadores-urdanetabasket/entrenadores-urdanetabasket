@@ -610,7 +610,7 @@ export default function JugadorPage() {
             <TrendChart data={attendanceTrend} valueSuffix="%" color="#16a34a" />
           </div>
 
-          <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de asistencia</h3>
+          <h3 className="section-title" style={{ marginBottom: 12, color: '#fff' }}>Historial de asistencia</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: otherRecords.length > 0 ? 28 : 0 }}>
             {ownRecords.length === 0 && (
               <div className="empty-state">
@@ -647,7 +647,7 @@ export default function JugadorPage() {
           {/* Actividad con otros equipos (doble ficha federada) */}
           {otherRecords.length > 0 && (
             <>
-              <h3 className="section-title" style={{ marginBottom: 12, color: '#7c3aed' }}>🔗 Actividad con otros equipos</h3>
+              <h3 className="section-title" style={{ marginBottom: 12, color: '#e4d9ff' }}>🔗 Actividad con otros equipos</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                 {Object.entries(otherStats.byTeam).map(([teamName, v]) => (
                   <span key={teamName} style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', padding: '5px 12px', borderRadius: 10 }}>
@@ -773,7 +773,7 @@ export default function JugadorPage() {
           {/* Estadísticas con otros equipos (doble ficha federada) */}
           {otherSeason && otherSeason.gamesPlayed > 0 && (
             <>
-              <h3 className="section-title" style={{ marginTop: 24, marginBottom: 12, color: '#7c3aed' }}>🔗 Estadísticas con otros equipos</h3>
+              <h3 className="section-title" style={{ marginTop: 24, marginBottom: 12, color: '#e4d9ff' }}>🔗 Estadísticas con otros equipos</h3>
               <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: '1px dashed #ddd6fe' }}>
                 <div style={{ padding: '14px 18px', borderBottom: '1px solid #f5f3ff', fontWeight: 800, fontSize: 14, color: '#0f172a' }}>
                   {otherSeason.gamesPlayed} {otherSeason.gamesPlayed === 1 ? 'partido' : 'partidos'} fuera de su equipo
@@ -823,7 +823,7 @@ export default function JugadorPage() {
       {/* ───────────────────────── INCIDENCIAS ───────────────────────── */}
       {tab === 'incidencias' && (
         <div>
-          <h3 className="section-title" style={{ marginBottom: 12 }}>
+          <h3 className="section-title" style={{ marginBottom: 12, color: '#fff' }}>
             Incidencias {activeIncidents > 0 && (
               <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', backgroundColor: '#ef4444', padding: '2px 9px', borderRadius: 7, marginLeft: 8 }}>
                 {activeIncidents} activas
@@ -890,7 +890,7 @@ export default function JugadorPage() {
             <TrendChart data={ratingTrend} color="#f59e0b" emptyText="Todavía no hay valoraciones de entrenamientos para este jugador" />
           </div>
 
-          <h3 className="section-title" style={{ marginBottom: 12 }}>Historial de valoraciones</h3>
+          <h3 className="section-title" style={{ marginBottom: 12, color: '#fff' }}>Historial de valoraciones</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: otherRatings.length > 0 ? 28 : 0 }}>
             {ownRatings.length === 0 ? (
               <div className="empty-state">
@@ -916,7 +916,7 @@ export default function JugadorPage() {
           {/* Valoraciones con otros equipos (doble ficha federada) */}
           {otherRatings.length > 0 && (
             <>
-              <h3 className="section-title" style={{ marginBottom: 12, color: '#7c3aed' }}>🔗 Valoraciones con otros equipos</h3>
+              <h3 className="section-title" style={{ marginBottom: 12, color: '#e4d9ff' }}>🔗 Valoraciones con otros equipos</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
                 <div style={{ backgroundColor: '#fff', borderRadius: 16, padding: '18px 8px', border: '1px dashed #ddd6fe', textAlign: 'center' }}>
                   <div style={{ fontSize: 30, fontWeight: 900, color: '#7c3aed', lineHeight: 1 }}>{otherRatingAvg ?? '—'}</div>

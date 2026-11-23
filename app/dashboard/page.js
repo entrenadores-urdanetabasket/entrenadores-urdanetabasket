@@ -41,10 +41,10 @@ export default function DashboardPage() {
 
       {/* Saludo */}
       <div style={{ marginBottom: 22 }}>
-        <h1 className="display" style={{ color: '#0f172a', fontSize: 38, fontWeight: 800, margin: 0, lineHeight: 1 }}>
+        <h1 className="display" style={{ color: '#fff', fontSize: 38, fontWeight: 800, margin: 0, lineHeight: 1, textShadow: '0 2px 18px rgba(0,0,0,0.35)' }}>
           {greeting}, {firstName}
         </h1>
-        <p style={{ color: '#94a3b8', fontSize: 14, margin: '4px 0 0', fontWeight: 500 }}>
+        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, margin: '4px 0 0', fontWeight: 500 }}>
           {isDirector ? 'Esto es lo que está pasando en el club.' : 'Resumen de tu equipo y de lo que viene.'}
         </p>
       </div>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
 
       {/* Accesos rápidos */}
       <div style={{ marginTop: 28 }}>
-        <h3 style={{ color: '#0f172a', fontSize: 15, fontWeight: 800, marginBottom: 14, letterSpacing: -0.2 }}>Accesos rápidos</h3>
+        <h3 className="display" style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Accesos rápidos</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
           {modules.map(({ label, desc, href, icon, color }) => (
             <Link key={label} href={href} className="module-card" style={{ '--accent': color }}>

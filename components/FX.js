@@ -6,13 +6,11 @@ import { usePathname } from 'next/navigation'
 // Efectos globales del panel (solo decorativos, no tocan datos):
 //  · foco de luz que sigue al cursor sobre tarjetas
 //  · inclinación 3D de tarjetas con el ratón
-//  · balón que persigue el cursor (solo con ratón)
 //  · barra de progreso naranja al cambiar de pantalla
 //  · polvo flotante de fondo
 export default function FX() {
   const pathname = usePathname()
   const [navKey, setNavKey] = useState(0)
-  const ball = useRef(null)
   const dust = useRef(null)
   const first = useRef(true)
 
@@ -22,15 +20,13 @@ export default function FX() {
     setNavKey(k => k + 1)
   }, [pathname])
 
-  // Foco + inclinación + balón
+  // Foco + inclinación
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches
-    let tx = -100, ty = -100, bx = -100, by = -100, raf = 0, down = false, hovering = false
     let tiltEl = null
 
     const onMove = e => {
-      tx = e.clientX; ty = e.clientY
       const t = e.target
       if (!(t instanceof Element)) return
       const card = t.closest('.panel, .module-card, .hero, .tilt')
@@ -46,32 +42,15 @@ export default function FX() {
         }
       }
       if (tiltEl && tiltEl !== card) { tiltEl.style.setProperty('--rx', '0deg'); tiltEl.style.setProperty('--ry', '0deg'); tiltEl = null }
-      hovering = !!t.closest('a, button, [role="button"], select, label, input, textarea')
     }
     const onLeave = () => { if (tiltEl) { tiltEl.style.setProperty('--rx', '0deg'); tiltEl.style.setProperty('--ry', '0deg'); tiltEl = null } }
-    const onDown = () => { down = true }
-    const onUp = () => { down = false }
 
     document.addEventListener('pointermove', onMove, { passive: true })
     document.addEventListener('pointerleave', onLeave)
-    document.addEventListener('pointerdown', onDown); document.addEventListener('pointerup', onUp)
 
-    const loop = () => {
-      bx += (tx - bx) * 0.16; by += (ty - by) * 0.16
-      const el = ball.current
-      if (el) {
-        const s = down ? 0.7 : hovering ? 1.9 : 1
-        el.style.transform = `translate3d(${bx - 9}px, ${by - 9}px, 0) scale(${s}) rotate(${(bx + by) * 0.6}deg)`
-        el.style.opacity = hovering ? 0.55 : 0.95
-      }
-      raf = requestAnimationFrame(loop)
-    }
-    if (fine && !reduce) loop()
 
     return () => {
-      cancelAnimationFrame(raf)
       document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerleave', onLeave)
-      document.removeEventListener('pointerdown', onDown); document.removeEventListener('pointerup', onUp)
     }
   }, [])
 
@@ -106,7 +85,6 @@ export default function FX() {
     <>
       <canvas ref={dust} className="fx-dust keep-color" aria-hidden="true" />
       {navKey > 0 && <div key={navKey} className="fx-progress keep-color" aria-hidden="true" />}
-      <div ref={ball} className="fx-ball keep-color" aria-hidden="true" />
     </>
   )
 }

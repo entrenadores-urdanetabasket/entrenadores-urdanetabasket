@@ -35,7 +35,7 @@ export default function ResultsTicker() {
     </div>
   )
   return (
-    <div className="results-ticker" aria-label="Últimos resultados">
+    <div className="results-ticker keep-color" aria-label="Últimos resultados">
       <div className="rt-label"><span className="rt-dot" /> Resultados</div>
       <div className="rt-viewport"><div className="rt-track">{row(0)}{row(1)}</div></div>
     </div>

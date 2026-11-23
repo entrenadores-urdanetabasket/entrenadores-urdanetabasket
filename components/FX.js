@@ -87,7 +87,10 @@ export default function FX() {
   return (
     <>
       <canvas ref={dust} className="fx-dust keep-color" aria-hidden="true" />
-      <div className="fx-beams keep-color" aria-hidden="true"><i /><i /><i /></div>
+      <div className="fx-scene keep-color" aria-hidden="true">
+        <div className="fxs-beam b1" /><div className="fxs-beam b2" /><div className="fxs-beam b3" />
+        <div className="fxs-floor"><div className="fxs-court"><svg viewBox="0 0 940 500" preserveAspectRatio="none"><g fill="rgba(82,176,67,0.16)"><rect x="10" y="170" width="190" height="160" /><rect x="740" y="170" width="190" height="160" /><circle cx="470" cy="250" r="60" fill="rgba(255,122,26,0.10)" /></g><g fill="none" stroke="#fff" strokeOpacity="0.8" strokeWidth="3.2" strokeLinecap="round"><rect x="10" y="10" width="920" height="480" /><path d="M470 10V490" /><circle cx="470" cy="250" r="60" /><circle cx="470" cy="250" r="18" /><rect x="10" y="170" width="190" height="160" /><rect x="740" y="170" width="190" height="160" /><path d="M200 190A60 60 0 0 1 200 310" /><path d="M200 190A60 60 0 0 0 200 310" strokeDasharray="8 9" /><path d="M740 190A60 60 0 0 0 740 310" /><path d="M740 190A60 60 0 0 1 740 310" strokeDasharray="8 9" /><path d="M10 52H148A220 220 0 0 1 148 448H10" /><path d="M930 52H792A220 220 0 0 0 792 448H930" /></g><g fill="none" stroke="#ff7a1a" strokeWidth="3.4"><circle cx="64" cy="250" r="10" /><circle cx="876" cy="250" r="10" /></g></svg></div></div>
+      </div>
       {navKey > 0 && <div key={navKey} className="fx-progress keep-color" aria-hidden="true" />}
     </>
   )

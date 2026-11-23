@@ -3,14 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import Icon from '@/components/Icons'
 
-const FEATURES = [
-  { icon: 'check', text: 'Asistencia al día' },
-  { icon: 'chart', text: 'Estadísticas en directo' },
-  { icon: 'ball', text: 'Pizarra táctica' },
-  { icon: 'clipboard', text: 'Convocatorias' },
-]
 const TICKER = ['Asistencia', 'Estadísticas en directo', 'Pizarra táctica', 'Convocatorias', 'Entrenamientos', 'Mapa de tiros', 'Box score', 'Defensa en zona']
 
 // Partículas de polvo en el aire de la pista (decorativo)
@@ -133,16 +126,19 @@ export default function LoginPage() {
 
         <div className="lg-main">
           <section className="lg-hero">
-            <div className="lg-eyebrow"><span /> Temporada 2026-2027</div>
-            <h1 className="lg-headline">Todo tu equipo,<br />en un solo sitio.</h1>
-            <p className="lg-lead">Plantillas, asistencia, entrenamientos y partidos del club, con las herramientas de un equipo profesional.</p>
-            <div className="lg-chips">
-              {FEATURES.map(f => <span key={f.text} className="lg-chip"><Icon name={f.icon} size={14} /> {f.text}</span>)}
-            </div>
+            <h1 className="lg-brand" aria-label="Club Deportivo Urdaneta">
+              <span className="lg-bw w1" aria-hidden="true">
+                <b>Club</b>
+                <em className="lg-rule"><i /></em>
+              </span>
+              <span className="lg-bw w2" aria-hidden="true"><b>Deportivo</b></span>
+              <span className="lg-bw w3" aria-hidden="true"><b>Urdaneta</b></span>
+            </h1>
+            <div className="lg-season"><span /> Temporada 2026-2027</div>
           </section>
 
           <section className="lg-card">
-            <h2>Bienvenido</h2>
+            <h2>Ongi etorri</h2>
             <p>Inicia sesión para acceder a tu panel.</p>
             <form onSubmit={handleLogin}>
               <label htmlFor="email">Email</label>
@@ -222,6 +218,32 @@ export default function LoginPage() {
         .lg-club { font-family: var(--font-display), sans-serif; font-size: 26px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; line-height: 1; }
         .lg-sub { color: rgba(255,255,255,0.55); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
         .lg-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); gap: 48px; align-items: center; padding-top: 18px; }
+        /* Lockup tipográfico: CLUB / DEPORTIVO / URDANETA */
+        .lg-brand { margin: 0; display: flex; flex-direction: column; gap: 0; font-family: var(--font-display), sans-serif; text-transform: uppercase; font-weight: 800; }
+        .lg-bw { display: block; overflow: hidden; padding-bottom: 0.04em; }
+        .lg-bw b { display: block; font-weight: 800; line-height: 0.86; transform: translateY(108%); animation: lgWord 1s cubic-bezier(.2,.85,.2,1) forwards; }
+        .lg-bw.w1 { font-size: clamp(72px, 10.4vw, 168px); display: flex; align-items: center; gap: 0.18em; }
+        .lg-bw.w1 b { color: transparent; -webkit-text-stroke: 2.4px rgba(255,255,255,0.9); letter-spacing: 0.06em; animation-delay: .15s; }
+        .lg-bw.w2 { font-size: clamp(54px, 8vw, 128px); margin-top: -0.02em; }
+        .lg-bw.w2 b { color: #fff; letter-spacing: 0.035em; animation-delay: .32s; text-shadow: 0 8px 44px rgba(0,0,0,0.55); }
+        .lg-bw.w3 { font-size: clamp(74px, 11.2vw, 180px); margin-top: -0.03em; }
+        .lg-bw.w3 b { letter-spacing: 0.02em; animation-delay: .5s; padding-right: 0.04em;
+          background:
+            linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.95) 50%, transparent 62%) 160% 0 / 260% 100% no-repeat,
+            linear-gradient(180deg, #ffffff 0%, #c4f7b4 42%, #5fcf4c 100%);
+          -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+          filter: drop-shadow(0 10px 34px rgba(0,0,0,0.5)) drop-shadow(0 0 28px rgba(82,176,67,0.35));
+          animation: lgWord 1s .5s cubic-bezier(.2,.85,.2,1) forwards, lgSheen 5.5s 2s ease-in-out infinite; }
+        .lg-rule { flex: 1; position: relative; height: 3px; min-width: 40px; margin-top: 0.1em; border-radius: 3px; background: linear-gradient(90deg, rgba(255,255,255,0.55), rgba(255,255,255,0.05));
+          transform-origin: left; transform: scaleX(0); animation: lgGrow 1.3s .9s cubic-bezier(.2,.8,.2,1) forwards; }
+        .lg-rule i { position: absolute; right: 0; top: 50%; width: 0.17em; height: 0.17em; font-size: inherit; margin-top: -0.085em; border-radius: 50%;
+          background: radial-gradient(circle at 35% 30%, #ffbd7a, #ff7a1a 60%, #b93d08); box-shadow: 0 0 18px rgba(255,122,26,0.8); }
+        .lg-season { display: inline-flex; align-items: center; gap: 12px; margin-top: 26px; font-size: 12px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #ffb27a; opacity: 0; animation: lgFade .8s 1.2s ease forwards; }
+        .lg-season span { width: 34px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #ff7a1a, #ffb066); box-shadow: 0 0 12px rgba(255,122,26,0.7); }
+        @keyframes lgWord { to { transform: translateY(0); } }
+        @keyframes lgGrow { to { transform: scaleX(1); } }
+        @keyframes lgFade { to { opacity: 1; } }
+        @keyframes lgSheen { 0%, 55% { background-position: 160% 0, 0 0; } 100% { background-position: -60% 0, 0 0; } }
         .lg-eyebrow { display: inline-flex; align-items: center; gap: 9px; font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #ffb27a; margin-bottom: 16px; }
         .lg-eyebrow span { width: 28px; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #ff7a1a, #ffb066); box-shadow: 0 0 12px rgba(255,122,26,0.7); }
         .lg-headline { font-family: var(--font-display), sans-serif; text-transform: uppercase; font-weight: 800; font-size: clamp(54px, 7.2vw, 108px); line-height: 0.9; letter-spacing: 0.5px; margin: 0 0 22px;

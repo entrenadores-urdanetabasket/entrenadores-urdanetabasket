@@ -211,8 +211,8 @@ export default function Sidebar() {
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(3px)' }} />
-          <div className="sidebar-mobile">{sidebarPanel({ animation: 'slideInLeft 0.22s ease both' })}</div>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 65, backdropFilter: 'blur(3px)' }} />
+          <div className="sidebar-mobile">{sidebarPanel({ animation: 'slideInLeft 0.22s ease both', zIndex: 70 })}</div>
         </>
       )}
     </>

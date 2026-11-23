@@ -739,3 +739,28 @@ html[data-theme="dark"]:has(.dash-content) .seg-tabs { background-color: rgb(176
     linear-gradient(180deg, #1b6a33, #1f7438 60%, #175a2b) !important; }
 .hero { border: 1px solid rgba(255,255,255,0.14); }
 .empty-state { background: rgba(255,255,255,0.97); border-radius: 20px; box-shadow: 0 10px 28px rgba(0,0,0,0.18); }
+
+/* ══════════════════════════════════════════════════════════════
+   MÓVIL / PANTALLAS TÁCTILES: sin efectos pesados ni de ratón
+   (evita parpadeos, repintados continuos y "hover" pegado al tocar)
+   ══════════════════════════════════════════════════════════════ */
+@media (hover: none), (pointer: coarse), (max-width: 1023px) {
+  .fx-dust, .fxs-beam { display: none !important; }
+  .fxs-court, .fxs-court svg, .app-sidebar img, .rt-dot, .rt-track { animation: none !important; }
+  .fxs-court svg { filter: none !important; }
+  body::before { animation: none !important; }
+  html { transition: none; }
+
+  /* Entrada: solo un fundido suave, sin desenfoque ni desplazamiento, y sin repetir en cada bloque */
+  .page-enter { animation: pageInSoft .22s ease-out backwards !important; }
+  @keyframes pageInSoft { from { opacity: 0; } }
+  .dash-content .panel, .dash-content .module-card, .dash-content .hero, .dash-content .hero > *,
+  .row-item, .results-ticker { animation: none !important; }
+
+  /* Efectos de ratón */
+  .panel::after, .module-card::before, .hero::before { display: none !important; }
+  .tilt, .module-card { transform: none !important; will-change: auto; }
+  .tilt:hover, .module-card:hover { box-shadow: inherit; }
+  .nav-item:hover, .seg-tab:hover, .seg-tab.active { transform: none; }
+  .nav-item:hover .nav-icon { transform: none; }
+}

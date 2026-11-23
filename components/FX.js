@@ -60,7 +60,7 @@ export default function FX() {
   // Polvo flotante de fondo
   useEffect(() => {
     const canvas = dust.current
-    if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.matchMedia('(hover: none), (pointer: coarse)').matches) return
     const ctx = canvas.getContext('2d')
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     let w = 0, h = 0, raf = 0

@@ -188,7 +188,8 @@ export async function POST(request) {
       const suspendedSet = new Set(teamExceptions.map(x => x.date))
       const createdStr = (t.created_at || todayStr).slice(0, 10)
       const seasonStart = seasonStartFor(t)
-      const startStr = createdStr < seasonStart ? seasonStart : createdStr
+      const joinStr = (coachProfile.created_at || todayStr).slice(0, 10) // nada anterior al alta del entrenador
+      const startStr = [createdStr, seasonStart, joinStr].sort().pop()
       const expected = computeExpectedDates(t, startStr, todayStr, suspendedSet)
       const compliance = classifyCompliance(expected, teamSessions, teamAtt)
       return { ...t, compliance: { ...compliance, exceptionsCount: teamExceptions.length, since: startStr } }

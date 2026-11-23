@@ -32,7 +32,7 @@ export default function DirectorHome() {
     let compliance = []
     if (ids.length) {
       const [tc, sess, att, exc] = await Promise.all([
-        supabase.from('team_coaches').select('team_id, profiles(full_name)').in('team_id', ids),
+        supabase.from('team_coaches').select('team_id, profiles(full_name, created_at)').in('team_id', ids),
         supabase.from('training_sessions').select('team_id,date').in('team_id', ids).gte('date', startStr).lte('date', endStr),
         supabase.from('attendance').select('team_id,date').eq('type', 'training').in('team_id', ids).gte('date', startStr).lte('date', endStr),
         supabase.from('team_schedule_exceptions').select('team_id,date').in('team_id', ids).gte('date', startStr).lte('date', endStr),
@@ -41,8 +41,12 @@ export default function DirectorHome() {
         const sSet = new Set((sess.data || []).filter(x => x.team_id === team.id).map(x => x.date))
         const aSet = new Set((att.data || []).filter(x => x.team_id === team.id).map(x => x.date))
         const eSet = new Set((exc.data || []).filter(x => x.team_id === team.id).map(x => x.date))
-        const c = classifyCompliance(computeExpectedDates(team, startStr, endStr, eSet), sSet, aSet)
-        const coaches = (tc.data || []).filter(x => x.team_id === team.id).map(x => x.profiles?.full_name).filter(Boolean)
+        const teamTc = (tc.data || []).filter(x => x.team_id === team.id)
+        // Nada anterior al alta del entrenador más veterano del equipo
+        const joins = teamTc.map(x => (x.profiles?.created_at || '').slice(0, 10)).filter(Boolean).sort()
+        const teamStart = joins.length ? [startStr, joins[0]].sort().pop() : startStr
+        const c = classifyCompliance(computeExpectedDates(team, teamStart, endStr, eSet), sSet, aSet)
+        const coaches = teamTc.map(x => x.profiles?.full_name).filter(Boolean)
         return { team, coaches, ...c }
       })
     }

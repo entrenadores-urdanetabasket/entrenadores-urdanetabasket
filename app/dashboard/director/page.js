@@ -125,7 +125,7 @@ export default function DirectorPage() {
       const endStr = toDateStr(today)
 
       const [{ data: tc }, { data: sessions }, { data: att }, { data: exceptions }] = await Promise.all([
-        supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name)').in('team_id', teamIds),
+        supabase.from('team_coaches').select('team_id, coach_id, profiles(full_name, created_at)').in('team_id', teamIds),
         supabase.from('training_sessions').select('team_id, date').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
         supabase.from('attendance').select('team_id, date').eq('type', 'training').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
         supabase.from('team_schedule_exceptions').select('id, team_id, date, reason').in('team_id', teamIds).gte('date', startStr).lte('date', endStr),
@@ -137,7 +137,10 @@ export default function DirectorPage() {
         const teamAtt = new Set((att || []).filter(a => a.team_id === team.id).map(a => a.date))
         const teamExceptions = (exceptions || []).filter(x => x.team_id === team.id)
         const suspendedSet = new Set(teamExceptions.map(x => x.date))
-        const expected = computeExpectedDates(team, startStr, endStr, suspendedSet)
+        // Un entrenador nuevo no hereda lo anterior a su alta: se cuenta desde el alta del entrenador más veterano del equipo
+        const joins = teamCoaches.map(c => (c.profiles?.created_at || '').slice(0, 10)).filter(Boolean).sort()
+        const teamStart = joins.length ? [startStr, joins[0]].sort().pop() : startStr
+        const expected = computeExpectedDates(team, teamStart, endStr, suspendedSet)
         const compliance = classifyCompliance(expected, teamSessions, teamAtt)
         return { team, coaches: teamCoaches, compliance, exceptions: teamExceptions }
       })

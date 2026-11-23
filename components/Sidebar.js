@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import Icon from '@/components/Icons'
-import { useTheme } from '@/lib/theme'
 
 // Menú agrupado por bloques, con iconos de trazo
 const coachGroups = [
@@ -47,7 +46,6 @@ export default function Sidebar() {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
   const { profile, supabase, myTeams, activeTeam, setActiveTeam } = useAuth()
-  const { dark, toggle: toggleTheme } = useTheme()
   useEffect(() => {
     const onOpen = () => setOpen(true)
     window.addEventListener('urdaneta-open-menu', onOpen)
@@ -184,16 +182,6 @@ export default function Sidebar() {
           onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; e.currentTarget.style.backgroundColor = 'transparent' }}>
           <Icon name="user" size={15} /> Editar perfil
         </Link>
-        <button onClick={toggleTheme} style={{
-          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-          padding: '8px 12px', borderRadius: 9, border: 'none',
-          backgroundColor: 'transparent', color: 'rgba(255,255,255,0.45)',
-          fontSize: 12.5, cursor: 'pointer', transition: 'all 0.15s', fontWeight: 500,
-        }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.45)'; e.currentTarget.style.backgroundColor = 'transparent' }}>
-          <Icon name={dark ? 'sun' : 'moon'} size={15} /> {dark ? 'Modo claro' : 'Modo oscuro'}
-        </button>
         <button onClick={handleLogout} style={{
           display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           padding: '8px 12px', borderRadius: 9, border: 'none',

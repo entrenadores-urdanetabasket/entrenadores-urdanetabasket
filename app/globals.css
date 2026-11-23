@@ -421,7 +421,7 @@ a.row-item:hover { background: #f1f5f9; border-color: #dbe3ec; transform: transl
 .page-hero .btn-primary:hover { background: rgba(255,255,255,0.22); transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.34), 0 8px 20px rgba(0,0,0,0.22); }
 
 /* ── Modo oscuro (inversión controlada; solo en pantallas del panel) ── */
-html[data-theme="dark"]:has(.dash-content) { filter: invert(0.92) hue-rotate(180deg); background: #f3f5f9; }
+html[data-theme="dark"]:has(.dash-content) { filter: invert(1) hue-rotate(180deg) contrast(0.78) brightness(1.14); background: #eef3ee; }
 html[data-theme="dark"]:has(.dash-content) img,
 html[data-theme="dark"]:has(.dash-content) video,
 html[data-theme="dark"]:has(.dash-content) canvas,
@@ -713,9 +713,14 @@ html[data-theme="dark"]:has(.dash-content) .fx-beams { display: none !important;
 
 /* Cristal esmerilado para las tarjetas en modo oscuro, para que la pista se intuya detrás */
 html[data-theme="dark"]:has(.dash-content) .panel,
-html[data-theme="dark"]:has(.dash-content) .module-card { background-color: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+html[data-theme="dark"]:has(.dash-content) .module-card { background-color: rgb(176, 226, 190); }
 
 /* Modo claro: fondo arce cálido en vez de blanco */
 body { background-color: #ece4d4; }
 
 html[data-theme="dark"]:has(.dash-content) body { background: none; }
+
+/* Superficies blancas del panel: tinte verde (se ven verde bosque, más claro y con color) */
+html[data-theme="dark"]:has(.dash-content) [style*="background-color: rgb(255, 255, 255)"],
+html[data-theme="dark"]:has(.dash-content) [style*="background: rgb(255, 255, 255)"],
+html[data-theme="dark"]:has(.dash-content) .seg-tabs { background-color: rgb(176, 226, 190) !important; }

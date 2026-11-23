@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
 import Icon from '@/components/Icons'
 import { cap } from '@/lib/homeUtils'
-import { useTheme } from '@/lib/theme'
 
 const TITLES = {
   '/dashboard': 'Inicio',
@@ -24,7 +23,6 @@ const TITLES = {
 export default function Topbar() {
   const pathname = usePathname()
   const { profile, activeTeam } = useAuth()
-  const { dark, toggle } = useTheme()
   const isDirector = profile?.role === 'director'
   const key = Object.keys(TITLES).filter(k => pathname === k || pathname.startsWith(k + '/')).sort((a, b) => b.length - a.length)[0]
   const title = TITLES[key] || 'Panel'
@@ -41,9 +39,6 @@ export default function Topbar() {
       <button onClick={() => window.dispatchEvent(new Event('urdaneta-open-search'))} title="Buscar (Ctrl+K)" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 12px', borderRadius: 999, background: '#fff', border: '1px solid #e4e8ef', color: '#94a3b8', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
         <Icon name="search" size={14} /> Buscar
         <span style={{ fontSize: 10.5, fontWeight: 700, border: '1px solid #e2e8f0', borderRadius: 6, padding: '1px 6px', color: '#94a3b8' }}>Ctrl K</span>
-      </button>
-      <button onClick={toggle} title={dark ? 'Modo claro' : 'Modo oscuro'} aria-label="Cambiar tema" style={{ width: 34, height: 34, borderRadius: 11, background: '#fff', border: '1px solid #e4e8ef', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-        <Icon name={dark ? 'sun' : 'moon'} size={16} />
       </button>
       <div style={{ color: '#94a3b8', fontSize: 12.5, fontWeight: 600 }}>{today}</div>
       {!isDirector && activeTeam && (

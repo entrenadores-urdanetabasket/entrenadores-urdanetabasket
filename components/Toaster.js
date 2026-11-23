@@ -22,7 +22,7 @@ export default function Toaster() {
     <div className="toast-wrap" role="status" aria-live="polite">
       {items.map(t => (
         <div key={t.id} className={`toast${t.type === 'error' ? ' error' : ''}${t.out ? ' out' : ''}`}>
-          <span style={{ fontSize: 16 }}>{t.type === 'error' ? '⚠️' : '✓'}</span>
+          {t.type === 'error' ? <span style={{ fontSize: 16 }}>⚠️</span> : <span className="toast-ball" />}
           <span>{t.message}</span>
         </div>
       ))}

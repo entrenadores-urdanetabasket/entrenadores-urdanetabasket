@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Icon from '@/components/Icons'
 import CoachHome from '@/components/home/CoachHome'
 import DirectorHome from '@/components/home/DirectorHome'
+import ResultsTicker from '@/components/home/ResultsTicker'
 
 const coachModules = [
   { label: 'Mi Equipo',      desc: 'Jugadores y plantilla',  href: '/dashboard/equipo',         icon: 'users',     color: '#3b82f6' },
@@ -35,6 +36,9 @@ export default function DashboardPage() {
 
   return (
     <div className="fade-in">
+      {/* Cinta de resultados */}
+      <ResultsTicker />
+
       {/* Saludo */}
       <div style={{ marginBottom: 22 }}>
         <h1 className="display" style={{ color: '#0f172a', fontSize: 38, fontWeight: 800, margin: 0, lineHeight: 1 }}>

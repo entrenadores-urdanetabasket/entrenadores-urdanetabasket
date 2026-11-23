@@ -531,7 +531,7 @@ export default function EstadisticasPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
                       {game.status !== 'pending' && (
                         <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 32, fontWeight: 900, color: '#0a1f0e', letterSpacing: -1.5 }}>
+                          <div className="num" style={{ fontFamily: 'var(--font-scoreboard)', fontSize: 42, fontWeight: 700, color: '#0a1f0e', letterSpacing: 0.5, lineHeight: 1 }}>
                             {game.our_score ?? 0} – {game.rival_score ?? 0}
                           </div>
                           {isLive && (

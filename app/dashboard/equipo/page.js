@@ -212,10 +212,7 @@ export default function EquipoPage() {
           </div>
         )}
         {players.map(player => (
-          <div key={player.id} className="panel" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12, transition: 'all 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 10px 28px rgba(15,23,42,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; e.currentTarget.style.transform = 'translateY(0)' }}
-          >
+          <div key={player.id} className="panel tilt" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Link href={`/dashboard/equipo/jugador/${player.id}`} style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0, textDecoration: 'none' }}>
               <div className="num" style={{
                 width: 50, height: 50, borderRadius: 14, flexShrink: 0,

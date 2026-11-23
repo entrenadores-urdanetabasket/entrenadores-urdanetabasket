@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import CommandPalette from '@/components/CommandPalette'
 import Toaster from '@/components/Toaster'
+import FX from '@/components/FX'
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useAuth()
@@ -43,6 +44,7 @@ export default function DashboardLayout({ children }) {
       </main>
       <CommandPalette />
       <Toaster />
+      <FX />
       <style>{`
         @media (min-width: 1024px) { main { margin-left: 256px; } }
         .dash-content { padding-top: calc(74px + env(safe-area-inset-top)) !important; }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700" fill="none" stroke="#1C5C2A" stroke-opacity="0.09" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1C5C2A" fill-opacity="0.12" stroke="none"/></marker></defs>
+  <path d="M120 560C220 520 260 420 340 380" stroke-dasharray="3 12" marker-end="url(#a)"/>
+  <path d="M340 380C420 340 520 360 600 300" marker-end="url(#a)"/>
+  <path d="M600 300L640 220M560 180C620 140 700 150 760 210" stroke-dasharray="3 12" marker-end="url(#a)"/>
+  <path d="M220 200C300 160 380 200 430 250" marker-end="url(#a)"/>
+  <circle cx="120" cy="560" r="22"/><circle cx="340" cy="380" r="22"/><circle cx="600" cy="300" r="22"/><circle cx="220" cy="200" r="22"/><circle cx="560" cy="180" r="22"/>
+  <path d="M700 520l32 32M732 520l-32 32M470 560l32 32M502 560l-32 32M760 330l32 32M792 330l-32 32"/>
+  <path d="M60 120h120" stroke-dasharray="2 10"/>
+</svg>

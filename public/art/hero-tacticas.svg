@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="280" viewBox="0 0 560 280" fill="none">
+  <defs>
+    <radialGradient id="b" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#ffb066"/><stop offset="0.55" stop-color="#ff7a1a"/><stop offset="1" stop-color="#c2410c"/></radialGradient>
+    <marker id="ar" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#fff" fill-opacity="0.55"/></marker>
+  </defs>
+  <!-- Zona de pintura -->
+  <g stroke="#fff" stroke-opacity="0.14" stroke-width="2"><path d="M530 80H440V180H530"/><circle cx="440" cy="130" r="34"/></g>
+  <!-- Movimientos -->
+  <g stroke="#fff" stroke-opacity="0.5" stroke-width="2.6" stroke-linecap="round" fill="none" marker-end="url(#ar)" pathLength="1">
+    <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M330 70Q380 70 410 120"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.1;0.35;0.92;1" dur="7s" repeatCount="indefinite"/></path>
+    <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M300 205Q360 205 400 170" stroke-dasharray="1"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.2;0.45;0.92;1" dur="7s" repeatCount="indefinite"/></path>
+  </g>
+  <path d="M230 150L300 110L395 135L500 130" stroke="#ff9a3c" stroke-opacity="0.6" stroke-width="2.4" stroke-dasharray="3 9" stroke-linecap="round" fill="none"/>
+  <!-- Jugadores -->
+  <g fill="#0d2414" stroke="#fff" stroke-opacity="0.65" stroke-width="2.4">
+    <circle cx="230" cy="150" r="15"><animate attributeName="r" values="15;17;15" dur="3s" repeatCount="indefinite"/></circle>
+    <circle cx="330" cy="70" r="15"/><circle cx="300" cy="205" r="15"/><circle cx="395" cy="135" r="15"/><circle cx="500" cy="190" r="15"/>
+  </g>
+  <g stroke="#fff" stroke-opacity="0.35" stroke-width="2.4" stroke-linecap="round"><path d="M486 96l22 22M508 96l-22 22"/><path d="M300 108l18 18M318 108l-18 18" stroke="#ff7a1a" stroke-opacity="0.7"/></g>
+  <!-- Balón pasando -->
+  <g>
+    <animateMotion dur="7s" repeatCount="indefinite" calcMode="linear" keyPoints="0;1;1" keyTimes="0;0.75;1" path="M230 150L330 70L395 135L500 190"/>
+    <circle r="9" fill="url(#b)"/><circle r="9" stroke="#7a2e08" stroke-opacity="0.7" stroke-width="1"/>
+  </g>
+</svg>

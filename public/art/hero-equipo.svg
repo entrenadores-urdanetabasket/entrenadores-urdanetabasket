@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="280" viewBox="0 0 560 280" fill="none">
+  <path d="M250 150C300 90 340 200 390 140S470 110 520 150" stroke="#fff" stroke-opacity="0.15" stroke-width="2.4" stroke-dasharray="3 9" stroke-linecap="round"/>
+  <!-- Cinco jugadores que van apareciendo -->
+  <g font-family="Arial Narrow, Arial, sans-serif" font-weight="700" font-size="22" text-anchor="middle" fill="#fff">
+    <g transform="translate(262 150)"><g><animateTransform attributeName="transform" type="scale" values="0;0;1.18;1;1;0" keyTimes="0;0.04;0.14;0.2;0.9;1" dur="7s" repeatCount="indefinite"/>
+      <circle r="27" fill="#14401f" stroke="#7bd96a" stroke-opacity="0.8" stroke-width="3"/><text y="8" fill-opacity="0.95">4</text></g></g>
+    <g transform="translate(332 112)"><g><animateTransform attributeName="transform" type="scale" values="0;0;1.18;1;1;0" keyTimes="0;0.12;0.22;0.28;0.9;1" dur="7s" repeatCount="indefinite"/>
+      <circle r="27" fill="#14401f" stroke="#7bd96a" stroke-opacity="0.8" stroke-width="3"/><text y="8" fill-opacity="0.95">7</text></g></g>
+    <g transform="translate(402 168)"><g><animateTransform attributeName="transform" type="scale" values="0;0;1.18;1;1;0" keyTimes="0;0.2;0.3;0.36;0.9;1" dur="7s" repeatCount="indefinite"/>
+      <circle r="27" fill="#14401f" stroke="#7bd96a" stroke-opacity="0.8" stroke-width="3"/><text y="8" fill-opacity="0.95">10</text></g></g>
+    <g transform="translate(466 108)"><g><animateTransform attributeName="transform" type="scale" values="0;0;1.18;1;1;0" keyTimes="0;0.28;0.38;0.44;0.9;1" dur="7s" repeatCount="indefinite"/>
+      <circle r="27" fill="#14401f" stroke="#ff9a3c" stroke-opacity="0.9" stroke-width="3"/><text y="8" fill-opacity="0.95">23</text></g></g>
+    <g transform="translate(520 180)"><g><animateTransform attributeName="transform" type="scale" values="0;0;1.18;1;1;0" keyTimes="0;0.36;0.46;0.52;0.9;1" dur="7s" repeatCount="indefinite"/>
+      <circle r="27" fill="#14401f" stroke="#7bd96a" stroke-opacity="0.8" stroke-width="3"/><text y="8" fill-opacity="0.95">15</text></g></g>
+  </g>
+</svg>

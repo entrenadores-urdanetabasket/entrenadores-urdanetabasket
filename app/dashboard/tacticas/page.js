@@ -296,32 +296,27 @@ function TacticasInner() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div className="hero page-hero" style={{ background: 'var(--banner-bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 900, color: '#111827', margin: 0 }}>Tácticas</h2>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', margin: '0 0 6px' }}>
+            {tab === 'compartidas' ? 'Compartidas en el club' : (selectedTeam?.name || 'Pizarra táctica')}
+          </p>
+          <h1 style={{ color: '#fff', margin: '0 0 4px' }}>Tácticas</h1>
+          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, margin: 0, fontWeight: 500 }}>
             {tab === 'compartidas' ? 'Jugadas compartidas por todos los entrenadores' : 'Diseña jugadas y sistemas de juego'}
           </p>
         </div>
         {tab === 'mias' && (
-          <button
-            onClick={() => pushParams({ new: '1' })}
-            disabled={!selectedTeam}
-            style={{ background: 'linear-gradient(135deg,#1C5C2A,#52B043)', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
+          <button onClick={() => pushParams({ new: '1' })} disabled={!selectedTeam} className="btn-primary" style={{ flexShrink: 0 }}>
             + Nueva jugada
           </button>
         )}
       </div>
 
       {/* Pestañas */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setTab('mias')} style={tabStyle('mias')}>🏀 Mis tácticas</button>
-        <button onClick={() => { setTab('compartidas'); loadSharedTactics() }} style={{
-          ...tabStyle('compartidas'),
-          background: tab === 'compartidas' ? 'linear-gradient(135deg,#7c3aed,#5b21b6)' : '#f3f4f6',
-          color: tab === 'compartidas' ? '#fff' : '#374151',
-        }}>📤 Compartidas</button>
+      <div className="seg-tabs" style={{ marginBottom: 20 }}>
+        <button onClick={() => setTab('mias')} className={`seg-tab${tab === 'mias' ? ' active' : ''}`}>Mis tácticas</button>
+        <button onClick={() => { setTab('compartidas'); loadSharedTactics() }} className={`seg-tab${tab === 'compartidas' ? ' active' : ''}`}>Compartidas</button>
       </div>
 
       {/* Team selector — solo en "Mis tácticas" */}

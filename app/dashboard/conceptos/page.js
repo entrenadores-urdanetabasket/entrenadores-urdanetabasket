@@ -189,7 +189,7 @@ function ConceptosInner() {
 
   return (
     <div className="fade-in">
-      <div style={{
+      <div className="hero page-hero" style={{
         background: `linear-gradient(135deg, ${cat.dark} 0%, ${cat.color} 100%)`,
         borderRadius: 20, padding: '24px 28px', marginBottom: 24,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

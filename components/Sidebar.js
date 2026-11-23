@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/AuthProvider'
@@ -48,6 +48,11 @@ export default function Sidebar() {
   const pathname = usePathname()
   const { profile, supabase, myTeams, activeTeam, setActiveTeam } = useAuth()
   const { dark, toggle: toggleTheme } = useTheme()
+  useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener('urdaneta-open-menu', onOpen)
+    return () => window.removeEventListener('urdaneta-open-menu', onOpen)
+  }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()

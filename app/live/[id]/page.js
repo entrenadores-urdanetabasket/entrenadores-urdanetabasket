@@ -1,5 +1,6 @@
 'use client'
 
+import { fireConfetti } from '@/lib/confetti'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useParams, useRouter } from 'next/navigation'
@@ -1415,6 +1416,7 @@ export default function LivePage() {
     await supabase.from('games').update({ status:'finished', our_score:sc.us, rival_score:sc.rival }).eq('id', id)
     setGame(prev => prev ? { ...prev, status:'finished' } : prev)
     setRunning(false)
+    if (sc.us > sc.rival) fireConfetti()
   }
 
   function armAction(key) {

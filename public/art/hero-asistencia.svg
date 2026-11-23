@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="280" viewBox="0 0 560 280" fill="none">
+  <!-- Anillo de asistencia -->
+  <g transform="translate(250 140)">
+    <circle r="54" stroke="#fff" stroke-opacity="0.12" stroke-width="10"/>
+    <circle r="54" stroke="#7bd96a" stroke-width="10" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90)">
+      <animate attributeName="stroke-dashoffset" values="100;100;22;22;100" keyTimes="0;0.05;0.45;0.92;1" dur="8s" repeatCount="indefinite" calcMode="spline" keySplines="0 0 1 1;0.2 0.8 0.2 1;0 0 1 1;0.4 0 1 1"/>
+    </circle>
+    <circle r="68" stroke="#fff" stroke-opacity="0.08" stroke-width="2" stroke-dasharray="4 8"/>
+  </g>
+  <!-- Lista con checks -->
+  <g stroke="#fff" stroke-opacity="0.18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="340" y="40" width="190" height="200" rx="16"/>
+    <rect x="378" y="30" width="72" height="20" rx="8" fill="#0d2414"/>
+  </g>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#fff" stroke-opacity="0.2" stroke-width="2.4">
+      <rect x="360" y="68" width="22" height="22" rx="7"/><path d="M394 79h100"/>
+      <rect x="360" y="108" width="22" height="22" rx="7"/><path d="M394 119h80"/>
+      <rect x="360" y="148" width="22" height="22" rx="7"/><path d="M394 159h104"/>
+      <rect x="360" y="188" width="22" height="22" rx="7"/><path d="M394 199h70"/>
+    </g>
+    <g stroke="#7bd96a" stroke-width="4">
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M365 79l6 6 10-12"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.10;0.18;0.92;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M365 119l6 6 10-12"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.22;0.30;0.92;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M365 159l6 6 10-12"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.34;0.42;0.92;1" dur="8s" repeatCount="indefinite"/></path>
+    </g>
+    <g stroke="#ff7a1a" stroke-width="4">
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M366 194l10 10M376 194l-10 10"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.46;0.54;0.92;1" dur="8s" repeatCount="indefinite"/></path>
+    </g>
+  </g>
+</svg>

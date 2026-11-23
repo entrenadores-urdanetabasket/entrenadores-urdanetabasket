@@ -497,17 +497,17 @@ export default function EstadisticasPage() {
             const initials = (game.rival_name || '?').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
             return (
               <Link key={game.id} href={`/live/${game.id}`} style={{ textDecoration: 'none' }}>
-                <div style={{
-                  backgroundColor: '#fff', borderRadius: 18, border: `1px solid ${isLive ? '#fca5a5' : '#e4e8ef'}`, borderLeft: `5px solid ${accent}`,
-                  padding: '14px 18px', boxShadow: isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)',
+                <div className="keep-color" style={{
+                  background: 'linear-gradient(135deg, #07170b 0%, #0f3a1c 60%, #14401f 100%)', color: '#fff', borderRadius: 18, border: `1px solid ${isLive ? '#ef4444' : 'rgba(255,255,255,0.08)'}`, borderLeft: `6px solid ${accent === '#e2e8f0' ? '#475569' : accent}`, overflow: 'hidden',
+                  padding: '14px 18px', boxShadow: isLive ? '0 6px 22px rgba(239,68,68,0.28)' : '0 8px 22px rgba(7,23,11,0.22)',
                   transition: 'all 0.2s', position: 'relative',
                 }}
-                  onMouseEnter={e => { e.currentTarget.style.boxShadow = isLive ? '0 6px 22px rgba(239,68,68,0.24)' : '0 8px 24px rgba(0,0,0,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-                  onMouseLeave={e => { e.currentTarget.style.boxShadow = isLive ? '0 4px 16px rgba(239,68,68,0.18)' : '0 1px 4px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03)'; e.currentTarget.style.transform = 'translateY(0)' }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = isLive ? '0 10px 30px rgba(239,68,68,0.34)' : '0 14px 32px rgba(7,23,11,0.34)'; e.currentTarget.style.transform = 'translateY(-3px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = isLive ? '0 6px 22px rgba(239,68,68,0.28)' : '0 8px 22px rgba(7,23,11,0.22)'; e.currentTarget.style.transform = 'translateY(0)' }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: 46, height: 46, borderRadius: 14, marginRight: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: accent === '#e2e8f0' ? '#64748b' : accent, background: `${accent}14`, border: `1px solid ${accent}30` }}>{initials}</div>
+                    <div style={{ width: 46, height: 46, borderRadius: 14, marginRight: 14, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#fff', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.16)', fontFamily: 'var(--font-scoreboard)', fontSize: 20, letterSpacing: 0.5 }}>{initials}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
                         <span style={{
@@ -515,15 +515,15 @@ export default function EstadisticasPage() {
                           backgroundColor: st.bg, color: st.color
                         }}>{st.label}</span>
                         {game.game_type && (
-                          <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 700 }}>
                             {TYPE_LABEL[game.game_type] || game.game_type}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 3, letterSpacing: -0.2 }}>
+                      <div style={{ fontFamily: 'var(--font-scoreboard)', textTransform: 'uppercase', fontSize: 21, fontWeight: 700, color: '#fff', marginBottom: 3, letterSpacing: 0.6 }}>
                         vs {game.rival_name}
                       </div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, textTransform: 'capitalize' }}>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 500, textTransform: 'capitalize' }}>
                         {dateStr}{game.location ? ` · ${game.location}` : ''}
                       </div>
                     </div>
@@ -531,8 +531,8 @@ export default function EstadisticasPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, marginLeft: 12 }}>
                       {game.status !== 'pending' && (
                         <div style={{ textAlign: 'center' }}>
-                          <div className="num" style={{ fontFamily: 'var(--font-scoreboard)', fontSize: 42, fontWeight: 700, color: '#0a1f0e', letterSpacing: 0.5, lineHeight: 1 }}>
-                            {game.our_score ?? 0} – {game.rival_score ?? 0}
+                          <div className="num" style={{ fontFamily: 'var(--font-scoreboard)', fontSize: 46, fontWeight: 700, color: '#fff', letterSpacing: 1, lineHeight: 1 }}>
+                            <span style={{ color: res === 'W' ? '#7bd96a' : res === 'L' ? '#ff9a9a' : '#fff' }}>{game.our_score ?? 0}</span><span style={{ opacity: 0.45, margin: '0 6px' }}>–</span><span style={{ opacity: 0.8 }}>{game.rival_score ?? 0}</span>
                           </div>
                           {isLive && (
                             <div style={{ fontSize: 10, fontWeight: 800, color: '#ef4444', textAlign: 'center', letterSpacing: 0.5 }}>EN VIVO</div>

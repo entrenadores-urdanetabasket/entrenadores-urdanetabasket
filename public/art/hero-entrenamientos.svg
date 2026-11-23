@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="280" viewBox="0 0 560 280" fill="none">
+  <defs>
+    <radialGradient id="b" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#ffb066"/><stop offset="0.55" stop-color="#ff7a1a"/><stop offset="1" stop-color="#c2410c"/></radialGradient>
+  </defs>
+  <!-- Cronómetro -->
+  <g transform="translate(490 62)">
+    <circle r="30" stroke="#fff" stroke-opacity="0.18" stroke-width="3"/>
+    <path d="M-8 -38h16" stroke="#fff" stroke-opacity="0.25" stroke-width="4" stroke-linecap="round"/>
+    <path d="M0 0V-20" stroke="#ffb066" stroke-width="3" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="6s" repeatCount="indefinite"/></path>
+    <circle r="3.5" fill="#ffb066"/>
+  </g>
+  <!-- Recorrido en zig-zag con conos -->
+  <path d="M250 232L320 130L390 220L460 120L530 210" stroke="#fff" stroke-opacity="0.2" stroke-width="2.4" stroke-dasharray="3 9" stroke-linecap="round" pathLength="1000">
+    <animate attributeName="stroke-dashoffset" from="0" to="-48" dur="2s" repeatCount="indefinite"/>
+  </path>
+  <g fill="#ff7a1a">
+    <path d="M320 112l11 22h-22z"/><path d="M460 102l11 22h-22z"/><path d="M390 202l11 22h-22z" fill-opacity="0.8"/><path d="M250 214l11 22h-22z" fill-opacity="0.8"/><path d="M530 192l11 22h-22z" fill-opacity="0.8"/>
+  </g>
+  <g stroke="#fff" stroke-opacity="0.35" stroke-width="2"><path d="M312 134h16M452 124h16M382 224h16M242 236h16M522 214h16"/></g>
+  <!-- Balón que regatea -->
+  <g>
+    <animateMotion dur="5s" repeatCount="indefinite" path="M250 232L320 130L390 220L460 120L530 210" calcMode="linear"/>
+    <g><animateTransform attributeName="transform" type="translate" values="0 0;0 -12;0 0;0 -12;0 0" dur="0.5s" repeatCount="indefinite"/>
+      <circle r="10" fill="url(#b)"/>
+      <g stroke="#7a2e08" stroke-opacity="0.7" stroke-width="1"><circle r="10"/><path d="M-10 0H10M0 -10V10"/></g>
+    </g>
+  </g>
+</svg>

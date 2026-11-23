@@ -7,9 +7,12 @@ import Topbar from '@/components/Topbar'
 import CommandPalette from '@/components/CommandPalette'
 import Toaster from '@/components/Toaster'
 import FX from '@/components/FX'
+import BottomNav from '@/components/BottomNav'
+import { usePathname } from 'next/navigation'
 
 export default function DashboardLayout({ children }) {
   const { user, loading } = useAuth()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!loading && !user) window.location.href = '/login'
@@ -39,12 +42,13 @@ export default function DashboardLayout({ children }) {
         <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}
           className="fade-in-safe dash-content">
           <Topbar />
-          {children}
+          <div key={pathname} className="page-enter">{children}</div>
         </div>
       </main>
       <CommandPalette />
       <Toaster />
       <FX />
+      <BottomNav />
       <style>{`
         @media (min-width: 1024px) { main { margin-left: 256px; } }
         .dash-content { padding-top: calc(74px + env(safe-area-inset-top)) !important; }

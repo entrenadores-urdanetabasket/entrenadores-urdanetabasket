@@ -1,6 +1,7 @@
 'use client'
 
 import { toast, toastError } from '@/lib/toast'
+import { fireConfetti } from '@/lib/confetti'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import Link from 'next/link'
@@ -318,7 +319,8 @@ export default function AsistenciaPage() {
     if (error) { toastError('Error: ' + error.message); return }
     setMarkedDays(prev => ({ ...prev, [date]: sessionType }))
     setSaved(true)
-    toast('Asistencia guardada')
+    const everyonePresent = rows.length >= 5 && rows.every(r => r.status === 'present')
+    if (everyonePresent) { toast('¡Asistencia perfecta! Todos presentes'); fireConfetti() } else toast('Asistencia guardada')
     setTimeout(() => setSaved(false), 2500)
   }
 

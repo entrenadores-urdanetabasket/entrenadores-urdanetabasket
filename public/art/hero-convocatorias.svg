@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="280" viewBox="0 0 560 280" fill="none">
+  <!-- Tablilla -->
+  <g stroke="#fff" stroke-opacity="0.2" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="340" y="26" width="180" height="232" rx="18"/>
+    <rect x="394" y="14" width="72" height="26" rx="9" fill="#0d2414"/>
+  </g>
+  <g stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+    <g stroke="#fff" stroke-opacity="0.22" stroke-width="2.4"><path d="M388 80h100M388 118h84M388 156h96M388 194h70M388 232h90"/></g>
+    <g stroke="#7bd96a" stroke-width="4">
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M360 80l6 6 11-13"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.08;0.16;0.9;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M360 118l6 6 11-13"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.2;0.28;0.9;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M360 156l6 6 11-13"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.32;0.4;0.9;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M360 194l6 6 11-13"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.44;0.52;0.9;1" dur="8s" repeatCount="indefinite"/></path>
+      <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M360 232l6 6 11-13" stroke="#ff9a3c"><animate attributeName="stroke-dashoffset" values="1;1;0;0;1" keyTimes="0;0.56;0.64;0.9;1" dur="8s" repeatCount="indefinite"/></path>
+    </g>
+  </g>
+  <!-- Reloj de convocatoria -->
+  <g transform="translate(250 130)">
+    <circle r="46" stroke="#fff" stroke-opacity="0.16" stroke-width="3"/>
+    <circle r="46" stroke="#ff9a3c" stroke-width="3" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" transform="rotate(-90)"><animate attributeName="stroke-dashoffset" values="100;100;0;0;100" keyTimes="0;0.05;0.7;0.92;1" dur="8s" repeatCount="indefinite"/></circle>
+    <path d="M0 0V-26M0 0L18 10" stroke="#fff" stroke-opacity="0.55" stroke-width="3.4" stroke-linecap="round"/>
+  </g>
+</svg>

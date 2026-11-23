@@ -14,11 +14,14 @@ export default function FX() {
   const dust = useRef(null)
   const first = useRef(true)
 
-  // Barra de progreso en cada cambio de ruta
+  // Sección actual (colorea fondo y cabeceras) + barra de progreso en cada cambio de ruta
   useEffect(() => {
+    const sec = (pathname || '').split('/')[2] || 'inicio'
+    document.documentElement.setAttribute('data-section', sec)
     if (first.current) { first.current = false; return }
     setNavKey(k => k + 1)
   }, [pathname])
+  useEffect(() => () => document.documentElement.removeAttribute('data-section'), [])
 
   // Foco + inclinación
   useEffect(() => {
@@ -84,6 +87,7 @@ export default function FX() {
   return (
     <>
       <canvas ref={dust} className="fx-dust keep-color" aria-hidden="true" />
+      <div className="fx-beams keep-color" aria-hidden="true"><i /><i /><i /></div>
       {navKey > 0 && <div key={navKey} className="fx-progress keep-color" aria-hidden="true" />}
     </>
   )

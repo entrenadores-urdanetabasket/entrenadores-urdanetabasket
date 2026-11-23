@@ -1,6 +1,6 @@
 'use client'
 
-import { toastError } from '@/lib/toast'
+import { toastError, dbOk } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -150,7 +150,7 @@ export default function NuevaConvocatoriaPage() {
           convocatoria_id: conv.id,
           player_id: pid,
         }))
-        await supabase.from('convocatoria_players').insert(rows)
+        dbOk(await supabase.from('convocatoria_players').insert(rows), 'La convocatoria se creó pero no se pudieron guardar los jugadores')
       }
 
       router.push(`/dashboard/convocatorias/${conv.id}`)

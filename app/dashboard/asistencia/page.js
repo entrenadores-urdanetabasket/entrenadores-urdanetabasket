@@ -328,7 +328,8 @@ export default function AsistenciaPage() {
     e.stopPropagation()
     if (!window.confirm(`¿Eliminar el registro de asistencia del ${new Date(dayDate+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}? Esta acción no se puede deshacer.`)) return
     setDeletingDay(dayDate)
-    await supabase.from('attendance').delete().eq('team_id', selectedTeam.id).eq('date', dayDate)
+    const delRes = await supabase.from('attendance').delete().eq('team_id', selectedTeam.id).eq('date', dayDate)
+    if (delRes.error) { toastError('No se pudo eliminar la asistencia: ' + delRes.error.message); setDeletingDay(null); return }
     setHistory(prev => prev.filter(h => h.date !== dayDate))
     setMarkedDays(prev => { const next = { ...prev }; delete next[dayDate]; return next })
     setDeletingDay(null)

@@ -1,7 +1,7 @@
 'use client'
 
 import ComplianceAdmin from '@/components/compliance/ComplianceAdmin'
-import { toastError } from '@/lib/toast'
+import { toastError, dbOk } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import { useRouter } from 'next/navigation'
@@ -156,9 +156,10 @@ export default function DirectorPage() {
     if (!suspendingDay) return
     setSavingSuspend(true)
     try {
-      await supabase.from('team_schedule_exceptions').insert({
+      const res = await supabase.from('team_schedule_exceptions').insert({
         team_id: suspendingDay.teamId, date: suspendingDay.date, reason: suspendReason.trim() || null, created_by: profile.id,
       })
+      if (!dbOk(res, 'No se pudo suspender el día')) return
       setSuspendingDay(null); setSuspendReason('')
       loadSeguimiento()
     } finally {
@@ -167,7 +168,7 @@ export default function DirectorPage() {
   }
 
   async function handleRemoveSuspension(id) {
-    await supabase.from('team_schedule_exceptions').delete().eq('id', id)
+    if (!dbOk(await supabase.from('team_schedule_exceptions').delete().eq('id', id), 'No se pudo quitar la suspensión')) return
     loadSeguimiento()
   }
 
@@ -425,25 +426,24 @@ export default function DirectorPage() {
   async function handleSave(e) {
     e.preventDefault(); setSaving(true)
     try {
-      if (editing) {
-        await supabase.from('teams').update({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays }).eq('id', editing)
-      } else {
-        await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays })
-      }
+      const teamRes = editing
+        ? await supabase.from('teams').update({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays }).eq('id', editing)
+        : await supabase.from('teams').insert({ name: form.name, category: form.category, season: form.season, gender: form.gender, training_weekdays: form.training_weekdays })
+      dbOk(teamRes, 'No se pudo guardar el equipo')
     } finally { setSaving(false); setShowForm(false); loadTeams(); loadOverview() }
   }
 
   async function handleAddCoach() {
     if (!addingCoach || !editing) return
     if (teamCoaches.find(tc => tc.coach_id === addingCoach)) return
-    await supabase.from('team_coaches').insert({ team_id: editing, coach_id: addingCoach })
+    if (!dbOk(await supabase.from('team_coaches').insert({ team_id: editing, coach_id: addingCoach }), 'No se pudo asignar el entrenador')) return
     const coach = coaches.find(c => c.id === addingCoach)
     setTeamCoaches(prev => [...prev, { team_id: editing, coach_id: addingCoach, profiles: { full_name: coach?.full_name } }])
     setAddingCoach(''); loadTeams()
   }
 
   async function handleRemoveCoach(coachId) {
-    await supabase.from('team_coaches').delete().eq('team_id', editing).eq('coach_id', coachId)
+    if (!dbOk(await supabase.from('team_coaches').delete().eq('team_id', editing).eq('coach_id', coachId), 'No se pudo quitar al entrenador')) return
     setTeamCoaches(prev => prev.filter(tc => tc.coach_id !== coachId))
     loadTeams()
   }

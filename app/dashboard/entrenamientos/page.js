@@ -1,6 +1,6 @@
 'use client'
 
-import { toast, toastError } from '@/lib/toast'
+import { toast, toastError, dbOk } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -532,15 +532,17 @@ function EntrenamientosInner() {
     setSaving(true)
     const payload = { ...form, team_id: selectedTeam.id, created_by: user.id }
     if (editingSession) {
-      await supabase.from('training_sessions').update(payload).eq('id', editingSession)
+      const res = await supabase.from('training_sessions').update(payload).eq('id', editingSession)
+      if (!dbOk(res, 'No se pudo guardar el entrenamiento')) { setSaving(false); return }
     } else {
-      const { data: newSession } = await supabase.from('training_sessions').insert(payload).select().single()
-      if (useTemplateId && newSession) {
+      const { data: newSession, error: sessErr } = await supabase.from('training_sessions').insert(payload).select().single()
+      if (sessErr || !newSession) { dbOk({ error: sessErr || { message: 'sin respuesta' } }, 'No se pudo crear el entrenamiento'); setSaving(false); return }
+      if (useTemplateId) {
         const { data: tExs } = await supabase.from('session_template_exercises').select('*').eq('template_id', useTemplateId).order('order_index')
         if (tExs?.length > 0) {
-          await supabase.from('training_exercises').insert(tExs.map(te => ({
+          dbOk(await supabase.from('training_exercises').insert(tExs.map(te => ({
             ...pickExFields(te), session_id: newSession.id, play_data: te.play_data, order_index: te.order_index,
-          })))
+          }))), 'El entrenamiento se creó pero no se pudieron copiar los ejercicios de la plantilla')
         }
       }
     }
@@ -553,19 +555,19 @@ function EntrenamientosInner() {
 
   async function handleDeleteSession(id) {
     if (!confirm('¿Eliminar este entrenamiento?')) return
-    await supabase.from('training_sessions').delete().eq('id', id)
+    if (!dbOk(await supabase.from('training_sessions').delete().eq('id', id), 'No se pudo eliminar el entrenamiento')) return
     if (detailSession?.id === id) clearParams()
     await loadSessions(selectedTeam)
   }
 
   async function handleToggleCompleted(session) {
-    await supabase.from('training_sessions').update({ completed: !session.completed }).eq('id', session.id)
+    if (!dbOk(await supabase.from('training_sessions').update({ completed: !session.completed }).eq('id', session.id), 'No se pudo actualizar el entrenamiento')) return
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, completed: !s.completed } : s))
     if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, completed: !s.completed }))
   }
 
   async function markSessionCompleted(session) {
-    await supabase.from('training_sessions').update({ completed: true }).eq('id', session.id)
+    if (!dbOk(await supabase.from('training_sessions').update({ completed: true }).eq('id', session.id), 'No se pudo marcar como completado')) return
     setSessions(prev => prev.map(s => s.id === session.id ? { ...s, completed: true } : s))
     if (detailSession?.id === session.id) setDetailSession(s => ({ ...s, completed: true }))
   }
@@ -709,7 +711,7 @@ function EntrenamientosInner() {
   }
 
   async function handleDeleteExercise(id) {
-    await supabase.from('training_exercises').delete().eq('id', id)
+    if (!dbOk(await supabase.from('training_exercises').delete().eq('id', id), 'No se pudo eliminar el ejercicio')) return
     await loadExercises(detailSession.id)
   }
 
@@ -738,9 +740,10 @@ function EntrenamientosInner() {
   }
 
   async function addExerciseFromLibrary(item) {
-    await supabase.from('training_exercises').insert({
-      ...pickExFields(item), session_id: detailSession.id, play_data: item.play_data, order_index: exercises.length,
+    const res = await supabase.from('training_exercises').insert({
+      ...pickExFields(item), session_id: detailSession.id, play_data: item.play_data ?? null, order_index: exercises.length,
     })
+    if (!dbOk(res, 'No se pudo añadir el ejercicio')) return
     setShowLibPicker(false)
     await loadExercises(detailSession.id)
   }
@@ -832,10 +835,11 @@ function EntrenamientosInner() {
       created_by: user.id,
     }).select().single()
     if (!error && tmpl && exercises.length > 0) {
-      await supabase.from('session_template_exercises').insert(exercises.map(ex => ({
+      dbOk(await supabase.from('session_template_exercises').insert(exercises.map(ex => ({
         ...pickExFields(ex), template_id: tmpl.id, play_data: ex.play_data, order_index: ex.order_index,
-      })))
+      }))), 'La plantilla se creó pero no se pudieron copiar los ejercicios')
     }
+    if (error) dbOk({ error }, 'No se pudo guardar la plantilla')
     setSavingTemplate(false)
     setShowSaveTemplate(false)
     setTemplateTitle('')
@@ -878,8 +882,9 @@ function EntrenamientosInner() {
       const exPayload = exercises.map(ex => ({
         ...pickExFields(ex), session_id: newSession.id, order_index: ex.order_index, play_data: ex.play_data,
       }))
-      await supabase.from('training_exercises').insert(exPayload)
+      dbOk(await supabase.from('training_exercises').insert(exPayload), 'El entrenamiento se duplicó pero no se pudieron copiar los ejercicios')
     }
+    if (error) dbOk({ error }, 'No se pudo duplicar el entrenamiento')
 
     setDuplicating(false)
     setShowTeamPicker(false)

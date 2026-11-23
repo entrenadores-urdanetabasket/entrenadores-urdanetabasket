@@ -1,6 +1,6 @@
 'use client'
 
-import { toastError } from '@/lib/toast'
+import { toastError, dbOk } from '@/lib/toast'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import dynamic from 'next/dynamic'
@@ -181,7 +181,7 @@ function TacticasInner() {
 
   async function deleteTactic(id) {
     if (!confirm('¿Eliminar esta táctica?')) return
-    await supabase.from('tactics').delete().eq('id', id)
+    if (!dbOk(await supabase.from('tactics').delete().eq('id', id), 'No se pudo eliminar la táctica')) return
     setTactics(t => t.filter(x => x.id !== id))
   }
 
@@ -202,8 +202,9 @@ function TacticasInner() {
       created_by: user.id,
       shared: false,
     }
-    await supabase.from('tactics').insert(payload)
+    const dupOk = dbOk(await supabase.from('tactics').insert(payload), 'No se pudo copiar la táctica')
     setDuplicating(false)
+    if (!dupOk) return
     setShowTeamPicker(false)
     clearParams()
     setTab('mias')
@@ -215,7 +216,7 @@ function TacticasInner() {
     e?.stopPropagation()
     const newShared = !tactic.shared
     setSharingId(tactic.id)
-    await supabase.from('tactics').update({ shared: newShared }).eq('id', tactic.id)
+    if (!dbOk(await supabase.from('tactics').update({ shared: newShared }).eq('id', tactic.id), 'No se pudo cambiar si está compartida')) { setSharingId(null); return }
     setTactics(prev => prev.map(t => t.id === tactic.id ? { ...t, shared: newShared } : t))
     setSharingId(null)
     if (tab === 'compartidas') await loadSharedTactics()

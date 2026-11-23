@@ -1,6 +1,6 @@
 'use client'
 
-import { toastError } from '@/lib/toast'
+import { toastError, dbOk } from '@/lib/toast'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 import ModalPortal from '@/components/ModalPortal'
@@ -81,11 +81,12 @@ export default function IncidenciasPage() {
   }
 
   async function handleResolve(incident) {
-    await supabase.from('incidents').update({
+    const resolveRes = await supabase.from('incidents').update({
       resolved: true,
       resolved_note: resolveNote || null,
       resolved_at: new Date().toISOString().split('T')[0]
     }).eq('id', incident.id)
+    if (!dbOk(resolveRes, 'No se pudo resolver la incidencia')) return
     setShowResolve(null)
     setResolveNote('')
     await loadTeamData(selectedTeam)
@@ -93,7 +94,7 @@ export default function IncidenciasPage() {
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar esta incidencia?')) return
-    await supabase.from('incidents').delete().eq('id', id)
+    if (!dbOk(await supabase.from('incidents').delete().eq('id', id), 'No se pudo eliminar la incidencia')) return
     await loadTeamData(selectedTeam)
   }
 
